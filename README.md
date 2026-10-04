@@ -31,6 +31,8 @@ python final_legacy_omar.py
 | `port_mode.py` | Asalto al puerto enemigo (estilo Metal Slug) |
 | `tank_mode.py` | Combate urbano con tanques en primera persona (estilo Battlezone) |
 | `upgrade_mode.py` | Pantalla de mejoras entre oleadas (elegir 1 de 3) |
+| `heli_mode.py` | Helipuerto, Blackhawk (bidón de combustible) y misiones aire-tierra |
+| `gamepad.py` | Mando Xbox y pantalla completa |
 | `game.py` | Clase `Game` (une los modos) y `main()` |
 
 Cada modo es un *mixin*: una clase con los métodos de ese modo que `Game` hereda, de modo que todos comparten el mismo estado (`self`).
@@ -46,6 +48,16 @@ Cada modo suma contenido nuevo a medida que avanzan las oleadas:
 - **Puerto**: jefe tanque u helicóptero según la oleada; noche y tormenta.
 - **Hackeo**: virus que corrompen nodos, cortafuegos y segunda fuente.
 - **Entre oleadas**: elegís 1 de 3 mejoras (casco, recarga, misiles guiados, nano-reparación…).
+
+## Helicóptero Blackhawk
+
+Una isla del mapa (marcada con una H, también en el radar) tiene un helipuerto con un Blackhawk.
+
+- **C**: llamarlo para que arroje un bidón de combustible (+60%) junto a tu barco. Solo con menos del 60% de combustible; espera de 80 s.
+- Cada **3000 puntos** (y cada vez más) ganás una misión de combate. Acercate al helipuerto y presioná **B** para despegar.
+- Misión aire-tierra (vista cenital): destruí una batería costera (antiaéreas, búnkeres, misiles tierra-aire, depósito de combustible) o un buque enemigo. WASD volar, mouse apuntar, clic ametralladora, ESPACIO o clic derecho cohetes. Esquivá los misiles.
+- Si cumplís: bonus, munición y combustible, y el objetivo desaparece del mapa. Si te derriban, perdés esa misión.
+- Mando: LT llama al helicóptero, B despega (en el mapa).
 
 ## Pantalla completa y mando
 
