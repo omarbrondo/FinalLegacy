@@ -25,6 +25,8 @@ HZ = 590                      # horizonte en la escena de defensa
 SKY_W = 640                   # ancho del skyline
 WIN_WAVE = 6                  # oleadas para ganar
 VMAX = 170.0                  # velocidad máx. del buque en el mapa (px/s)
+BOSS_WAVE = 3                 # cada cuántas oleadas aparece jefe final
+ANTENNA_ISLANDS = [4, 5, 6]   # índices de islas con antenas (de EXTRA_ISLANDS)
 
 # (nombre, x, y, radio, semilla)
 CITY_DEFS = [
@@ -822,7 +824,17 @@ class Game:
                     break
             mh = 10 + 2 * (self.wave - 1)
             self.enemies.append(dict(x=x, y=y, h=random.uniform(0, 360), v=0.0, hp=mh, max=mh, state='patrol',
-                                     wp=self.rand_wp(), cool=0.0))
+                                     wp=self.rand_wp(), cool=0.0, is_boss=False))
+        if self.wave % BOSS_WAVE == 0:
+            x = y = 0
+            for _ in range(60):
+                x, y = random.uniform(150, WORLD_W - 150), random.uniform(150, WORLD_H - 150)
+                if dist(x, y, self.sx, self.sy) > 900 and not self.on_land(x, y, 120):
+                    break
+            boss_hp = 35 + 15 * ((self.wave // BOSS_WAVE) - 1)
+            self.enemies.append(dict(x=x, y=y, h=random.uniform(0, 360), v=0.0, hp=boss_hp, max=boss_hp,
+                                     state='patrol', wp=self.rand_wp(), cool=0.0, is_boss=True,
+                                     burst=[], orb=1, orb_t=3.0))
 
     def go(self, state):
         self.state = state
@@ -1085,39 +1097,45 @@ class Game:
     def ai_map(self, en, dt):
         en['cool'] = max(0.0, en['cool'] - dt)
         d = dist(self.sx, self.sy, en['x'], en['y'])
-        if en['state'] == 'patrol' and d < 430 and en['cool'] <= 0:
+        is_boss = en.get('is_boss', False)
+        chase_dist = 520 if is_boss else 430
+
+        if en['state'] == 'patrol' and d < chase_dist and en['cool'] <= 0:
             en['state'] = 'chase'
             self.audio.play('ping')
-            self.toast('¡Contacto enemigo!', (255, 100, 90))
-        elif en['state'] == 'chase' and (d > 680 or en['cool'] > 0):
+            if is_boss:
+                self.toast('¡JEFE ENEMIGO DETECTADO!', (255, 50, 50))
+            else:
+                self.toast('¡Contacto enemigo!', (255, 100, 90))
+        elif en['state'] == 'chase' and (d > (1000 if is_boss else 680) or en['cool'] > 0):
             en['state'] = 'patrol'
         if en['state'] == 'chase':
             tx, ty = self.sx, self.sy
-            sp = 96 + 5 * self.wave
+            sp = (120 + 8 * self.wave) if is_boss else (96 + 5 * self.wave)
         else:
             tx, ty = en['wp']
-            sp = 52
+            sp = 60 if is_boss else 52
             if dist(en['x'], en['y'], tx, ty) < 50:
                 en['wp'] = self.rand_wp()
         vx, vy = tx - en['x'], ty - en['y']
         n = math.hypot(vx, vy) or 1
         vx, vy = vx / n, vy / n
-        for ix, iy, ir, sd in self.islands:                   # evitar islas
+        for ix, iy, ir, sd in self.islands:
             dd = dist(en['x'], en['y'], ix, iy) or 1.0
-            lim = coast_r(ir, sd, math.atan2(en['y'] - iy, en['x'] - ix), 1.1) + 110
+            lim = coast_r(ir, sd, math.atan2(en['y'] - iy, en['x'] - ix), 1.1) + (130 if is_boss else 110)
             if dd < lim:
-                k = (lim - dd) / 110
+                k = (lim - dd) / (130 if is_boss else 110)
                 vx += (en['x'] - ix) / dd * k * 2.4
                 vy += (en['y'] - iy) / dd * k * 2.4
         want = bearing(vx, vy)
-        en['h'] = (en['h'] + clamp(angle_diff(en['h'], want), -45 * dt, 45 * dt)) % 360
+        en['h'] = (en['h'] + clamp(angle_diff(en['h'], want), -30 * dt if is_boss else -45 * dt, 30 * dt if is_boss else 45 * dt)) % 360
         en['v'] += (sp - en['v']) * min(1, dt * 1.5)
         dx, dy = vec(en['h'], en['v'] * dt)
         en['x'] = clamp(en['x'] + dx, 40, WORLD_W - 40)
         en['y'] = clamp(en['y'] + dy, 40, WORLD_H - 40)
-        if random.random() < dt * 14:
-            bx, by = vec(en['h'], -24)
-            self.fxm.add('foam', en['x'] + bx, en['y'] + by, life=1.3, r0=3, r1=10, col=(230, 245, 255))
+        if random.random() < dt * (18 if is_boss else 14):
+            bx, by = vec(en['h'], -30 if is_boss else -24)
+            self.fxm.add('foam', en['x'] + bx, en['y'] + by, life=1.3, r0=4 if is_boss else 3, r1=14 if is_boss else 10, col=(230, 245, 255))
 
     # ---------------------------------------------------------- DEFENSA
     def start_defense(self, city):
@@ -1289,14 +1307,18 @@ class Game:
     def start_combat(self, en):
         self.fx = Particles()
         self.enemy_ref = en
+        is_boss = en.get('is_boss', False)
         self.c = dict(
             p=dict(x=W / 2, y=H - 170.0, h=0.0, v=0.0, cool=0.0, wake=0.0, sink=None),
-            e=dict(x=W / 2 + random.uniform(-150, 150), y=170.0, h=180.0, v=40.0, cool=2.0, orb=random.choice([-1, 1]),
-                   orb_t=5.0, burst=[], wake=0.0, sink=None, hp=en['hp'], max=en['max']),
-            shells=[], t=0.0)
+            e=dict(x=W / 2 + random.uniform(-150, 150), y=170.0, h=180.0, v=40.0, cool=1.5 if is_boss else 2.0,
+                   orb=random.choice([-1, 1]), orb_t=5.0, burst=[], wake=0.0, sink=None, hp=en['hp'], max=en['max']),
+            shells=[], t=0.0, is_boss=is_boss)
         self.aim = [W / 2, 300.0]
         self.go('combat')
-        self.banner('¡COMBATE NAVAL!', 'W/S/A/D: navegar  |  Mouse+Clic: disparar  |  E: huir', (255, 150, 90), 3.0)
+        if is_boss:
+            self.banner('¡JEFE FINAL!', 'Este es un combate peligroso. Derrótalo para avanzar', (255, 50, 50), 3.2)
+        else:
+            self.banner('¡COMBATE NAVAL!', 'W/S/A/D: navegar  |  Mouse+Clic: disparar  |  E: huir', (255, 150, 90), 3.0)
 
     def fire_shell(self):
         c = self.c
@@ -1312,7 +1334,8 @@ class Game:
         tx, ty = self.combat_aim()
         d = dist(p['x'], p['y'], tx, ty)
         T = clamp(d / 380, 0.7, 2.0)
-        c['shells'].append(dict(x0=p['x'], y0=p['y'], x1=tx, y1=ty, t=0.0, T=T, own='p'))
+        accurate = random.random() < 0.65
+        c['shells'].append(dict(x0=p['x'], y0=p['y'], x1=tx, y1=ty, t=0.0, T=T, own='p', accurate=accurate))
         self.audio.play('cannon', .8)
         self.fx.add('glow', p['x'], p['y'], life=.2, r0=20, r1=44, col=(255, 220, 150))
         self.shake = max(self.shake, 3)
@@ -1397,11 +1420,17 @@ class Game:
             e['x'] += ex
             e['y'] += ey
             e['cool'] -= dt
+            is_boss = self.c.get('is_boss', False)
             if e['cool'] <= 0 and p['sink'] is None:
-                e['cool'] = random.uniform(2.1, 3.0) * max(0.55, 1 - 0.07 * self.wave)
-                self.enemy_fire(1.0)
-                if self.wave >= 3:
-                    e['burst'].append(0.35)
+                if is_boss:
+                    e['cool'] = random.uniform(1.2, 1.8)
+                    self.enemy_fire(1.0)
+                    e['burst'].append(0.4)
+                else:
+                    e['cool'] = random.uniform(2.1, 3.0) * max(0.55, 1 - 0.07 * self.wave)
+                    self.enemy_fire(1.0)
+                    if self.wave >= 3:
+                        e['burst'].append(0.35)
             e['burst'] = [b - dt for b in e['burst']]
             if e['burst'] and e['burst'][0] <= 0:
                 e['burst'].pop(0)
@@ -1467,7 +1496,8 @@ class Game:
         a, r = random.uniform(0, 6.28), random.uniform(0, spread)
         tx = clamp(p['x'] + vx * T + math.cos(a) * r, 20, W - 20)
         ty = clamp(p['y'] + vy * T + math.sin(a) * r, 20, H - 20)
-        c['shells'].append(dict(x0=e['x'], y0=e['y'], x1=tx, y1=ty, t=0.0, T=T, own='e'))
+        accurate = random.random() < 0.6
+        c['shells'].append(dict(x0=e['x'], y0=e['y'], x1=tx, y1=ty, t=0.0, T=T, own='e', accurate=accurate))
         self.audio.play('cannon', .5)
         self.fx.add('glow', e['x'], e['y'], life=.2, r0=20, r1=40, col=(255, 160, 120))
 
@@ -1476,6 +1506,11 @@ class Game:
         p, e = c['p'], c['e']
         x, y = s['x1'], s['y1']
         tgt = e if s['own'] == 'p' else p
+
+        if not s.get('accurate', True):
+            x += random.uniform(-120, 120)
+            y += random.uniform(-100, 100)
+
         d = dist(x, y, tgt['x'], tgt['y'])
         if d <= 54 and tgt['sink'] is None:
             full = d <= 24
@@ -2141,6 +2176,7 @@ class Game:
     def draw_combat(self, cv):
         c = self.c
         p, e = c['p'], c['e']
+        is_boss = c.get('is_boss', False)
         self.draw_ocean(cv, 0, 0, self.t)
         # anillos de impacto
         for s in c['shells']:
@@ -2148,6 +2184,8 @@ class Game:
             col = (120, 255, 160) if s['own'] == 'p' else (255, 80, 70)
             draw_circ(cv, s['x1'], s['y1'], 54, col, 70 + 60 * math.sin(self.t * 12), 2)
             draw_circ(cv, s['x1'], s['y1'], max(4, 54 * (1 - k)), col, 220, 3)
+        if is_boss:
+            glow(cv, e['x'], e['y'], 80 + 20 * math.sin(self.t * 2), (255, 80, 60), 0.4)
         self.fx.draw(cv)
         # buques
         for ship, key, tur, tcol in ((e, 'e_hull', self.tur_e, None), (p, 'p_hull', self.tur_p, None)):
@@ -2186,7 +2224,10 @@ class Game:
         # HUD
         self.draw_hud(cv)
         self.panel(cv, (W // 2 - 230, 12, 460, 70), 170)
-        self.text(cv, 'DESTRUCTOR ENEMIGO', self.f_m, (255, 140, 120), W // 2, 16, 'c')
+        if is_boss:
+            self.text(cv, '¡JEFE FINAL!', self.f_m, (255, 80, 60), W // 2, 16, 'c')
+        else:
+            self.text(cv, 'DESTRUCTOR ENEMIGO', self.f_m, (255, 140, 120), W // 2, 16, 'c')
         self.bar(cv, W // 2 - 210, 44, 420, 26, e['hp'] / e['max'], (240, 80, 70), 'CASCO ENEMIGO')
         rl = 1 - clamp(p['cool'] / 0.9, 0, 1)
         pygame.draw.rect(cv, (8, 12, 24), (W // 2 - 60, H - 40, 120, 10))
