@@ -1,17 +1,19 @@
-# FINAL LEGACY - Edición Omar Brondo
+# RETRO LEGACY - Edición Omar Brondo
 
 Juego de guerra naval y de infantería hecho con **Python + pygame**. Todo el arte y el sonido se generan por código, así que no necesita archivos externos.
 
 ## Ejecutar
 
 ```
-pip install pygame
-python final_legacy_omar.py
+pip install -r requirements.txt
+python retro_legacy.py
 ```
+
+(El juego se llamaba *Final Legacy*: `python final_legacy_omar.py` sigue funcionando.)
 
 ## Estructura del código
 
-`final_legacy_omar.py` es solo el punto de entrada. El juego vive en el paquete `finallegacy/`:
+`retro_legacy.py` es solo el punto de entrada. El juego vive en el paquete `finallegacy/`:
 
 | Archivo | Contenido |
 | --- | --- |
@@ -68,12 +70,12 @@ Cada modo tiene su propia música compuesta por código (con numpy): mapa, defen
 
 ## Gráficos HD
 
-Instalá las dependencias con `pip install -r requirements.txt` (pygame-ce y numpy; numpy es opcional pero da humo, fuego y brillos más suaves). Si ya tenés pygame-ce instalado (el juego anda también con pygame clásico), alcanza con `pip install numpy`; no instales los dos pygame a la vez. Se ejecuta con `python final_legacy_omar.py`.
+Instalá las dependencias con `pip install -r requirements.txt` (pygame-ce y numpy; numpy es opcional pero da humo, fuego y brillos más suaves). Si ya tenés pygame-ce instalado (el juego anda también con pygame clásico), alcanza con `pip install numpy`; no instales los dos pygame a la vez. Se ejecuta con `python retro_legacy.py`.
 La tecla **V** cambia la calidad: BÁSICA, HD (resplandor/bloom, gradación de color y viñeta, por defecto) y ULTRA (más bloom y grano de película). La elección se guarda.
 
 ## Pantalla completa y mando
 
-- **F11** o **Alt+Enter**: pantalla completa (se escala conservando la proporción). También `python final_legacy_omar.py --fullscreen`.
+- **F11** o **Alt+Enter**: pantalla completa (se escala conservando la proporción). También `python retro_legacy.py --fullscreen`.
 - **Mando Xbox 360 / One** (y compatibles SDL): se detecta solo, también si lo conectás con el juego abierto.
   Palanca izq./cruceta: mover · palanca der.: apuntar · RT o A: disparar · LT, B o RB: granada/bomba ·
   X: recargar/reabastecer · Y: acción · LB: sigilo (mapa: desembarcar) · RB en el mapa: hackear · Start: pausa/empezar · Back: sonido.
