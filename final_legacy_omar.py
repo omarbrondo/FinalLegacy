@@ -2471,6 +2471,13 @@ class Game:
                 self.throw_grenade_p()
             elif self.state == 'ground' and e.key == pygame.K_r and not self.paused:
                 self.start_reload()
+            elif self.state == 'ground' and e.key == pygame.K_q and not self.paused and self.g['stealth']:
+                gp = self.g['p']
+                if gp['reload'] <= 0:
+                    gp['wpn'] = 'pistol' if gp['wpn'] == 'rifle' else 'rifle'
+                    self.audio.play('blip', .5)
+            elif self.state == 'ground' and e.key == pygame.K_e and not self.paused:
+                self.takedown()
             elif self.state == 'map' and e.key == pygame.K_t and not self.paused:
                 if self.nearest_port():
                     self.start_port()
@@ -4385,9 +4392,11 @@ class Game:
                       angs=[random.uniform(0, 6.28) for _ in range(3)], queue=queue or [], enemies=[], bullets=[],
                       nades=[], corpses=[], decals=[], boats=[], crates=[], t=0.0, total=len(kinds), kills=0,
                       phase='play', pt=0.0, city0=city['hp'], fail=False, island_idx=island_idx, hurt=0.0, antenna=antenna,
+                      stealth=(mode == 'landing'), last_seen=(W / 2, H / 2), alert_t=0.0, alerts=0, cams=[], inst=0.0, takedowns=0, info_t=0.0,
                       ant_t=0.0, spawn=spawn,
                       p=dict(x=float(spawn[0]), y=float(spawn[1]), h=0.0, vx=0.0, vy=0.0, hp=PLAYER_HP, mag=30, reload=0.0,
-                             cd=0.0, gren=4, gcd=0.0, ph=0.0, flash=0.0, bloom=0.0, dead=False, dead_t=0.0))
+                             cd=0.0, gren=4, gcd=0.0, ph=0.0, flash=0.0, bloom=0.0, dead=False, dead_t=0.0,
+                             wpn='rifle', pmag=12, sneak=False, noise=0.0, noise_r=0.0, noise_t=0.0))
         self.aim = [W / 2, 200.0]
         self.g_camera(0.0, True)
         self.go('ground')
@@ -4398,7 +4407,7 @@ class Game:
         return dict(x=x, y=y, h=h, h0=h, kind=kind, hp=float(hp), max=float(hp), cd=random.uniform(0.6, 1.6),
                     state=state, mode=mode, cover=cover, ph=0.0, ph0=random.uniform(0, 6.28), flash=0.0, hit=0.0,
                     burst=0, bcd=0.0, tele=0.0, aimlock=h, strafe=random.choice((-1, 1)), strafe_t=random.uniform(1, 3),
-                    role='guard', wp=None, wpi=0, pause=0.0, excl=0.0)
+                    role='guard', wp=None, wpi=0, pause=0.0, excl=0.0, det=0.0, spot=None, st=0.0)
 
     def start_landing(self, island_idx):
         x, y, r, s = EXTRA_ISLANDS[island_idx]
@@ -4446,12 +4455,18 @@ class Game:
                 tx, ty = W / 2 + (tx - W / 2) / d * lim, H / 2 + (ty - H / 2) / d * lim
             e['wp'] = [(e['x'], e['y']), (tx, ty)]
             e['h0'] = e['h'] = bearing(tx - e['x'], ty - e['y'])
+        for k_ in range(2):
+            a_ = random.uniform(0, 6.28)
+            rr = coast_r(LAND_R, s, a_, 0.62)
+            cx0, cy0 = W / 2 + math.cos(a_) * rr, H / 2 + math.sin(a_) * rr
+            base_ = bearing(W / 2 - cx0, H / 2 - cy0)
+            g['cams'].append(dict(x=cx0, y=cy0, base=base_, h=base_, sw=random.uniform(0, 6.28), det=0.0, hp=3, on=True))
         g['total'] = len(g['enemies'])
         left = MAX_LANDING_ATTEMPTS - self.landing_attempts[island_idx]
         self.banner('¡DESEMBARCO EN %s!' % self.isl_name(island_idx),
-                    'Eliminá a los %d soldados para instalar la antena  |  Intentos restantes: %d' % (n, left),
-                    (100, 180, 255), 4.0)
-        self.toast('Hay centinelas patrullando: si te ven, dan la alarma', (255, 220, 120))
+                    'Infiltrate: llegá al punto de la antena (centro) y mantené E  |  O eliminá a los %d soldados  |  Intentos: %d' % (n, left),
+                    (100, 180, 255), 4.6)
+        self.toast('SHIFT: sigilo | Q: pistola silenciada | E: noquear por la espalda / instalar antena', (255, 220, 120))
 
     def start_ground(self, city, antenna=None):
         n = min(8 + 3 * self.wave, 26)
@@ -4543,25 +4558,63 @@ class Game:
             return
         e['state'] = 'combat'
         e['excl'] = 1.0
+        e['det'] = 1.0
         e['cd'] = max(e['cd'], random.uniform(0.9, 1.7))
+        if g['stealth'] and alarm:
+            if g['alert_t'] <= 0:
+                g['alerts'] += 1
+                self.audio.play('alarm', .5)
+                self.banner('¡ALERTA!', 'Te descubrieron: escondete para recuperar el sigilo', (255, 90, 70), 2.6)
+            g['alert_t'] = 30.0
         for o in g['enemies']:
-            if o['state'] == 'hold' and dist(o['x'], o['y'], e['x'], e['y']) < (300 if alarm else 110):
+            if o['state'] in ('hold', 'susp') and dist(o['x'], o['y'], e['x'], e['y']) < ((520 if g['stealth'] else 300) if alarm else 110):
                 o['state'] = 'combat'
                 o['excl'] = 1.0
+                o['det'] = 1.0
                 o['cd'] = max(o['cd'], random.uniform(0.9, 2.4 if alarm else 1.7))
         if alarm and g['mode'] == 'landing' and not g.get('alarm'):
             g['alarm'] = True
             self.audio.play('alarm', .4)
-            self.toast('¡ALARMA! Un centinela te vio: llegan refuerzos', (255, 110, 90))
+            self.toast('¡ALARMA! Llegan refuerzos', (255, 110, 90))
             for i in range(2):
                 g['queue'].append((g['t'] + 5.0 + 3.0 * i, 'rifle', random.randrange(3)))
             g['total'] += 2
 
+    def g_noise(self, radius, secs=0.3):
+        """El jugador hace ruido: los enemigos dentro del radio lo oyen."""
+        p = self.g['p']
+        if radius >= p['noise_r'] or p['noise_t'] <= 0:
+            p['noise_r'], p['noise_t'] = radius, secs
+
+    def takedown(self):
+        """Noqueo silencioso por la espalda."""
+        g = self.g
+        p = g['p']
+        if p['dead'] or g['phase'] != 'play' or not g['stealth']:
+            return False
+        best = None
+        for e in g['enemies']:
+            if e['state'] == 'combat':
+                continue
+            d = dist(e['x'], e['y'], p['x'], p['y'])
+            if d < 46 and abs(angle_diff(e['h'], bearing(p['x'] - e['x'], p['y'] - e['y']))) > 105 and (best is None or d < best[0]):
+                best = (d, e)
+        if best is None:
+            return False
+        e = best[1]
+        g['takedowns'] += 1
+        self.audio.play('blip', .6)
+        self.gpop('SILENCIOSO', e['x'], e['y'] - 28, (140, 255, 200))
+        self.kill_ground_enemy(e)
+        p['h'] = bearing(e['x'] - p['x'], e['y'] - p['y'])
+        return True
+
     def start_reload(self):
         p = self.g['p']
-        if p['dead'] or p['reload'] > 0 or p['mag'] >= 30:
+        full = 12 if p['wpn'] == 'pistol' else 30
+        if p['dead'] or p['reload'] > 0 or (p['pmag'] if p['wpn'] == 'pistol' else p['mag']) >= full:
             return
-        p['reload'] = 1.3
+        p['reload'] = 1.0 if p['wpn'] == 'pistol' else 1.3
         self.audio.play('blip', .6)
 
     def player_shoot(self):
@@ -4569,9 +4622,23 @@ class Game:
         p = g['p']
         if p['dead'] or p['reload'] > 0 or p['cd'] > 0 or g['phase'] != 'play':
             return
+        if p['wpn'] == 'pistol':
+            if p['pmag'] <= 0:
+                self.start_reload()
+                return
+            p['pmag'] -= 1
+            p['cd'] = 0.34
+            ang = p['h'] + random.uniform(-1, 1) * 1.2
+            mx, my = vec(p['h'], 34)
+            vx, vy = vec(ang, 640)
+            g['bullets'].append(dict(x=p['x'] + mx, y=p['y'] + my, vx=vx, vy=vy, own='p', dmg=2.2, life=0.7, silent=True, ign=self.g_ign(p['x'], p['y'])))
+            self.audio.play('blip', .18)
+            self.g_noise(85, 0.25)
+            return
         if p['mag'] <= 0:
             self.start_reload()
             return
+        self.g_noise(430, 0.4)
         p['mag'] -= 1
         p['cd'] = 0.1
         p['flash'] = 0.06
@@ -4585,8 +4652,8 @@ class Game:
         ex, ey = vec(p['h'] + 90, 12)
         self.fx.add('spark', p['x'] + ex, p['y'] + ey, ex * 12, ey * 12 - 30, 0.4, col=(230, 190, 80), drag=2, grav=120)
         for e in g['enemies']:
-            if e['state'] == 'hold' and dist(e['x'], e['y'], p['x'], p['y']) < 230:
-                self.alert(e)
+            if e['state'] in ('hold', 'susp') and dist(e['x'], e['y'], p['x'], p['y']) < 230:
+                self.alert(e, alarm=g['stealth'])
 
     def throw_grenade_p(self):
         g = self.g
@@ -4595,14 +4662,15 @@ class Game:
             return
         p['gren'] -= 1
         p['gcd'] = 0.7
+        self.g_noise(300, 0.4)
         ax, ay = self.ground_aim()
         d = clamp(dist(p['x'], p['y'], ax, ay), 80, 330)
         tx, ty = vec(p['h'], d)
         g['nades'].append(dict(x0=p['x'], y0=p['y'], x1=p['x'] + tx, y1=p['y'] + ty, t=0.0, T=d / 240 + 0.35, own='p'))
         self.audio.play('blip', .8)
         for e in g['enemies']:
-            if e['state'] == 'hold' and dist(e['x'], e['y'], p['x'], p['y']) < 300:
-                self.alert(e)
+            if e['state'] in ('hold', 'susp') and dist(e['x'], e['y'], p['x'], p['y']) < 300:
+                self.alert(e, alarm=g['stealth'])
 
     def enemy_shoot(self, e, aim, spread, speed, dmg):
         g = self.g
@@ -4641,7 +4709,7 @@ class Game:
             if d < R:
                 e['hp'] -= (6.5 if n['own'] == 'p' else 2.0) * (1 - 0.45 * d / R)
                 e['hit'] = 0.15
-                if e['state'] == 'hold':
+                if e['state'] in ('hold', 'susp'):
                     self.alert(e)
                 if e['hp'] <= 0:
                     self.kill_ground_enemy(e)
@@ -4694,9 +4762,20 @@ class Game:
         e['hit'] = max(0.0, e['hit'] - dt)
         dp = dist(e['x'], e['y'], p['x'], p['y']) if alive else 9999.0
         e['excl'] = max(0.0, e['excl'] - dt)
-        if e['state'] == 'hold':
+        if e['state'] in ('hold', 'susp'):
             sentry = e['role'] == 'sentry'
-            if sentry:
+            if e['state'] == 'susp':
+                e['st'] -= dt
+                tx, ty = e['spot']
+                if dist(e['x'], e['y'], tx, ty) > 16:
+                    hd = bearing(tx - e['x'], ty - e['y'])
+                    self.mv(e, hd, T['speed'] * 0.55, dt)
+                    e['h'] = (e['h'] + clamp(angle_diff(e['h'], hd), -320 * dt, 320 * dt)) % 360
+                else:
+                    e['h'] = (e['h'] + 80 * math.sin(g['t'] * 2.4 + e['ph0']) * dt) % 360
+                if e['st'] <= 0 and e['det'] < 0.25:
+                    e['state'] = 'hold'
+            elif sentry:
                 e['pause'] -= dt
                 if e['pause'] > 0:
                     e['h'] = (e['h'] + 55 * math.sin(g['t'] * 1.6 + e['ph0']) * dt) % 360
@@ -4713,16 +4792,53 @@ class Game:
                 e['h'] = (e['h0'] + 38 * math.sin(g['t'] * 0.7 + e['ph0'])) % 360
             if alive:
                 rng, fov = (340, 110) if sentry else (240, 90)
-                seen = dp < 95
-                if not seen and dp < rng:
-                    seen = (abs(angle_diff(e['h'], bearing(p['x'] - e['x'], p['y'] - e['y']))) < fov / 2
-                            and self.g_los(e['x'], e['y'], p['x'], p['y']))
+                if p['sneak']:
+                    rng *= 0.7
+                seen = False
+                q = 0.0
+                if dp < rng:
+                    if dp < 60 or (abs(angle_diff(e['h'], bearing(p['x'] - e['x'], p['y'] - e['y']))) < fov / 2
+                                   and self.g_los(e['x'], e['y'], p['x'], p['y'])):
+                        seen = True
+                        q = 1.0 - dp / rng
+                if not g['stealth']:
+                    if seen:
+                        self.alert(e, alarm=sentry)
+                    return
                 if seen:
-                    self.alert(e, alarm=sentry)
+                    e['det'] += dt * (0.55 + 1.9 * q) * (1.7 if g['alert_t'] > 0 else 1.0)
+                    e['spot'] = (p['x'], p['y'])
+                    e['st'] = 7.0
+                else:
+                    e['det'] = max(0.0, e['det'] - dt * 0.3)
+                    if p['noise'] > dp and p['noise_t'] > 0:
+                        e['det'] += dt * 0.7
+                        e['spot'] = (p['x'], p['y'])
+                        e['st'] = 7.0
+                if e['det'] >= 1.0:
+                    self.alert(e, alarm=True)
+                elif e['det'] > 0.3 and e['state'] == 'hold':
+                    e['state'] = 'susp'
+                    e['spot'] = e['spot'] or (p['x'], p['y'])
+                    e['st'] = 7.0
+                    e['excl'] = 0.0
+                    self.audio.play('ping', .3)
+            return
+        px, py = p['x'], p['y']
+        if g['stealth'] and alive and e['state'] == 'combat' and not (dp < 560 and self.g_los(e['x'], e['y'], px, py)):
+            px, py = g['last_seen']
+            dp = dist(e['x'], e['y'], px, py)
+            sp0 = T['speed'] * (1 + 0.03 * self.wave) * 0.8
+            if dp > 36:
+                hd = bearing(px - e['x'], py - e['y'])
+                self.mv(e, hd, sp0, dt)
+                e['h'] = (e['h'] + clamp(angle_diff(e['h'], hd), -420 * dt, 420 * dt)) % 360
+            else:
+                e['h'] = (e['h'] + 110 * math.sin(g['t'] * 2.0 + e['ph0']) * dt) % 360
             return
         sp = T['speed'] * (1 + 0.03 * self.wave)
-        los = alive and dp < T['range'] and self.g_los(e['x'], e['y'], p['x'], p['y'])
-        to_p = bearing(p['x'] - e['x'], p['y'] - e['y']) if alive else e['h']
+        los = alive and dp < T['range'] and self.g_los(e['x'], e['y'], px, py)
+        to_p = bearing(px - e['x'], py - e['y']) if alive else e['h']
         e['strafe_t'] -= dt
         if e['strafe_t'] <= 0:
             e['strafe'] *= -1
@@ -4811,11 +4927,18 @@ class Game:
             mx = (1 if (keys[pygame.K_d] or keys[pygame.K_RIGHT]) else 0) - (1 if (keys[pygame.K_a] or keys[pygame.K_LEFT]) else 0)
             my = (1 if (keys[pygame.K_s] or keys[pygame.K_DOWN]) else 0) - (1 if (keys[pygame.K_w] or keys[pygame.K_UP]) else 0)
             n = math.hypot(mx, my) or 1.0
-            sp = 135.0 if mx or my else 0.0
+            p['sneak'] = bool(keys[pygame.K_LSHIFT] or keys[pygame.K_RSHIFT]) and g['stealth']
+            sp = (72.0 if p['sneak'] else 135.0) if mx or my else 0.0
+            if g['inst'] > 0 and (mx or my):
+                g['inst'] = 0.0
             ox, oy = p['x'], p['y']
             self.g_step(p, mx / n * sp * dt, my / n * sp * dt, True)
             p['vx'], p['vy'] = (p['x'] - ox) / max(dt, 1e-4), (p['y'] - oy) / max(dt, 1e-4)
             p['ph'] += math.hypot(p['vx'], p['vy']) * dt / 9.0
+            if mx or my:
+                self.g_noise(34 if p['sneak'] else 125, 0.12)
+            p['noise_t'] = max(0.0, p['noise_t'] - dt)
+            p['noise'] = p['noise_r'] if p['noise_t'] > 0 else 0.0
             ax, ay = self.ground_aim()
             p['h'] = bearing(ax - p['x'], ay - p['y'])
             p['cd'] = max(0.0, p['cd'] - dt)
@@ -4825,11 +4948,16 @@ class Game:
             if p['reload'] > 0:
                 p['reload'] -= dt
                 if p['reload'] <= 0:
-                    p['mag'] = 30
-            elif p['mag'] <= 0:
+                    if p['wpn'] == 'pistol':
+                        p['pmag'] = 12
+                    else:
+                        p['mag'] = 30
+            elif (p['pmag'] if p['wpn'] == 'pistol' else p['mag']) <= 0:
                 self.start_reload()
             if (pygame.mouse.get_pressed()[0] or keys[pygame.K_f]) and g['phase'] == 'play':
                 self.player_shoot()
+        if g['stealth'] and g['phase'] == 'play':
+            self.upd_stealth(dt, alive, keys)
         self.g_camera(dt)
         if g['phase'] == 'play':
             while g['queue'] and g['queue'][0][0] <= g['t']:
@@ -4860,12 +4988,26 @@ class Game:
                 g['bullets'].remove(b)
                 continue
             if b['own'] == 'p':
+                cm = next((c_ for c_ in g['cams'] if c_['on'] and dist(b['x'], b['y'], c_['x'], c_['y']) < 14), None)
+                if cm is not None:
+                    cm['hp'] -= b['dmg']
+                    g['bullets'].remove(b)
+                    self.fx.add('spark', b['x'], b['y'], random.uniform(-90, 90), random.uniform(-90, 90), 0.3, col=(120, 230, 255), drag=2)
+                    if cm['hp'] <= 0:
+                        cm['on'] = False
+                        self.fx.explode(cm['x'], cm['y'], 0.5)
+                        self.audio.play('boom_s', .4)
+                        self.gpop('CÁMARA DESTRUIDA', cm['x'], cm['y'] - 20, (140, 255, 200))
+                    continue
                 hit = next((e for e in g['enemies'] if dist(b['x'], b['y'], e['x'], e['y']) < 13), None)
                 if hit:
                     hit['hp'] -= b['dmg']
                     hit['hit'] = 0.1
-                    if hit['state'] == 'hold':
-                        self.alert(hit)
+                    if hit['state'] in ('hold', 'susp') and hit['hp'] > 0:
+                        if b.get('silent'):
+                            hit['state'], hit['det'], hit['spot'], hit['st'] = 'susp', max(hit['det'], 0.6), (p['x'], p['y']), 7.0
+                        else:
+                            self.alert(hit, alarm=g['stealth'])
                     self.fx.add('spark', b['x'], b['y'], random.uniform(-90, 90), random.uniform(-90, 90), 0.25,
                                 col=(255, 120, 90), drag=2)
                     g['bullets'].remove(b)
@@ -4933,6 +5075,61 @@ class Game:
                 g['ant_t'] += dt
             if g['pt'] > (3.6 if g['mode'] == 'landing' and not g['fail'] else 2.8):
                 self.end_ground()
+
+    def upd_stealth(self, dt, alive, keys):
+        g = self.g
+        p = g['p']
+        # cámaras de seguridad
+        for cam in g['cams']:
+            if not cam['on']:
+                continue
+            cam['sw'] += dt * 0.7
+            cam['h'] = cam['base'] + 48 * math.sin(cam['sw'])
+            seen = (alive and dist(cam['x'], cam['y'], p['x'], p['y']) < 290 * (0.75 if p['sneak'] else 1.0)
+                    and abs(angle_diff(cam['h'], bearing(p['x'] - cam['x'], p['y'] - cam['y']))) < 28
+                    and self.g_los(cam['x'], cam['y'], p['x'], p['y']))
+            if seen:
+                cam['det'] += dt * 1.1
+                if cam['det'] >= 1.0:
+                    cam['det'] = 0.3
+                    near = min(g['enemies'], key=lambda e: dist(e['x'], e['y'], cam['x'], cam['y']), default=None)
+                    if near is not None:
+                        self.alert(near, alarm=True)
+                    else:
+                        g['alerts'] += 1
+                        g['alert_t'] = 30.0
+            else:
+                cam['det'] = max(0.0, cam['det'] - dt * 0.5)
+        if alive and any(dist(e['x'], e['y'], p['x'], p['y']) < 480 and self.g_los(e['x'], e['y'], p['x'], p['y']) and e['state'] == 'combat' for e in g['enemies']):
+            g['last_seen'] = (p['x'], p['y'])
+        # evasión
+        if g['alert_t'] > 0 and alive:
+            seen = any(e['state'] == 'combat' and dist(e['x'], e['y'], p['x'], p['y']) < 480 and self.g_los(e['x'], e['y'], p['x'], p['y'])
+                       for e in g['enemies'])
+            if seen:
+                g['alert_t'] = 30.0
+            else:
+                g['alert_t'] -= dt
+                if g['alert_t'] <= 0:
+                    g['alert_t'] = 0.0
+                    for e in g['enemies']:
+                        if e['state'] == 'combat':
+                            e['state'], e['det'], e['spot'], e['st'] = 'susp', 0.5, (p['x'], p['y']), 8.0
+                    self.banner('EVASIÓN LOGRADA', 'Los enemigos te buscan por la zona', (120, 255, 190), 2.6)
+        # instalación silenciosa de la antena
+        pad_d = dist(p['x'], p['y'], W / 2, H / 2)
+        if alive and keys[pygame.K_e] and pad_d < 56 and not p['sneak'] and not any(e['state'] == 'combat' and dist(e['x'], e['y'], p['x'], p['y']) < 260 for e in g['enemies']):
+            g['inst'] += dt / 4.0
+            self.g_noise(60, 0.15)
+            if g['inst'] >= 1.0:
+                g['phase'], g['pt'] = 'result', 0.0
+                bonus = (800 if g['alerts'] == 0 else 300) + 120 * g['takedowns']
+                self.add_score(bonus)
+                self.audio.play('win', .7)
+                self.banner('¡ANTENA INSTALADA EN SILENCIO!' if g['alerts'] == 0 else '¡ANTENA INSTALADA!',
+                            ('FANTASMA  ' if g['alerts'] == 0 else 'Infiltrado  ') + 'Bonus +%d' % bonus, (120, 255, 160), 3.4)
+        elif g['inst'] > 0 and not keys[pygame.K_e]:
+            g['inst'] = max(0.0, g['inst'] - dt * 0.5)
 
     def end_ground(self):
         g = self.g
@@ -7535,20 +7732,20 @@ class Game:
         self.text(cv, 'Clic / ESPACIO: lanzar interceptor', self.f_s, (200, 220, 255), W // 2, H - 30, 'c')
 
     # ---- terrestre (infantería)
-    def draw_cone(self, cv, x, y, h, rng, fov):
+    def draw_cone(self, cv, x, y, h, rng, fov, col=(255, 225, 110)):
         if not (-rng < x < W + rng and -rng < y < H + rng):
             return
         if not hasattr(self, '_cone'):
-            self._cone = pygame.Surface((2 * rng + 4, 2 * rng + 4), pygame.SRCALPHA)
+            self._cone = pygame.Surface((2 * 340 + 4, 2 * 340 + 4), pygame.SRCALPHA)
         c = self._cone
         c.fill((0, 0, 0, 0))
-        mid = rng + 2
+        mid = 340 + 2
         pts = [(mid, mid)]
         for i in range(13):
             ax, ay = vec(h - fov / 2 + fov * i / 12, rng)
             pts.append((mid + ax, mid + ay))
-        pygame.draw.polygon(c, (255, 225, 110, 50 + int(16 * math.sin(self.t * 4))), pts)
-        pygame.draw.lines(c, (255, 225, 110, 90), False, [pts[1], pts[0], pts[-1]], 1)
+        pygame.draw.polygon(c, (*col, 44 + int(14 * math.sin(self.t * 4))), pts)
+        pygame.draw.lines(c, (*col, 90), False, [pts[1], pts[0], pts[-1]], 1)
         cv.blit(c, (x - mid, y - mid))
 
     def blit_soldier(self, dst, key, x, y, ang, frame, hit=0.0, dead=False):
@@ -7609,8 +7806,34 @@ class Game:
                 pygame.draw.circle(cv, (60, 76, 50), (int(qx), int(qy)), 5)
                 pygame.draw.circle(cv, (255, 210, 70), (int(qx), int(qy)), 8, 2)
         for e in g['enemies']:
-            if e['role'] == 'sentry' and e['state'] == 'hold':
-                self.draw_cone(cv, e['x'] - cx_, e['y'] - cy_, e['h'], 340, 110)
+            if g['stealth'] and e['state'] in ('hold', 'susp'):
+                sen = e['role'] == 'sentry'
+                self.draw_cone(cv, e['x'] - cx_, e['y'] - cy_, e['h'], (340 if sen else 240) * (0.7 if p['sneak'] else 1.0), 110 if sen else 90,
+                               (255, 200, 90) if e['state'] == 'hold' else (255, 120, 60))
+        if g['stealth']:
+            pad = (W // 2 - cx_, H // 2 - cy_)
+            if g['phase'] == 'play':
+                pul = 0.5 + 0.5 * math.sin(t * 3)
+                draw_circ(cv, pad[0], pad[1], 54 + pul * 4, (110, 230, 255), 60 + 40 * pul, 2)
+                self.text(cv, 'ANTENA (E)', self.f_s, (150, 240, 255), pad[0], pad[1] - 78, 'c')
+                if g['inst'] > 0:
+                    pygame.draw.rect(cv, (8, 12, 24), (pad[0] - 34, pad[1] - 60, 68, 9))
+                    pygame.draw.rect(cv, (110, 230, 255), (pad[0] - 33, pad[1] - 59, int(66 * g['inst']), 7))
+            for cm_ in g['cams']:
+                if not cm_['on']:
+                    continue
+                kx, ky = cm_['x'] - cx_, cm_['y'] - cy_
+                col = (255, 80, 70) if cm_['det'] > 0.2 else (110, 230, 255)
+                self.draw_cone(cv, kx, ky, cm_['h'], 290 * (0.75 if p['sneak'] else 1.0), 56, col)
+                pygame.draw.circle(cv, (40, 44, 52), (int(kx), int(ky)), 9)
+                pygame.draw.circle(cv, col, (int(kx), int(ky)), 5)
+                ex2, ey2 = vec(cm_['h'], 13)
+                pygame.draw.line(cv, (200, 205, 215), (kx, ky), (kx + ex2, ky + ey2), 4)
+                if cm_['det'] > 0.05:
+                    pygame.draw.rect(cv, (8, 12, 24), (kx - 14, ky - 22, 28, 5))
+                    pygame.draw.rect(cv, (255, 90 + int(100 * (1 - cm_['det'])), 60), (kx - 13, ky - 21, int(26 * cm_['det']), 3))
+            if p['noise_t'] > 0 and p['noise'] > 40:
+                draw_circ(cv, p['x'] - cx_, p['y'] - cy_, p['noise'], (255, 255, 255), 22 * clamp(p['noise_t'] / 0.3, 0, 1), 1)
         actors = [(e['y'], 'e', e) for e in g['enemies']] + [(p['y'], 'p', p)]
         for _, who, s in sorted(actors, key=lambda a: a[0]):
             sx, sy = s['x'] - cx_, s['y'] - cy_
@@ -7622,6 +7845,12 @@ class Game:
                     self.text(cv, 'z', self.f_s, (200, 210, 230), sx + 12, sy - 40, shadow=False, alpha=150)
                 if s['excl'] > 0:
                     self.text(cv, '!', self.f_l, (255, 70, 60), sx, sy - 66, 'c')
+                elif g['stealth'] and s['state'] in ('hold', 'susp') and s['det'] > 0.04:
+                    k_ = clamp(s['det'], 0, 1)
+                    col_ = (255, int(220 - 150 * k_), 60)
+                    self.text(cv, '?', self.f_l, col_, sx, sy - 70, 'c', alpha=int(120 + 135 * k_))
+                    pygame.draw.rect(cv, (8, 12, 24), (sx - 14, sy - 40, 28, 5))
+                    pygame.draw.rect(cv, col_, (sx - 13, sy - 39, int(26 * k_), 3))
                 if s['hp'] < s['max']:
                     pygame.draw.rect(cv, (8, 12, 24), (sx - 14, sy - 34, 28, 5))
                     pygame.draw.rect(cv, (240, 80, 70), (sx - 13, sy - 33, int(26 * s['hp'] / s['max']), 3))
@@ -7680,6 +7909,21 @@ class Game:
             for c in g['covers']:
                 pygame.draw.circle(cv, (150, 140, 110), (int(mcx + (c['x'] - W / 2) * sc), int(mcy + (c['y'] - H / 2) * sc)), 2)
             pygame.draw.circle(cv, (196, 198, 194), (mcx, mcy), 4, 1)
+            if g['stealth']:
+                rs = pygame.Surface((mr * 2, mr * 2), pygame.SRCALPHA)
+                for e in g['enemies']:
+                    if e['state'] in ('hold', 'susp'):
+                        ex_, ey_ = mr + (e['x'] - W / 2) * sc, mr + (e['y'] - H / 2) * sc
+                        rng_ = (340 if e['role'] == 'sentry' else 240) * sc
+                        fov_ = 110 if e['role'] == 'sentry' else 90
+                        pts_ = [(ex_, ey_)] + [(ex_ + vec(e['h'] - fov_ / 2 + fov_ * i / 6, rng_)[0], ey_ + vec(e['h'] - fov_ / 2 + fov_ * i / 6, rng_)[1]) for i in range(7)]
+                        pygame.draw.polygon(rs, (255, 210, 90, 70) if e['state'] == 'hold' else (255, 120, 60, 90), pts_)
+                for cm in g['cams']:
+                    if cm['on']:
+                        ex_, ey_ = mr + (cm['x'] - W / 2) * sc, mr + (cm['y'] - H / 2) * sc
+                        pts_ = [(ex_, ey_)] + [(ex_ + vec(cm['h'] - 28 + 56 * i / 6, 290 * sc)[0], ey_ + vec(cm['h'] - 28 + 56 * i / 6, 290 * sc)[1]) for i in range(7)]
+                        pygame.draw.polygon(rs, (110, 230, 255, 70), pts_)
+                cv.blit(rs, (mcx - mr, mcy - mr))
             for e in g['enemies']:
                 pygame.draw.circle(cv, (255, 70, 60) if e['state'] == 'combat' else (170, 70, 60),
                                    (int(mcx + (e['x'] - W / 2) * sc), int(mcy + (e['y'] - H / 2) * sc)), 3)
@@ -7689,7 +7933,9 @@ class Game:
         self.panel(cv, (14, H - 126, 330, 112), 160)
         self.bar(cv, 26, H - 116, 306, 24, p['hp'] / PLAYER_HP, (80, 220, 110) if p['hp'] > 40 else (240, 80, 70), 'SOLDADO %d' % max(0, p['hp']))
         if p['reload'] > 0:
-            self.bar(cv, 26, H - 86, 306, 24, 1 - p['reload'] / 1.3, (255, 160, 70), 'RECARGANDO...')
+            self.bar(cv, 26, H - 86, 306, 24, 1 - p['reload'] / (1.0 if p['wpn'] == 'pistol' else 1.3), (255, 160, 70), 'RECARGANDO...')
+        elif p['wpn'] == 'pistol':
+            self.bar(cv, 26, H - 86, 306, 24, p['pmag'] / 12, (120, 220, 255) if p['pmag'] > 3 else (240, 80, 70), 'PISTOLA SILENCIADA %d/12' % p['pmag'])
         else:
             self.bar(cv, 26, H - 86, 306, 24, p['mag'] / 30, (255, 210, 70) if p['mag'] > 8 else (240, 80, 70), 'CARGADOR %d/30' % p['mag'])
         self.text(cv, 'GRANADAS', self.f_s, (235, 245, 255), 26, H - 54)
@@ -7708,7 +7954,18 @@ class Game:
             col = (80, 230, 110) if city['hp'] > 60 else ((255, 200, 70) if city['hp'] > 30 else (240, 80, 70))
             self.bar(cv, W // 2 - 210, 44, 420, 26, city['hp'] / 100, col, '%s %d%%' % ('ANTENA' if g['antenna'] is not None else 'CIUDAD', city['hp']))
             self.text(cv, 'ENEMIGOS: %d' % (len(g['queue']) + len(g['enemies'])), self.f_m, (255, 160, 140), W - 20, 90, 'r')
-        self.text(cv, 'WASD mover | Clic disparar | R recargar | ESPACIO granada', self.f_s, (200, 220, 255), W - 14, H - 30, 'r')
+        if g['stealth']:
+            self.text(cv, 'SHIFT sigilo | Q pistola/fusil | E noquear o instalar | clic disparar | ESPACIO granada', self.f_s, (200, 220, 255), W - 14, H - 30, 'r')
+            if g['alert_t'] > 0:
+                pul = 0.5 + 0.5 * math.sin(t * 9)
+                self.panel(cv, (W // 2 - 150, 88, 300, 40), 190)
+                self.text(cv, 'ALERTA  %04.1f s' % g['alert_t'], self.f_m, (255, int(80 + 100 * pul), 70), W // 2, 96, 'c')
+                pygame.draw.rect(cv, (255, 40, 40), (0, 0, W, H), 3 + int(4 * pul))
+            else:
+                state = 'SIGILO' if not any(e['state'] == 'susp' for e in g['enemies']) else 'SOSPECHA'
+                self.text(cv, state + ('  (agachado)' if p['sneak'] else ''), self.f_s, (140, 255, 200) if state == 'SIGILO' else (255, 210, 100), W // 2, 92, 'c')
+        else:
+            self.text(cv, 'WASD mover | Clic disparar | R recargar | ESPACIO granada', self.f_s, (200, 220, 255), W - 14, H - 30, 'r')
 
     # ---- combate
     def draw_combat(self, cv):
