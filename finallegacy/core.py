@@ -482,8 +482,11 @@ class CoreMixin:
         self.state = state
         self.fade = 1.0
         pygame.mouse.set_visible(state in ('upgrade',) or state not in ('defense', 'combat', 'aerial', 'ground', 'tank', 'port', 'heli'))
-        self.audio.music({'title': 'calm', 'map': 'calm', 'defense': 'battle', 'combat': 'battle',
-                          'aerial': 'battle', 'ground': 'battle', 'hack': 'battle', 'tank': 'battle', 'port': 'battle', 'upgrade': 'calm', 'heli': 'battle', 'helisel': 'calm', 'gameover': None}[state])
+        calm = state in ('title', 'map', 'upgrade', 'helisel')
+        ctx = {'helisel': 'upgrade', 'gameover': None}.get(state, state)
+        if state == 'combat' and (getattr(self, 'c', None) or {}).get('is_boss'):
+            ctx = 'boss'
+        self.audio.music(ctx, getattr(self, 'wave', 1), 'calm' if calm else 'battle')
         if state not in ('map', 'combat'):
             self.audio.engine_vol(0)
 
@@ -680,6 +683,7 @@ class CoreMixin:
             for e in pygame.event.get():
                 self.handle(e)
             self.pad_poll(dt)
+            self.audio.tick()
             if not self.paused:
                 self.update(dt)
             self.draw()
