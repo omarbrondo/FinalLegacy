@@ -13,6 +13,7 @@ from finallegacy.audio import *        # noqa: F401,F403
 from finallegacy.sprites import *      # noqa: F401,F403
 from finallegacy.tk_art import *       # noqa: F401,F403
 from finallegacy.pt_art import *       # noqa: F401,F403
+from finallegacy.boss_art import *     # noqa: F401,F403
 from finallegacy.game import Game, main
 
 if __name__ == '__main__':
