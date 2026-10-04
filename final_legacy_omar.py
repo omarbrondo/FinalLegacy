@@ -587,6 +587,7 @@ class Game:
         self.plane_p = self.make_plane(32, 48, (70, 140, 170))
         self.plane_e = self.make_plane(32, 48, (150, 60, 60))
         self.missile_gfx = self.make_missile()
+        self.antenna_gfx = self.make_antenna()
 
         # ---- cielo de defensa
         sky = pygame.Surface((W, HZ))
@@ -687,21 +688,36 @@ class Game:
         return s
 
     def make_plane(self, wd, ln, col):
-        S = 2
+        S = 3
         w, l = wd * S, ln * S
         s = pygame.Surface((w, l), pygame.SRCALPHA)
-        pygame.draw.polygon(s, shade(col, -30), [(w * .5, 0), (w * .8, l * .3), (w * .85, l * .7), (w * .5, l), (w * .15, l * .7), (w * .2, l * .3)])
-        pygame.draw.polygon(s, col, [(w * .48, l * .15), (w * .75, l * .35), (w * .78, l * .65), (w * .5, l * .9), (w * .22, l * .65), (w * .25, l * .35)])
+        fuselaje = [(w * .5, 0), (w * .65, l * .2), (w * .68, l * .5), (w * .65, l * .8), (w * .5, l), (w * .35, l * .8), (w * .32, l * .5), (w * .35, l * .2)]
+        pygame.draw.polygon(s, shade(col, -40), fuselaje)
+        pygame.draw.polygon(s, col, [(w * .48, l * .15), (w * .62, l * .35), (w * .63, l * .65), (w * .5, l * .9), (w * .38, l * .65), (w * .37, l * .35)])
+        alas = [(w * .2, l * .45), (w * .35, l * .4), (w * .5, l * .42), (w * .65, l * .4), (w * .8, l * .45), (w * .75, l * .55), (w * .5, l * .58), (w * .25, l * .55)]
+        pygame.draw.polygon(s, shade(col, -20), alas)
+        pygame.draw.polygon(s, shade(col, 20), alas, 2)
         for x in (w * .3, w * .7):
-            pygame.draw.circle(s, shade(col, -60), (int(x), int(l * .5)), int(w * .08))
-            pygame.draw.circle(s, shade(col, 40), (int(x), int(l * .5)), int(w * .05))
-        pygame.draw.circle(s, (255, 200, 100), (int(w * .5), int(l * .2)), int(w * .06))
+            pygame.draw.circle(s, (50, 50, 50), (int(x), int(l * .5)), int(w * .1))
+            pygame.draw.circle(s, shade(col, -80), (int(x), int(l * .5)), int(w * .08))
+        pygame.draw.circle(s, (255, 220, 150), (int(w * .5), int(l * .15)), int(w * .07))
+        pygame.draw.line(s, shade(col, 60), (int(w * .5), int(l * .6)), (int(w * .5), int(l * .85)), int(w * .04))
         return pygame.transform.smoothscale(s, (wd, ln))
 
     def make_missile(self):
         s = pygame.Surface((8, 32), pygame.SRCALPHA)
         pygame.draw.polygon(s, (255, 200, 100), [(4, 0), (7, 8), (7, 24), (4, 32), (1, 24), (1, 8)])
         pygame.draw.polygon(s, (255, 255, 255), [(3, 4), (5, 4), (5, 28), (3, 28)])
+        return s
+
+    def make_antenna(self):
+        s = pygame.Surface((24, 48), pygame.SRCALPHA)
+        pygame.draw.rect(s, (100, 100, 120), (9, 12, 6, 20))
+        pygame.draw.line(s, (150, 150, 180), (6, 20), (12, 12), 2)
+        pygame.draw.line(s, (150, 150, 180), (18, 20), (12, 12), 2)
+        pygame.draw.line(s, (150, 150, 180), (6, 28), (12, 22), 2)
+        pygame.draw.line(s, (150, 150, 180), (18, 28), (12, 22), 2)
+        pygame.draw.circle(s, (200, 220, 255), (12, 10), 3)
         return s
 
     # ------------------------------------------------------------ util
@@ -2440,7 +2456,16 @@ class Game:
     def draw_aerial(self, cv):
         a = self.a
         p = a['p']
-        cv.fill((20, 40, 90))
+        for y in range(H):
+            k = y / H
+            c = (int(10 + k * 40), int(20 + k * 60), int(80 + k * 60))
+            pygame.draw.line(cv, c, (0, y), (W, y))
+        px = (self.t * 30) % 256
+        for x in range(int(-px), W, 256):
+            for y in range(0, H, 60):
+                pts = [(x + 20, y + 20), (x + 60, y), (x + 100, y + 20), (x + 80, y + 50), (x + 40, y + 40)]
+                pygame.draw.polygon(cv, (180, 200, 220), pts)
+                pygame.draw.polygon(cv, (200, 220, 240), pts, 1)
         for y in range(0, H, 40):
             pygame.draw.line(cv, (40, 70, 140), (0, y), (W, y), 1)
         for x in range(0, W, 60):
