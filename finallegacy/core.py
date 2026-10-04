@@ -442,7 +442,7 @@ class CoreMixin:
         self.rescue = None
         self.rescue_t = 45.0
         self.convoy = None
-        self.convoy_t = 100.0
+        self.convoy_t = 80.0
         self.port_tries = 0
         self.port_done = False
         self.cam = [self.sx - W / 2, self.sy - H / 2]
