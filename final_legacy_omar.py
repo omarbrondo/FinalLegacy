@@ -25,6 +25,8 @@ HZ = 590                      # horizonte en la escena de defensa
 SKY_W = 640                   # ancho del skyline
 WIN_WAVE = 6                  # oleadas para ganar
 VMAX = 170.0                  # velocidad máx. del buque en el mapa (px/s)
+BOSS_WAVE = 3                 # cada cuántas oleadas aparece jefe final
+ANTENNA_ISLANDS = [4, 5, 6]   # índices de islas con antenas (de EXTRA_ISLANDS)
 
 # (nombre, x, y, radio, semilla)
 CITY_DEFS = [
@@ -582,6 +584,9 @@ class Game:
         self.ttur_p = make_tank_turret((84, 140, 150))
         self.ttur_e = make_tank_turret((160, 70, 62))
         self.side_ship = self.make_side_ship()
+        self.plane_p = self.make_plane(32, 48, (70, 140, 170))
+        self.plane_e = self.make_plane(32, 48, (150, 60, 60))
+        self.missile_gfx = self.make_missile()
 
         # ---- cielo de defensa
         sky = pygame.Surface((W, HZ))
@@ -681,6 +686,24 @@ class Game:
         pygame.draw.circle(s, (60, 70, 86), (232, 66), 11)
         return s
 
+    def make_plane(self, wd, ln, col):
+        S = 2
+        w, l = wd * S, ln * S
+        s = pygame.Surface((w, l), pygame.SRCALPHA)
+        pygame.draw.polygon(s, shade(col, -30), [(w * .5, 0), (w * .8, l * .3), (w * .85, l * .7), (w * .5, l), (w * .15, l * .7), (w * .2, l * .3)])
+        pygame.draw.polygon(s, col, [(w * .48, l * .15), (w * .75, l * .35), (w * .78, l * .65), (w * .5, l * .9), (w * .22, l * .65), (w * .25, l * .35)])
+        for x in (w * .3, w * .7):
+            pygame.draw.circle(s, shade(col, -60), (int(x), int(l * .5)), int(w * .08))
+            pygame.draw.circle(s, shade(col, 40), (int(x), int(l * .5)), int(w * .05))
+        pygame.draw.circle(s, (255, 200, 100), (int(w * .5), int(l * .2)), int(w * .06))
+        return pygame.transform.smoothscale(s, (wd, ln))
+
+    def make_missile(self):
+        s = pygame.Surface((8, 32), pygame.SRCALPHA)
+        pygame.draw.polygon(s, (255, 200, 100), [(4, 0), (7, 8), (7, 24), (4, 32), (1, 24), (1, 8)])
+        pygame.draw.polygon(s, (255, 255, 255), [(3, 4), (5, 4), (5, 28), (3, 28)])
+        return s
+
     # ------------------------------------------------------------ util
     def text(self, dst, s, font, col, x, y, anchor='l', shadow=True, alpha=None):
         img = font.render(s, True, col)
@@ -769,6 +792,7 @@ class Game:
         self.sx, self.sy = 1200.0, 760.0
         self.sh, self.sv = 0.0, 0.0
         self.hull, self.fuel, self.ammo = 100.0, 100.0, 30
+        self.antennas = {i: False for i in ANTENNA_ISLANDS}
         self.cities = []
         for (name, x, y, r, seed) in CITY_DEFS:
             c = dict(name=name, x=x, y=y, r=r, hp=100.0, dead=False, seed=seed)
@@ -822,14 +846,24 @@ class Game:
                     break
             mh = 10 + 2 * (self.wave - 1)
             self.enemies.append(dict(x=x, y=y, h=random.uniform(0, 360), v=0.0, hp=mh, max=mh, state='patrol',
-                                     wp=self.rand_wp(), cool=0.0))
+                                     wp=self.rand_wp(), cool=0.0, is_boss=False))
+        if self.wave % BOSS_WAVE == 0:
+            x = y = 0
+            for _ in range(60):
+                x, y = random.uniform(150, WORLD_W - 150), random.uniform(150, WORLD_H - 150)
+                if dist(x, y, self.sx, self.sy) > 900 and not self.on_land(x, y, 120):
+                    break
+            boss_hp = 35 + 15 * ((self.wave // BOSS_WAVE) - 1)
+            self.enemies.append(dict(x=x, y=y, h=random.uniform(0, 360), v=0.0, hp=boss_hp, max=boss_hp,
+                                     state='patrol', wp=self.rand_wp(), cool=0.0, is_boss=True,
+                                     burst=[], orb=1, orb_t=3.0))
 
     def go(self, state):
         self.state = state
         self.fade = 1.0
-        pygame.mouse.set_visible(state not in ('defense', 'combat', 'ground'))
+        pygame.mouse.set_visible(state not in ('defense', 'combat', 'aerial', 'ground'))
         self.audio.music({'title': 'calm', 'map': 'calm', 'defense': 'battle', 'combat': 'battle',
-                          'ground': 'battle', 'gameover': None}[state])
+                          'aerial': 'battle', 'ground': 'battle', 'gameover': None}[state])
         if state not in ('map', 'combat'):
             self.audio.engine_vol(0)
 
@@ -869,11 +903,15 @@ class Game:
                 self.fire_interceptor()
             elif self.state == 'ground' and e.key == pygame.K_SPACE and not self.paused:
                 self.fire_cannon_g()
+            elif self.state == 'aerial' and e.key == pygame.K_SPACE and not self.paused:
+                self.fire_aerial()
             elif self.state == 'combat' and not self.paused:
                 if e.key == pygame.K_SPACE:
                     self.fire_shell()
                 elif e.key == pygame.K_e:
                     self.flee()
+                elif e.key == pygame.K_c:
+                    self.cyber_attack()
         if e.type == pygame.MOUSEBUTTONDOWN and e.button == 3 and self.state == 'ground' and not self.paused:
             self.fire_cannon_g()
         if e.type == pygame.MOUSEBUTTONDOWN and e.button == 1 and not self.paused:
@@ -881,6 +919,8 @@ class Game:
                 self.start_game()
             elif self.state == 'defense':
                 self.fire_interceptor()
+            elif self.state == 'aerial':
+                self.fire_aerial()
             elif self.state == 'combat':
                 self.fire_shell()
 
@@ -914,6 +954,8 @@ class Game:
             self.upd_defense(dt)
         elif self.state == 'combat':
             self.upd_combat(dt)
+        elif self.state == 'aerial':
+            self.upd_aerial(dt)
         elif self.state == 'ground':
             self.upd_ground(dt)
         elif self.state in ('title', 'gameover'):
@@ -1085,39 +1127,45 @@ class Game:
     def ai_map(self, en, dt):
         en['cool'] = max(0.0, en['cool'] - dt)
         d = dist(self.sx, self.sy, en['x'], en['y'])
-        if en['state'] == 'patrol' and d < 430 and en['cool'] <= 0:
+        is_boss = en.get('is_boss', False)
+        chase_dist = 520 if is_boss else 430
+
+        if en['state'] == 'patrol' and d < chase_dist and en['cool'] <= 0:
             en['state'] = 'chase'
             self.audio.play('ping')
-            self.toast('¡Contacto enemigo!', (255, 100, 90))
-        elif en['state'] == 'chase' and (d > 680 or en['cool'] > 0):
+            if is_boss:
+                self.toast('¡JEFE ENEMIGO DETECTADO!', (255, 50, 50))
+            else:
+                self.toast('¡Contacto enemigo!', (255, 100, 90))
+        elif en['state'] == 'chase' and (d > (1000 if is_boss else 680) or en['cool'] > 0):
             en['state'] = 'patrol'
         if en['state'] == 'chase':
             tx, ty = self.sx, self.sy
-            sp = 96 + 5 * self.wave
+            sp = (120 + 8 * self.wave) if is_boss else (96 + 5 * self.wave)
         else:
             tx, ty = en['wp']
-            sp = 52
+            sp = 60 if is_boss else 52
             if dist(en['x'], en['y'], tx, ty) < 50:
                 en['wp'] = self.rand_wp()
         vx, vy = tx - en['x'], ty - en['y']
         n = math.hypot(vx, vy) or 1
         vx, vy = vx / n, vy / n
-        for ix, iy, ir, sd in self.islands:                   # evitar islas
+        for ix, iy, ir, sd in self.islands:
             dd = dist(en['x'], en['y'], ix, iy) or 1.0
-            lim = coast_r(ir, sd, math.atan2(en['y'] - iy, en['x'] - ix), 1.1) + 110
+            lim = coast_r(ir, sd, math.atan2(en['y'] - iy, en['x'] - ix), 1.1) + (130 if is_boss else 110)
             if dd < lim:
-                k = (lim - dd) / 110
+                k = (lim - dd) / (130 if is_boss else 110)
                 vx += (en['x'] - ix) / dd * k * 2.4
                 vy += (en['y'] - iy) / dd * k * 2.4
         want = bearing(vx, vy)
-        en['h'] = (en['h'] + clamp(angle_diff(en['h'], want), -45 * dt, 45 * dt)) % 360
+        en['h'] = (en['h'] + clamp(angle_diff(en['h'], want), -30 * dt if is_boss else -45 * dt, 30 * dt if is_boss else 45 * dt)) % 360
         en['v'] += (sp - en['v']) * min(1, dt * 1.5)
         dx, dy = vec(en['h'], en['v'] * dt)
         en['x'] = clamp(en['x'] + dx, 40, WORLD_W - 40)
         en['y'] = clamp(en['y'] + dy, 40, WORLD_H - 40)
-        if random.random() < dt * 14:
-            bx, by = vec(en['h'], -24)
-            self.fxm.add('foam', en['x'] + bx, en['y'] + by, life=1.3, r0=3, r1=10, col=(230, 245, 255))
+        if random.random() < dt * (18 if is_boss else 14):
+            bx, by = vec(en['h'], -30 if is_boss else -24)
+            self.fxm.add('foam', en['x'] + bx, en['y'] + by, life=1.3, r0=4 if is_boss else 3, r1=14 if is_boss else 10, col=(230, 245, 255))
 
     # ---------------------------------------------------------- DEFENSA
     def start_defense(self, city):
@@ -1289,14 +1337,39 @@ class Game:
     def start_combat(self, en):
         self.fx = Particles()
         self.enemy_ref = en
+        is_boss = en.get('is_boss', False)
+        antennas_active = sum(1 for i, active in self.antennas.items() if active)
         self.c = dict(
             p=dict(x=W / 2, y=H - 170.0, h=0.0, v=0.0, cool=0.0, wake=0.0, sink=None),
-            e=dict(x=W / 2 + random.uniform(-150, 150), y=170.0, h=180.0, v=40.0, cool=2.0, orb=random.choice([-1, 1]),
-                   orb_t=5.0, burst=[], wake=0.0, sink=None, hp=en['hp'], max=en['max']),
-            shells=[], t=0.0)
+            e=dict(x=W / 2 + random.uniform(-150, 150), y=170.0, h=180.0, v=40.0, cool=1.5 if is_boss else 2.0,
+                   orb=random.choice([-1, 1]), orb_t=5.0, burst=[], wake=0.0, sink=None, hp=en['hp'], max=en['max']),
+            shells=[], t=0.0, is_boss=is_boss, cyber_available=(is_boss and antennas_active > 0),
+            cyber_used=False, cyber_cooldown=0.0)
         self.aim = [W / 2, 300.0]
         self.go('combat')
-        self.banner('¡COMBATE NAVAL!', 'W/S/A/D: navegar  |  Mouse+Clic: disparar  |  E: huir', (255, 150, 90), 3.0)
+        if is_boss:
+            msg = 'Este es un combate peligroso. Derrótalo para avanzar'
+            if antennas_active > 0:
+                msg += ' | C: ciberataque (%d antenas)' % antennas_active
+            self.banner('¡JEFE FINAL!', msg, (255, 50, 50), 3.2)
+        else:
+            self.banner('¡COMBATE NAVAL!', 'W/S/A/D: navegar  |  Mouse+Clic: disparar  |  E: huir', (255, 150, 90), 3.0)
+
+    def cyber_attack(self):
+        c = self.c
+        if not c.get('cyber_available', False) or c.get('cyber_used', False) or c['e']['sink'] is not None:
+            return
+        c['cyber_used'] = True
+        e = c['e']
+        dmg = 20 + 5 * (self.wave // BOSS_WAVE)
+        e['hp'] -= dmg
+        self.audio.play('ping')
+        self.shake = max(self.shake, 15)
+        self.pop('CIBERATAQUE\n-%d' % dmg, e['x'], e['y'] - 30, (100, 200, 255))
+        for _ in range(15):
+            a = random.uniform(0, 6.28)
+            self.fx.add('spark', e['x'], e['y'], math.cos(a) * 200, math.sin(a) * 200, 0.4, col=(100, 200, 255), drag=1.8)
+        self.banner('CIBERATAQUE', '-%d daño al enemigo' % dmg, (100, 200, 255), 2.0)
 
     def fire_shell(self):
         c = self.c
@@ -1312,7 +1385,8 @@ class Game:
         tx, ty = self.combat_aim()
         d = dist(p['x'], p['y'], tx, ty)
         T = clamp(d / 380, 0.7, 2.0)
-        c['shells'].append(dict(x0=p['x'], y0=p['y'], x1=tx, y1=ty, t=0.0, T=T, own='p'))
+        accurate = random.random() < 0.65
+        c['shells'].append(dict(x0=p['x'], y0=p['y'], x1=tx, y1=ty, t=0.0, T=T, own='p', accurate=accurate))
         self.audio.play('cannon', .8)
         self.fx.add('glow', p['x'], p['y'], life=.2, r0=20, r1=44, col=(255, 220, 150))
         self.shake = max(self.shake, 3)
@@ -1397,11 +1471,17 @@ class Game:
             e['x'] += ex
             e['y'] += ey
             e['cool'] -= dt
+            is_boss = self.c.get('is_boss', False)
             if e['cool'] <= 0 and p['sink'] is None:
-                e['cool'] = random.uniform(2.1, 3.0) * max(0.55, 1 - 0.07 * self.wave)
-                self.enemy_fire(1.0)
-                if self.wave >= 3:
-                    e['burst'].append(0.35)
+                if is_boss:
+                    e['cool'] = random.uniform(1.2, 1.8)
+                    self.enemy_fire(1.0)
+                    e['burst'].append(0.4)
+                else:
+                    e['cool'] = random.uniform(2.1, 3.0) * max(0.55, 1 - 0.07 * self.wave)
+                    self.enemy_fire(1.0)
+                    if self.wave >= 3:
+                        e['burst'].append(0.35)
             e['burst'] = [b - dt for b in e['burst']]
             if e['burst'] and e['burst'][0] <= 0:
                 e['burst'].pop(0)
@@ -1467,7 +1547,8 @@ class Game:
         a, r = random.uniform(0, 6.28), random.uniform(0, spread)
         tx = clamp(p['x'] + vx * T + math.cos(a) * r, 20, W - 20)
         ty = clamp(p['y'] + vy * T + math.sin(a) * r, 20, H - 20)
-        c['shells'].append(dict(x0=e['x'], y0=e['y'], x1=tx, y1=ty, t=0.0, T=T, own='e'))
+        accurate = random.random() < 0.6
+        c['shells'].append(dict(x0=e['x'], y0=e['y'], x1=tx, y1=ty, t=0.0, T=T, own='e', accurate=accurate))
         self.audio.play('cannon', .5)
         self.fx.add('glow', e['x'], e['y'], life=.2, r0=20, r1=40, col=(255, 160, 120))
 
@@ -1476,6 +1557,11 @@ class Game:
         p, e = c['p'], c['e']
         x, y = s['x1'], s['y1']
         tgt = e if s['own'] == 'p' else p
+
+        if not s.get('accurate', True):
+            x += random.uniform(-120, 120)
+            y += random.uniform(-100, 100)
+
         d = dist(x, y, tgt['x'], tgt['y'])
         if d <= 54 and tgt['sink'] is None:
             full = d <= 24
@@ -1492,6 +1578,144 @@ class Game:
         else:
             self.fx.splash(x, y, 1.0)
             self.audio.play('splash', .6)
+
+    # ---------------------------------------------------------- BATALLA AÉREA
+    def start_aerial(self):
+        self.fx = Particles()
+        n = min(6 + self.wave, 16)
+        self.a = dict(
+            p=dict(x=W / 2, y=H - 80.0, h=0.0, v=0.0, cool=0.0, hp=100.0, sink=None),
+            enemies=[], missiles=[], t=0.0, total=n, killed=0, phase='play', pt=0.0,
+            queue=sorted(random.uniform(0.4, 2.0 + n * 0.6) for _ in range(n)))
+        self.aim = [W / 2, 200.0]
+        self.go('aerial')
+        self.banner('¡BATALLA AÉREA!', 'Mouse: apuntar  |  Clic/ESPACIO: disparar  |  W/S: mover', (100, 180, 255), 3.0)
+
+    def spawn_aerial_enemy(self):
+        a = self.a
+        y = random.uniform(80, 200)
+        x = random.choice([-40, W + 40])
+        hp = 3 + self.wave // 2
+        a['enemies'].append(dict(x=x, y=y, vx=random.uniform(80 + self.wave * 8, 140 + self.wave * 12) * (1 if x < W / 2 else -1),
+                                 h=180 if x < W / 2 else 0, hp=hp, max=hp, cool=random.uniform(0.8, 1.8)))
+
+    def fire_aerial(self):
+        a = self.a
+        p = a['p']
+        if p['sink'] is not None or p['cool'] > 0:
+            return
+        if self.ammo <= 0:
+            self.audio.play('empty')
+            self.toast('¡Sin munición!', (255, 90, 80))
+            return
+        self.ammo -= 1
+        p['cool'] = 0.4
+        angle = bearing(self.aim[0] - p['x'], self.aim[1] - p['y'])
+        directions = [0, 30, -30, 60, -60]
+        for d in directions[:min(3, (self.wave // 2) + 1)]:
+            ang = angle + d
+            vx, vy = vec(ang, 500)
+            a['missiles'].append(dict(x=p['x'], y=p['y'], vx=vx, vy=vy, life=2.0, own='p'))
+        self.audio.play('launch', .8)
+        self.fx.add('glow', p['x'], p['y'], life=.15, r0=16, r1=32, col=(120, 200, 255))
+
+    def upd_aerial(self, dt):
+        a = self.a
+        p = a['p']
+        keys = pygame.key.get_pressed()
+
+        a['t'] += dt
+        p['cool'] = max(0.0, p['cool'] - dt)
+        p['hp'] = max(0.0, p['hp'] - random.random() * dt * 2 if p['hp'] > 0 else 0)
+
+        if keys[pygame.K_w] or keys[pygame.K_UP]:
+            p['y'] = max(40, p['y'] - 300 * dt)
+        if keys[pygame.K_s] or keys[pygame.K_DOWN]:
+            p['y'] = min(H - 40, p['y'] + 300 * dt)
+        if keys[pygame.K_a] or keys[pygame.K_LEFT]:
+            p['x'] = max(20, p['x'] - 300 * dt)
+        if keys[pygame.K_d] or keys[pygame.K_RIGHT]:
+            p['x'] = min(W - 20, p['x'] + 300 * dt)
+
+        while a['queue'] and a['queue'][0] <= a['t']:
+            a['queue'].pop(0)
+            self.spawn_aerial_enemy()
+
+        for e in a['enemies'][:]:
+            e['x'] += e['vx'] * dt
+            e['y'] += random.uniform(-1, 1) * 30 * dt
+            e['cool'] -= dt
+            if e['cool'] <= 0:
+                e['cool'] = random.uniform(1.0, 2.0)
+                vx, vy = vec(bearing(p['x'] - e['x'], p['y'] - e['y']), 300)
+                a['missiles'].append(dict(x=e['x'], y=e['y'], vx=vx, vy=vy, life=2.5, own='e'))
+                self.audio.play('launch', .3)
+
+            if e['x'] < -60 or e['x'] > W + 60 or e['y'] < 0 or e['y'] > H:
+                a['enemies'].remove(e)
+
+        for m in a['missiles'][:]:
+            m['x'] += m['vx'] * dt
+            m['y'] += m['vy'] * dt
+            m['life'] -= dt
+
+            if m['own'] == 'p':
+                hit = None
+                for e in a['enemies']:
+                    if dist(m['x'], m['y'], e['x'], e['y']) < 16:
+                        hit = e
+                        break
+                if hit:
+                    hit['hp'] -= 1
+                    self.fx.add('glow', m['x'], m['y'], life=.25, r0=8, r1=20, col=(255, 180, 100))
+                    self.audio.play('boom_s', .4)
+                    a['missiles'].remove(m)
+                    if hit['hp'] <= 0:
+                        a['enemies'].remove(hit)
+                        a['killed'] += 1
+                        pts = 150
+                        self.add_score(pts)
+                        self.pop('+%d' % pts, hit['x'], hit['y'])
+                        self.fx.explode(hit['x'], hit['y'], 0.9)
+                    continue
+            else:
+                if p['sink'] is None and dist(m['x'], m['y'], p['x'], p['y']) < 18:
+                    p['hp'] -= 15
+                    self.shake = max(self.shake, 6)
+                    self.audio.play('hit', .6)
+                    self.fx.add('glow', m['x'], m['y'], life=.3, r0=12, r1=28, col=(255, 140, 80))
+                    a['missiles'].remove(m)
+                    continue
+
+            if m['life'] <= 0 or m['x'] < -40 or m['x'] > W + 40 or m['y'] < -40 or m['y'] > H + 40:
+                if m in a['missiles']:
+                    a['missiles'].remove(m)
+
+        self.fx.update(dt)
+
+        if p['sink'] is None and p['hp'] <= 0:
+            p['sink'] = 0.0
+            self.fx.explode(p['x'], p['y'], 1.5, True)
+            self.audio.play('boom_l')
+            self.shake = 14
+            a['phase'] = 'result'
+            a['pt'] = -2.0
+            self.banner('¡AVIÓN DERRIBADO!', 'Derrota', (255, 80, 70), 3.0)
+
+        if a['phase'] == 'play' and not a['queue'] and not a['enemies'] and not a['missiles']:
+            a['phase'] = 'result'
+            a['pt'] = 0.0
+            bonus = 500 + 100 * self.wave
+            self.add_score(bonus)
+            self.audio.play('win', .7)
+            self.banner('¡VICTORIA AÉREA!', 'Bajas: %d   Bonus +%d' % (a['killed'], bonus), (120, 255, 160), 2.8)
+
+        if a['phase'] == 'result':
+            a['pt'] += dt
+            if a['pt'] > 2.8:
+                self.warned = False
+                self.strike_t = max(22.0, random.uniform(30, 42) - self.wave * 2)
+                self.go('map')
 
     # ---------------------------------------------------------- COMBATE TERRESTRE
     def make_ground(self, city, R):
@@ -1774,6 +1998,13 @@ class Game:
             city['hp'] = max(0.0, city['hp'] - 30)
             if city['hp'] <= 0:
                 city['dead'] = True
+        else:
+            for i, (x, y, r, s) in enumerate(EXTRA_ISLANDS):
+                if dist(g['city']['x'], g['city']['y'], x, y) < 200 and i in ANTENNA_ISLANDS:
+                    if not self.antennas[i]:
+                        self.antennas[i] = True
+                        self.toast('¡ANTENA INSTALADA en isla %d!' % (i - 3), (120, 255, 160))
+                        self.banner('SISTEMA DEFENSIVO', 'Antena #%d lista. Ciberataque disponible.' % (i - 3), (120, 220, 255), 3.0)
         self.warned = False
         self.strike_t = max(22.0, random.uniform(30, 42) - self.wave * 2)
         if all(c['dead'] for c in self.cities):
@@ -1821,6 +2052,8 @@ class Game:
             self.draw_defense(cv)
         elif self.state == 'combat':
             self.draw_combat(cv)
+        elif self.state == 'aerial':
+            self.draw_aerial(cv)
         elif self.state == 'ground':
             self.draw_ground(cv)
         elif self.state == 'gameover':
@@ -2141,6 +2374,7 @@ class Game:
     def draw_combat(self, cv):
         c = self.c
         p, e = c['p'], c['e']
+        is_boss = c.get('is_boss', False)
         self.draw_ocean(cv, 0, 0, self.t)
         # anillos de impacto
         for s in c['shells']:
@@ -2148,6 +2382,8 @@ class Game:
             col = (120, 255, 160) if s['own'] == 'p' else (255, 80, 70)
             draw_circ(cv, s['x1'], s['y1'], 54, col, 70 + 60 * math.sin(self.t * 12), 2)
             draw_circ(cv, s['x1'], s['y1'], max(4, 54 * (1 - k)), col, 220, 3)
+        if is_boss:
+            glow(cv, e['x'], e['y'], 80 + 20 * math.sin(self.t * 2), (255, 80, 60), 0.4)
         self.fx.draw(cv)
         # buques
         for ship, key, tur, tcol in ((e, 'e_hull', self.tur_e, None), (p, 'p_hull', self.tur_p, None)):
@@ -2186,12 +2422,56 @@ class Game:
         # HUD
         self.draw_hud(cv)
         self.panel(cv, (W // 2 - 230, 12, 460, 70), 170)
-        self.text(cv, 'DESTRUCTOR ENEMIGO', self.f_m, (255, 140, 120), W // 2, 16, 'c')
+        if is_boss:
+            self.text(cv, '¡JEFE FINAL!', self.f_m, (255, 80, 60), W // 2, 16, 'c')
+        else:
+            self.text(cv, 'DESTRUCTOR ENEMIGO', self.f_m, (255, 140, 120), W // 2, 16, 'c')
         self.bar(cv, W // 2 - 210, 44, 420, 26, e['hp'] / e['max'], (240, 80, 70), 'CASCO ENEMIGO')
         rl = 1 - clamp(p['cool'] / 0.9, 0, 1)
         pygame.draw.rect(cv, (8, 12, 24), (W // 2 - 60, H - 40, 120, 10))
         pygame.draw.rect(cv, (120, 255, 160) if rl >= 1 else (255, 200, 80), (W // 2 - 59, H - 39, int(118 * rl), 8))
-        self.text(cv, 'Clic/ESPACIO disparar  |  E huir', self.f_s, (200, 220, 255), W // 2, H - 64, 'c')
+        if c.get('cyber_available', False):
+            cyber_text = 'C: ciberataque' if not c.get('cyber_used', False) else 'Ciberataque (usado)'
+            self.text(cv, 'Clic/ESPACIO disparar  |  E huir  |  ' + cyber_text, self.f_s, (200, 220, 255), W // 2, H - 64, 'c')
+        else:
+            self.text(cv, 'Clic/ESPACIO disparar  |  E huir', self.f_s, (200, 220, 255), W // 2, H - 64, 'c')
+
+    # ---- batalla aérea
+    def draw_aerial(self, cv):
+        a = self.a
+        p = a['p']
+        cv.fill((20, 40, 90))
+        for y in range(0, H, 40):
+            pygame.draw.line(cv, (40, 70, 140), (0, y), (W, y), 1)
+        for x in range(0, W, 60):
+            pygame.draw.line(cv, (40, 70, 140), (x, 0), (x, H), 1)
+        for e in a['enemies']:
+            r = pygame.transform.rotate(self.plane_e, -e['h'])
+            cv.blit(r, (int(e['x']) - r.get_width() // 2, int(e['y']) - r.get_height() // 2))
+            if e['hp'] < e['max']:
+                pygame.draw.rect(cv, (8, 12, 24), (int(e['x']) - 16, int(e['y']) - 28, 32, 5))
+                pygame.draw.rect(cv, (240, 80, 70), (int(e['x']) - 15, int(e['y']) - 27, int(30 * e['hp'] / e['max']), 3))
+        for m in a['missiles']:
+            h = math.atan2(m['vy'], m['vx']) * 180 / math.pi
+            r = pygame.transform.rotate(self.missile_gfx, -h)
+            col = (100, 200, 255) if m['own'] == 'p' else (255, 150, 100)
+            glow(cv, m['x'], m['y'], 10, col, 0.6)
+            cv.blit(r, (int(m['x']) - r.get_width() // 2, int(m['y']) - r.get_height() // 2))
+        if p['sink'] is None or p['sink'] < 0.2:
+            r = pygame.transform.rotate(self.plane_p, -p['h'])
+            cv.blit(r, (int(p['x']) - r.get_width() // 2, int(p['y']) - r.get_height() // 2))
+        ax, ay = int(self.aim[0]), int(self.aim[1])
+        pygame.draw.circle(cv, (100, 255, 200), (ax, ay), 16, 2)
+        pygame.draw.circle(cv, (100, 255, 200), (ax, ay), 3)
+        for dx, dy in ((-30, 0), (30, 0), (0, -30), (0, 30)):
+            pygame.draw.line(cv, (100, 255, 200), (ax + dx // 2, ay + dy // 2), (ax + dx, ay + dy), 2)
+        self.draw_hud(cv, False)
+        self.panel(cv, (W // 2 - 230, 12, 460, 70), 170)
+        self.text(cv, '¡BATALLA AÉREA!', self.f_m, (100, 180, 255), W // 2, 16, 'c')
+        self.bar(cv, W // 2 - 210, 44, 420, 26, p['hp'] / 100, (80, 220, 110) if p['hp'] > 35 else (240, 80, 70), 'AVIÓN %d%%' % max(0, p['hp']))
+        left = len(a['queue']) + len(a['enemies'])
+        self.text(cv, 'ENEMIGOS: %d' % left, self.f_m, (255, 160, 140), W - 20, 90, 'r')
+        self.text(cv, 'W/S/A/D mover | Clic/ESPACIO disparar (múltiples direcciones)', self.f_s, (200, 220, 255), W // 2, H - 30, 'c')
 
 
 if __name__ == '__main__':
