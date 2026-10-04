@@ -68,4 +68,7 @@ Una isla del mapa (con una H, también en el radar) tiene un helipuerto con un B
 
 ## Atajos de prueba en el mapa
 
-F2 tanques · F3 aéreo · F4 desembarco · F5 náufragos · F6 convoy · F7 asalto al puerto
+F2 tanques · F3 aéreo · F4 desembarco · F5 náufragos · F6 convoy · F7 asalto al puerto · F8 defensa de misiles
+F9 subir una oleada (hasta la 6, que es la última) · F10 +3000 puntos (gana una misión del Blackhawk) · F12 reabastecer casco, combustible, munición y ciudades
+
+El juego tiene 6 oleadas: al completar la 6.ª ganás. Con F9 subís de oleada y después F2-F8 muestran cada modo con la dificultad de esa oleada.

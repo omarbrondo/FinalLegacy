@@ -477,6 +477,31 @@ class CoreMixin:
         self.audio.play('win' if victory else 'lose')
         self.go('gameover')
 
+    def debug_key(self, key):
+        """Atajos de prueba en el mapa: F8 defensa de misiles, F9 subir de oleada, F10 +3000 puntos, F12 reabastecer todo."""
+        if key == pygame.K_F8:
+            alive = [c for c in self.cities if not c['dead']]
+            if alive:
+                self.strike_city = random.choice(alive)
+                self.warned = False
+                self.attack = None
+                self.start_defense(self.strike_city)
+        elif key == pygame.K_F9:
+            self.wave = min(WIN_WAVE, self.wave + 1)
+            self.enemies = []
+            self.spawn_nests()
+            self.spawn_wave()
+            self.banner('MODO PRUEBA: OLEADA %d' % self.wave, 'Ahora F2-F8 muestran los modos con la dificultad de esa oleada', (255, 220, 120), 3.0)
+        elif key == pygame.K_F10:
+            self.add_score(3000)
+            self.toast('MODO PRUEBA: +3000 puntos', (255, 220, 120))
+        elif key == pygame.K_F12:
+            self.hull, self.fuel, self.ammo = float(self.hull_max), 100.0, 40
+            for c in self.cities:
+                if not c['dead']:
+                    c['hp'] = 100.0
+            self.toast('MODO PRUEBA: casco, combustible, munición y ciudades al máximo', (255, 220, 120))
+
     def toggle_fullscreen(self):
         try:
             pygame.display.toggle_fullscreen()
@@ -500,6 +525,8 @@ class CoreMixin:
                 self.crt_on = not self.crt_on
             elif e.key == pygame.K_m:
                 self.audio.toggle_mute()
+            elif e.key in (pygame.K_F8, pygame.K_F9, pygame.K_F10, pygame.K_F12) and self.state == 'map' and not self.paused:
+                self.debug_key(e.key)
             elif e.key == pygame.K_F7 and self.state == 'map' and not self.paused:
                 self.port_tries = min(self.port_tries, 1)
                 self.start_port()
@@ -804,7 +831,7 @@ class CoreMixin:
                  'JEFE   Instalá antenas en las islas (L) y hackeá su escudo con H cerca del buque',
                  'AIRE   WASD mover   ESPACIO disparar   B bomba',
                  'MANDO   Izq. mover  Der. apuntar  RT/A disparar  LT/B granada  X recargar  Y acción',
-                 'P pausa  M sonido  F11 pantalla completa  F1 CRT  F2-F7 modos de prueba']
+                 'P pausa  M sonido  F11 pantalla completa  F1 CRT  F2-F10, F12 modo prueba']
         for i, ln in enumerate(lines):
             self.text(cv, ln, self.f_s, (220, 232, 255), W // 2 - 360, 336 + i * 28)
         if int(t * 2) % 2 == 0:
