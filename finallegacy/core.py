@@ -583,6 +583,8 @@ class CoreMixin:
                 self.heli_pick(e.key - pygame.K_1)
             elif self.state == 'helisel' and e.key == pygame.K_ESCAPE:
                 self.go('map')
+            elif self.state in ('ground', 'port') and e.key == pygame.K_t and not self.paused:
+                self.tomahawk()
             elif self.state == 'map' and e.key == pygame.K_c and not self.paused:
                 self.heli_call()
             elif self.state == 'map' and e.key == pygame.K_b and not self.paused:

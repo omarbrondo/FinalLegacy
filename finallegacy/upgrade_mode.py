@@ -11,6 +11,7 @@ UPGRADES = {
     'dmg': ('ARMAMENTO POTENTE', 'Todas tus armas hacen +20% de daño (cañones, fusil, cazas, tanque, cohetes)', (255, 120, 120)),
     'reload': ('RECARGA RÁPIDA', 'Cañón, interceptores, tanque, fusil y cazas: -20% de recarga', (255, 150, 90)),
     'homing': ('MISILES TELEDIRIGIDOS', 'En combate aéreo tus misiles guiados son permanentes', (200, 150, 255)),
+    'tomahawk': ('MISIL TOMAHAWK', 'Apoyo de fuego en infantería y puerto: +1 ataque por misión (tecla T / LB)', (255, 200, 90)),
     'nano': ('NANO-REPARACIÓN', 'El casco se regenera lentamente en el mar', (130, 255, 210)),
     'blast': ('EXPLOSIVOS MEJORADOS', 'Radio de explosión +20%: interceptores, granadas y cohetes', (255, 170, 100)),
 }

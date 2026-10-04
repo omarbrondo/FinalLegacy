@@ -762,12 +762,16 @@ class PortMixin:
                 if it['kind'] == 'med':
                     p['hp'] = min(PLAYER_HP, p['hp'] + 40)
                     self.pop('+40 VIDA', p['x'] - pt['cam'], p['y'] - 80, (120, 255, 160))
+                elif it['kind'] == 'mask':
+                    self.hz_state(pt)['mask'] = 14.0
+                    self.pop('¡MÁSCARA ANTIGÁS!', p['x'] - pt['cam'], p['y'] - 80, (170, 255, 120))
                 elif it['kind'] == 'gren':
                     p['gren'] = min(9, p['gren'] + 4)
                     self.pop('+4 GRANADAS', p['x'] - pt['cam'], p['y'] - 80, (255, 220, 120))
                 else:
                     p['hmg'] = 14.0
                     self.pop('¡AMETRALLADORA!', p['x'] - pt['cam'], p['y'] - 80, (255, 160, 90))
+        self.port_hazards(dt, alive)
         self.fx.update(dt)
         # fin de la misión
         if not p['dead'] and p['hp'] <= 0:
@@ -1050,13 +1054,18 @@ class PortMixin:
             if not (-40 < sx < W + 40):
                 continue
             bob = math.sin(it['t'] * 5) * 3
-            col = {'med': (236, 240, 236), 'gren': (96, 120, 70), 'hmg': (250, 170, 70)}[it['kind']]
+            col = {'med': (236, 240, 236), 'gren': (96, 120, 70), 'hmg': (250, 170, 70), 'mask': (70, 100, 70)}[it['kind']]
             glow(cv, sx, it['y'] + bob, 32, (120, 255, 160) if it['kind'] == 'med' else (255, 210, 80), 0.5)
             pygame.draw.rect(cv, (24, 26, 30), (sx - 15, it['y'] - 15 + bob, 30, 30), border_radius=5)
             pygame.draw.rect(cv, col, (sx - 13, it['y'] - 13 + bob, 26, 26), border_radius=4)
             if it['kind'] == 'med':
                 pygame.draw.rect(cv, (220, 50, 50), (sx - 8, it['y'] - 3 + bob, 16, 6))
                 pygame.draw.rect(cv, (220, 50, 50), (sx - 3, it['y'] - 8 + bob, 6, 16))
+            elif it['kind'] == 'mask':
+                pygame.draw.ellipse(cv, (30, 36, 30), (sx - 8, it['y'] - 7 + bob, 16, 14))
+                pygame.draw.circle(cv, (170, 255, 120), (sx - 3, int(it['y'] - 2 + bob)), 2)
+                pygame.draw.circle(cv, (170, 255, 120), (sx + 3, int(it['y'] - 2 + bob)), 2)
+                pygame.draw.circle(cv, (130, 140, 130), (sx, int(it['y'] + 4 + bob)), 3)
             elif it['kind'] == 'gren':
                 pygame.draw.circle(cv, (50, 70, 40), (sx, int(it['y'] + 2 + bob)), 8)
                 pygame.draw.circle(cv, (150, 180, 110), (sx - 2, int(it['y'] + bob)), 2)
@@ -1128,6 +1137,7 @@ class PortMixin:
                 glow(cv, sx, y, 24, (255, 170, 80), 0.8)
             else:
                 self.text(cv, 'v', self.f_m, (255, 90, 70), sx, GR - 70 - (int(t * 6) % 2) * 6, 'c')
+        self.port_hazards_draw(cv, cam)
         # enemigos
         pcx = p['x'] - cam
         for e in pt['enemies']:
@@ -1297,6 +1307,7 @@ class PortMixin:
                 if pt['flash_t'] > 0:
                     cv.fill((90, 90, 110), special_flags=pygame.BLEND_RGB_ADD)
         cv.blit(self.pt_vig, (0, 0))
+        self.port_hazards_hud(cv)
         # HUD
         self.panel(cv, (14, 12, 250, 56), 160)
         self.text(cv, 'PUNTOS %07d' % self.score, self.f_m, (255, 255, 255), 26, 18)

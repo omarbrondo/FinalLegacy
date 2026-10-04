@@ -19,7 +19,7 @@ class DefenseMixin:
         self.d = dict(city=city, missiles=[], inter=[], blasts=[], fires=[], t=0.0, total=n, killed=0, hits=0,
                       queue=sorted(random.uniform(0.6, 3.0 + n * 0.55) for _ in range(n)), cool=0.0, phase='play', planes=[], plan=plan, shots=0, pkilled=0,
                       pt=0.0, shipx=W / 2, shipy=HZ + 100, sky_x=(W - SKY_W) / 2, destroyed=False, combo=0, dbl=0.0, shield=0.0,
-                      bosst=(random.uniform(4, 8) if self.wave % 4 == 0 else None))
+                      bosst=(random.uniform(7, 12) if self.wave >= 3 else None), flash=0.0, shock=None, alarm=0.0)
         self.aim = [W / 2, 280.0]
         self.go('defense')
         self.banner('DEFENDÉ ' + city['name'], 'Mouse/flechas: apuntar  |  Clic/ESPACIO: interceptor', (255, 120, 90), 3.0)
@@ -168,6 +168,16 @@ class DefenseMixin:
             d['queue'].pop(0)
             self.spawn_missile()
         d['dbl'] = max(0.0, d['dbl'] - dt)
+        d['flash'] = max(0.0, d['flash'] - dt * 0.8)
+        if d['shock'] is not None:
+            d['shock']['age'] += dt
+            if d['shock']['age'] > 1.6:
+                d['shock'] = None
+        if any(m['k'] == 'boss' for m in d['missiles']):
+            d['alarm'] -= dt
+            if d['alarm'] <= 0:
+                d['alarm'] = 1.1
+                self.audio.play('alarm', .35)
         d['shield'] = max(0.0, d['shield'] - dt)
         if d['bosst'] is not None:
             d['bosst'] -= dt
@@ -175,7 +185,8 @@ class DefenseMixin:
                 d['bosst'] = None
                 d['total'] += 1
                 self.spawn_missile('boss')
-                self.banner('¡MISIL NUCLEAR!', 'Hace falta una lluvia de interceptores', (255, 80, 60), 2.6)
+                self.banner('¡ALERTA NUCLEAR!', 'Ojiva en camino: interceptala antes de que llegue a la ciudad', (255, 80, 60), 3.4)
+                self.audio.play('alarm')
         for m in d['missiles'][:]:
             m['flash'] = max(0.0, m['flash'] - dt)
             ang = math.atan2(m['ty'] - m['y'], m['tx'] - m['x'])
@@ -249,6 +260,12 @@ class DefenseMixin:
                         self.fx.explode(m['x'], m['y'], 0.8 if m['k'] != 'boss' else 2.0)
                         self.audio.play('boom_s', .5)
                         d['blasts'].append(dict(x=m['x'], y=m['y'], age=0.0, R=40 if m['k'] != 'boss' else 110, chain=True))
+                        if m['k'] == 'boss':
+                            d['flash'] = 0.9
+                            d['shock'] = dict(x=m['x'], y=m['y'], age=0.0)
+                            self.shake = max(self.shake, 16)
+                            self.audio.play('boom_l')
+                            self.banner('¡OJIVA NEUTRALIZADA!', '+1000 puntos', (120, 255, 190), 3.0)
                         if d['combo'] and d['combo'] % 6 == 0:
                             if (d['combo'] // 6) % 2:
                                 d['dbl'] = 9.0
@@ -279,15 +296,32 @@ class DefenseMixin:
             if d['pt'] > 2.8:
                 self.end_defense()
 
+    def nuke_blast(self, m):
+        """La ojiva llega al suelo: flash, onda expansiva y edificios derrumbados."""
+        d = self.d
+        d['flash'] = 1.0
+        d['shock'] = dict(x=m['x'], y=m['y'], age=0.0)
+        self.shake = 30
+        self.audio.play('boom_l')
+        for b in (d['city']['sky'] if m['hit'] == 'city' else []):
+            bx = d['sky_x'] + b['x'] + b['w'] / 2
+            if abs(bx - m['x']) < 270:
+                b['h'] = max(8, int(b['h'] * 0.28))
+                d['fires'].append([bx, HZ - 6, random.uniform(10, 16)])
+                self.fx.explode(bx, HZ - 20, 1.2, True)
+        self.banner('¡IMPACTO NUCLEAR!', 'Parte de la ciudad quedó en ruinas', (255, 90, 60), 3.0)
+
     def missile_impact(self, m):
         d = self.d
-        if d['shield'] > 0:
+        if d['shield'] > 0 and m['k'] != 'boss':
             self.fx.explode(m['x'], m['y'], 0.9)
             self.fx.add('glow', m['x'], m['y'], life=.4, r0=20, r1=80, col=(120, 200, 255))
             self.pop('BLOQUEADO', m['x'], m['y'] - 20, (140, 210, 255))
             return
         d['hits'] += 1
         dmg = 3 if m['k'] == 'boss' else 1
+        if m['k'] == 'boss':
+            self.nuke_blast(m)
         self.fx.explode(m['x'], m['y'], 1.1, True)
         self.shake = max(self.shake, 9)
         if m['hit'] == 'ship':
@@ -379,6 +413,9 @@ class DefenseMixin:
                 pygame.draw.circle(cv, (255, 230, 120), (int(m['x']), int(m['y'])), 7, 1)
             if k == 'boss':
                 self.bar(cv, int(m['x']) - 30, int(m['y']) - 26, 60, 8, m['hp'] / (5 + self.wave // 2), (255, 80, 60), '')
+                secs = max(0.0, (m['ty'] - m['y']) / m['sp'])
+                self.text(cv, 'IMPACTO NUCLEAR %.0f s' % secs, self.f_m, (255, 90, 70) if int(t * 4) % 2 == 0 else (255, 220, 120),
+                          int(m['x']), int(m['y']) - 52, 'c')
         for it in d['inter']:
             pts = it['trail']
             for i in range(1, len(pts)):
@@ -412,6 +449,14 @@ class DefenseMixin:
         pygame.draw.circle(cv, (120, 255, 190), (ax, ay), 3)
         for dx, dy in ((-30, 0), (30, 0), (0, -30), (0, 30)):
             pygame.draw.line(cv, (120, 255, 190), (ax + dx // 2, ay + dy // 2), (ax + dx, ay + dy), 2)
+        if d['shock'] is not None:
+            a_ = d['shock']['age'] / 1.6
+            draw_circ(cv, d['shock']['x'], d['shock']['y'], 40 + 520 * a_, (255, 240, 200), 160 * (1 - a_), 5)
+        if d['flash'] > 0:
+            v = int(255 * min(1.0, d['flash']))
+            cv.fill((v, v, v), special_flags=pygame.BLEND_RGB_ADD)
+        if any(m['k'] == 'boss' for m in d['missiles']) and int(t * 3) % 2 == 0:
+            pygame.draw.rect(cv, (255, 40, 40), (0, 0, W, H), 6)
         # HUD
         self.draw_hud(cv, False)
         self.panel(cv, (W // 2 - 230, 12, 460, 70), 170)

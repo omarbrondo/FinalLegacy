@@ -765,11 +765,15 @@ class GroundMixin:
                 if q['kind'] == 'med':
                     p['hp'] = min(PLAYER_HP, p['hp'] + 40)
                     self.gpop('+40 SALUD', q['x'], q['y'] - 16, (120, 255, 150))
+                elif q['kind'] == 'mask':
+                    self.hz_state(g)['mask'] = 14.0
+                    self.gpop('¡MÁSCARA ANTIGÁS!', q['x'], q['y'] - 16, (170, 255, 120))
                 else:
                     p['gren'] = min(6, p['gren'] + 2)
                     self.gpop('+2 GRANADAS', q['x'], q['y'] - 16, (255, 230, 90))
             elif q['t'] > 30:
                 g['crates'].remove(q)
+        self.ground_hazards(dt, alive)
         for c in g['corpses']:
             c['age'] += dt
         if p['dead']:
@@ -1017,14 +1021,20 @@ class GroundMixin:
                 self.blit_soldier(cv, 'e_' + c['kind'], c['x'] - cx_, c['y'] - cy_, c['h'], 0, dead=True)
         for q in g['crates']:
             qx, qy = q['x'] - cx_, q['y'] - cy_
-            glow(cv, qx, qy, 28, (120, 255, 150) if q['kind'] == 'med' else (255, 210, 70), 0.6)
-            pygame.draw.rect(cv, (236, 240, 236) if q['kind'] == 'med' else (96, 110, 70), (qx - 9, qy - 9, 18, 18), border_radius=3)
-            if q['kind'] == 'med':
+            glow(cv, qx, qy, 28, (120, 255, 150) if q['kind'] in ('med', 'mask') else (255, 210, 70), 0.6)
+            pygame.draw.rect(cv, (236, 240, 236) if q['kind'] == 'med' else ((60, 90, 60) if q['kind'] == 'mask' else (96, 110, 70)), (qx - 9, qy - 9, 18, 18), border_radius=3)
+            if q['kind'] == 'mask':
+                pygame.draw.ellipse(cv, (30, 36, 30), (qx - 7, qy - 6, 14, 12))
+                pygame.draw.circle(cv, (170, 255, 120), (int(qx - 3), int(qy - 1)), 2)
+                pygame.draw.circle(cv, (170, 255, 120), (int(qx + 3), int(qy - 1)), 2)
+                pygame.draw.circle(cv, (120, 130, 120), (int(qx), int(qy + 4)), 3)
+            elif q['kind'] == 'med':
                 pygame.draw.rect(cv, (220, 50, 50), (qx - 6, qy - 2, 12, 4))
                 pygame.draw.rect(cv, (220, 50, 50), (qx - 2, qy - 6, 4, 12))
             else:
                 pygame.draw.circle(cv, (60, 76, 50), (int(qx), int(qy)), 5)
                 pygame.draw.circle(cv, (255, 210, 70), (int(qx), int(qy)), 8, 2)
+        self.ground_hazards_draw(cv, cx_, cy_)
         for e in g['enemies']:
             if g['stealth'] and e['state'] in ('hold', 'susp'):
                 sen = e['role'] == 'sentry'
@@ -1165,6 +1175,7 @@ class GroundMixin:
         for i in range(p['gren']):
             pygame.draw.circle(cv, (58, 74, 48), (140 + i * 24, H - 45), 8)
             pygame.draw.circle(cv, (150, 170, 120), (138 + i * 24, H - 48), 3)
+        self.ground_hazards_hud(cv)
         self.panel(cv, (14, 12, 250, 56), 160)
         self.text(cv, 'PUNTOS %07d' % self.score, self.f_m, (255, 255, 255), 26, 18)
         self.text(cv, 'OLEADA %d/%d   REC %d' % (self.wave, WIN_WAVE, self.hiscore), self.f_s, (160, 200, 240), 26, 42)
