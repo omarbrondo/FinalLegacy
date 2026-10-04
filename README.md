@@ -63,7 +63,7 @@ Una isla del mapa (con una H, también en el radar) tiene un helipuerto con un B
 
 ## Gráficos HD
 
-Instalá las dependencias con `pip install -r requirements.txt` (pygame y numpy; numpy es opcional pero da humo, fuego y brillos más suaves).
+Instalá las dependencias con `pip install -r requirements.txt` (pygame-ce y numpy; numpy es opcional pero da humo, fuego y brillos más suaves). Si ya tenés pygame-ce instalado (el juego anda también con pygame clásico), alcanza con `pip install numpy`; no instales los dos pygame a la vez. Se ejecuta con `python final_legacy_omar.py`.
 La tecla **V** cambia la calidad: BÁSICA, HD (resplandor/bloom, gradación de color y viñeta, por defecto) y ULTRA (más bloom y grano de película). La elección se guarda.
 
 ## Pantalla completa y mando
