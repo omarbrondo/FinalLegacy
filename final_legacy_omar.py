@@ -28,6 +28,7 @@ VMAX = 170.0                  # velocidad máx. del buque en el mapa (px/s)
 SHIELD_R = 230                 # radio del escudo digital del jefe en el mapa
 ANTENNA_ISLANDS = [0, 1, 2, 3, 4]   # islas donde se puede desembarcar e instalar antena (índices de EXTRA_ISLANDS)
 ARENA_R = 330                  # radio de la isla en el combate de infantería
+PLAYER_HP = 120.0              # vida del soldado
 LANDING_ENEMIES = 10           # enemigos por desembarque
 MAX_LANDING_ATTEMPTS = 3       # intentos máximos por isla
 
@@ -464,9 +465,9 @@ def make_turret(r, col):
 
 
 ENEMY_TYPES = {
-    'rifle': dict(hp=4, speed=58, range=310, dmg=7, rate=(0.9, 1.5), pts=100),
-    'mg': dict(hp=7, speed=34, range=380, dmg=5, rate=(1.5, 2.3), pts=200),
-    'gren': dict(hp=4, speed=46, range=380, dmg=0, rate=(3.4, 4.8), pts=150),
+    'rifle': dict(hp=4, speed=58, range=280, dmg=5, rate=(1.1, 1.9), pts=100),
+    'mg': dict(hp=7, speed=34, range=360, dmg=4, rate=(2.2, 3.2), pts=200),
+    'gren': dict(hp=4, speed=46, range=380, dmg=0, rate=(4.8, 6.8), pts=150),
 }
 TEAM_COL = {
     'p': dict(uni=(72, 114, 102), vest=(46, 76, 70), helm=(86, 132, 114), trim=(255, 214, 90)),
@@ -2069,9 +2070,10 @@ class Game:
             self.fx.explode(p['x'], p['y'], 1.8, True)
         self.fx.update(dt)
         if e['sink'] is not None and e['sink'] > 2.4:
+            boss_kill = c.get('is_boss', False)
             self.add_score(500 + 100 * self.wave)
-            self.ammo = min(40, self.ammo + 5)
-            self.toast('¡Destructor hundido! +%d  (+5 munición)' % (500 + 100 * self.wave), (120, 255, 160))
+            self.ammo = min(40, self.ammo + (15 if boss_kill else 5))
+            self.toast('¡%s hundido! +%d  (+%d munición)' % ('Buque jefe' if boss_kill else 'Destructor', 500 + 100 * self.wave, 15 if boss_kill else 5), (120, 255, 160))
             if self.enemy_ref in self.enemies:
                 self.enemies.remove(self.enemy_ref)
             if self.hull <= 0:
@@ -2631,7 +2633,7 @@ class Game:
                       nades=[], corpses=[], decals=[], boats=[], crates=[], t=0.0, total=len(kinds), kills=0,
                       phase='play', pt=0.0, city0=city['hp'], fail=False, island_idx=island_idx, hurt=0.0,
                       ant_t=0.0, spawn=spawn,
-                      p=dict(x=float(spawn[0]), y=float(spawn[1]), h=0.0, vx=0.0, vy=0.0, hp=100.0, mag=30, reload=0.0,
+                      p=dict(x=float(spawn[0]), y=float(spawn[1]), h=0.0, vx=0.0, vy=0.0, hp=PLAYER_HP, mag=30, reload=0.0,
                              cd=0.0, gren=4, gcd=0.0, ph=0.0, flash=0.0, bloom=0.0, dead=False, dead_t=0.0))
         self.aim = [W / 2, 200.0]
         self.go('ground')
@@ -2748,9 +2750,11 @@ class Game:
         if e['state'] == 'combat':
             return
         e['state'] = 'combat'
+        e['cd'] = max(e['cd'], random.uniform(0.9, 1.7))
         for o in self.g['enemies']:
-            if o['state'] == 'hold' and dist(o['x'], o['y'], e['x'], e['y']) < 170:
+            if o['state'] == 'hold' and dist(o['x'], o['y'], e['x'], e['y']) < 110:
                 o['state'] = 'combat'
+                o['cd'] = max(o['cd'], random.uniform(0.9, 1.7))
 
     def start_reload(self):
         p = self.g['p']
@@ -2780,7 +2784,7 @@ class Game:
         ex, ey = vec(p['h'] + 90, 12)
         self.fx.add('spark', p['x'] + ex, p['y'] + ey, ex * 12, ey * 12 - 30, 0.4, col=(230, 190, 80), drag=2, grav=120)
         for e in g['enemies']:
-            if e['state'] == 'hold' and dist(e['x'], e['y'], p['x'], p['y']) < 340:
+            if e['state'] == 'hold' and dist(e['x'], e['y'], p['x'], p['y']) < 230:
                 self.alert(e)
 
     def throw_grenade_p(self):
@@ -2841,7 +2845,7 @@ class Game:
                     self.kill_ground_enemy(e)
         d = dist(x, y, p['x'], p['y'])
         if not p['dead'] and d < R:
-            dmg = int(38 * (1 - 0.6 * d / R))
+            dmg = int(32 * (1 - 0.6 * d / R))
             self.hurt_player(dmg)
 
     def hurt_player(self, dmg):
@@ -2870,7 +2874,7 @@ class Game:
         for _ in range(6):
             a = random.uniform(0, 6.28)
             self.fx.add('spark', e['x'], e['y'], math.cos(a) * 110, math.sin(a) * 110, 0.35, col=(255, 200, 120), drag=2)
-        if random.random() < 0.18:
+        if random.random() < 0.28:
             g['crates'].append(dict(x=e['x'], y=e['y'], t=0.0, kind=random.choice(('med', 'gren'))))
 
     def mv(self, e, ang, speed, dt):
@@ -2952,7 +2956,7 @@ class Game:
                     self.enemy_shoot(e, e['aimlock'], 5.0, 390, T['dmg'])
                     e['bcd'] = 0.09
                 else:
-                    self.enemy_shoot(e, to_p, max(2.5, 6.5 - 0.5 * wv) + dp * 0.008, 340, T['dmg'])
+                    self.enemy_shoot(e, to_p, max(2.5, 6.5 - 0.5 * wv) + dp * 0.008, 300, T['dmg'])
                     e['bcd'] = 0.17
         elif e['tele'] > 0:
             e['tele'] -= dt
@@ -2966,7 +2970,7 @@ class Game:
             elif los:
                 e['cd'] = random.uniform(*T['rate']) * max(0.6, 1 - 0.05 * wv)
                 if e['kind'] == 'mg':
-                    e['tele'] = 0.55
+                    e['tele'] = 0.7
                     e['aimlock'] = to_p
                     self.audio.play('ping', .25)
                 else:
@@ -3058,8 +3062,8 @@ class Game:
                 g['crates'].remove(q)
                 self.audio.play('pickup', .8)
                 if q['kind'] == 'med':
-                    p['hp'] = min(100.0, p['hp'] + 30)
-                    self.pop('+30 SALUD', q['x'], q['y'] - 16, (120, 255, 150))
+                    p['hp'] = min(PLAYER_HP, p['hp'] + 40)
+                    self.pop('+40 SALUD', q['x'], q['y'] - 16, (120, 255, 150))
                 else:
                     p['gren'] = min(6, p['gren'] + 2)
                     self.pop('+2 GRANADAS', q['x'], q['y'] - 16, (255, 230, 90))
@@ -3595,7 +3599,7 @@ class Game:
             self.hurt_surf.set_alpha(int(255 * clamp(g['hurt'] * 2, 0, 1)))
             cv.blit(self.hurt_surf, (0, 0))
         self.panel(cv, (14, H - 126, 330, 112), 160)
-        self.bar(cv, 26, H - 116, 306, 24, p['hp'] / 100, (80, 220, 110) if p['hp'] > 35 else (240, 80, 70), 'SOLDADO %d%%' % max(0, p['hp']))
+        self.bar(cv, 26, H - 116, 306, 24, p['hp'] / PLAYER_HP, (80, 220, 110) if p['hp'] > 40 else (240, 80, 70), 'SOLDADO %d' % max(0, p['hp']))
         if p['reload'] > 0:
             self.bar(cv, 26, H - 86, 306, 24, 1 - p['reload'] / 1.3, (255, 160, 70), 'RECARGANDO...')
         else:
