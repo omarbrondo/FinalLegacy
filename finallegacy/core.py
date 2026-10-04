@@ -22,7 +22,7 @@ from .boss_art import BOSS_TYPES, make_boss_sprite
 class CoreMixin:
     def __init__(self):
         pygame.display.set_caption('FINAL LEGACY - Edición Omar Brondo')
-        self.screen = pygame.display.set_mode((W, H))
+        self.screen = pygame.display.set_mode((W, H), pygame.SCALED)
         self.canvas = pygame.Surface((W, H))
         self.clock = pygame.time.Clock()
         names = 'couriernew,consolas,dejavusansmono,liberationmono,monospace'
@@ -45,6 +45,7 @@ class CoreMixin:
         self.pops = []
         self.aim = [W / 2, 260.0]
         self.mouse_moved = False
+        self.pad_init()
         self.hiscore = self.load_hi()
         self.state = 'title'
         self.end_msg = ''
@@ -461,6 +462,12 @@ class CoreMixin:
         self.audio.play('win' if victory else 'lose')
         self.go('gameover')
 
+    def toggle_fullscreen(self):
+        try:
+            pygame.display.toggle_fullscreen()
+        except pygame.error:
+            pass
+
     # ------------------------------------------------------------ eventos
     def handle(self, e):
         if e.type == pygame.QUIT:
@@ -472,7 +479,9 @@ class CoreMixin:
             if self.state == 'hack':
                 self.h['kb'] = False
         if e.type == pygame.KEYDOWN:
-            if e.key == pygame.K_F1:
+            if e.key == pygame.K_F11 or (e.key == pygame.K_RETURN and e.mod & pygame.KMOD_ALT):
+                self.toggle_fullscreen()
+            elif e.key == pygame.K_F1:
                 self.crt_on = not self.crt_on
             elif e.key == pygame.K_m:
                 self.audio.toggle_mute()
@@ -586,6 +595,7 @@ class CoreMixin:
             dt = min(self.clock.tick(FPS) / 1000.0, 0.05)
             for e in pygame.event.get():
                 self.handle(e)
+            self.pad_poll(dt)
             if not self.paused:
                 self.update(dt)
             self.draw()
@@ -748,7 +758,7 @@ class CoreMixin:
                 self.text(cv, ln, self.f_xl, (30, 10, 0), W // 2 + dx, y + dy, 'c', shadow=False)
             self.text(cv, ln, self.f_xl, col, W // 2, y, 'c', shadow=False)
         self.text(cv, 'EDICIÓN OMAR BRONDO', self.f_l, (120, 220, 255), W // 2, 275, 'c')
-        self.panel(cv, (W // 2 - 380, 325, 760, 240), 170)
+        self.panel(cv, (W // 2 - 380, 320, 760, 270), 170)
         lines = ['MAPA   W/S acelerar-frenar   A/D girar   R (en puerto) reabastecer   L desembarcar',
                  'DEFENSA   Mouse o flechas apuntan   Clic/ESPACIO lanzan interceptor',
                  'COMBATE   Mouse apunta, clic lanza un misil recto (¡adelantate!)   E: huir',
@@ -756,13 +766,14 @@ class CoreMixin:
                  'TANQUE   W/S avanzar   A/D girar   ESPACIO o clic: cañón',
                  'JEFE   Instalá antenas en las islas (L) y hackeá su escudo con H cerca del buque',
                  'AIRE   WASD mover   ESPACIO disparar   B bomba',
-                 'P pausa   M sonido   F1 efecto CRT   F2 tanques   F3 aéreo   F4 desembarco   F5 náufragos   F6 convoy   F7 puerto (modo prueba)']
+                 'MANDO   Izq. mover  Der. apuntar  RT/A disparar  LT/B granada  X recargar  Y acción',
+                 'P pausa  M sonido  F11 pantalla completa  F1 CRT  F2-F7 modos de prueba']
         for i, ln in enumerate(lines):
             self.text(cv, ln, self.f_s, (220, 232, 255), W // 2 - 360, 336 + i * 28)
         if int(t * 2) % 2 == 0:
-            self.text(cv, 'PRESIONÁ ENTER PARA ZARPAR', self.f_l, (255, 255, 255), W // 2, 575, 'c')
-        self.text(cv, 'Récord: %d' % self.hiscore, self.f_m, (255, 230, 120), W // 2, 640, 'c')
-        self.text(cv, 'Hundí %d oleadas y salvá al menos una ciudad para ganar' % WIN_WAVE, self.f_s, (160, 190, 220), W // 2, 690, 'c')
+            self.text(cv, 'PRESIONÁ ENTER PARA ZARPAR', self.f_l, (255, 255, 255), W // 2, 610, 'c')
+        self.text(cv, 'Récord: %d' % self.hiscore, self.f_m, (255, 230, 120), W // 2, 665, 'c')
+        self.text(cv, 'Hundí %d oleadas y salvá al menos una ciudad para ganar' % WIN_WAVE, self.f_s, (160, 190, 220), W // 2, 705, 'c')
 
     # ---- game over
     def draw_gameover(self, cv):
