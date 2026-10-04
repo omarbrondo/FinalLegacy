@@ -228,7 +228,9 @@ class MapMixin:
         alive = [c for c in self.cities if not c['dead']]
         self.strike_t -= dt
         if self.attack is None and alive and self.strike_t <= 4.0 and not self.warned:
-            self.strike_city = random.choice(alive)
+            # nunca la misma ciudad dos veces seguidas (si queda más de una viva)
+            self.strike_city = random.choice([c for c in alive if c is not self.last_strike] or alive)
+            self.last_strike = self.strike_city
             self.strike_n += 1
             inst = [i for i, v in self.antennas.items() if v]
             if inst and self.strike_n >= 3 and random.random() < 0.25:
