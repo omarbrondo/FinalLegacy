@@ -422,6 +422,7 @@ class CoreMixin:
         self.strike_kind = 'missile'
         self.strike_n = 0
         self.strike_deck = []
+        self.heli_init()
         self.attack = None
         self.radar_t = 0.0
         self.nests = []
@@ -445,9 +446,9 @@ class CoreMixin:
     def go(self, state):
         self.state = state
         self.fade = 1.0
-        pygame.mouse.set_visible(state in ('upgrade',) or state not in ('defense', 'combat', 'aerial', 'ground', 'tank', 'port'))
+        pygame.mouse.set_visible(state in ('upgrade',) or state not in ('defense', 'combat', 'aerial', 'ground', 'tank', 'port', 'heli'))
         self.audio.music({'title': 'calm', 'map': 'calm', 'defense': 'battle', 'combat': 'battle',
-                          'aerial': 'battle', 'ground': 'battle', 'hack': 'battle', 'tank': 'battle', 'port': 'battle', 'upgrade': 'calm', 'gameover': None}[state])
+                          'aerial': 'battle', 'ground': 'battle', 'hack': 'battle', 'tank': 'battle', 'port': 'battle', 'upgrade': 'calm', 'heli': 'battle', 'gameover': None}[state])
         if state not in ('map', 'combat'):
             self.audio.engine_vol(0)
 
@@ -502,7 +503,7 @@ class CoreMixin:
                     self.warned = False
                     self.attack = None
                     {pygame.K_F2: self.start_tank, pygame.K_F3: self.start_aerial, pygame.K_F4: self.start_ground}[e.key](self.strike_city)
-            elif e.key in (pygame.K_p, pygame.K_ESCAPE) and self.state in ('map', 'defense', 'combat', 'ground', 'aerial', 'hack', 'tank', 'port'):
+            elif e.key in (pygame.K_p, pygame.K_ESCAPE) and self.state in ('map', 'defense', 'combat', 'ground', 'aerial', 'hack', 'tank', 'port', 'heli'):
                 self.paused = not self.paused
             elif e.key == pygame.K_q and self.paused:
                 pygame.quit()
@@ -537,6 +538,12 @@ class CoreMixin:
                     self.start_landing(island[0])
             elif self.state == 'aerial' and e.key in (pygame.K_b, pygame.K_x) and not self.paused:
                 self.air_bomb()
+            elif self.state == 'map' and e.key == pygame.K_c and not self.paused:
+                self.heli_call()
+            elif self.state == 'map' and e.key == pygame.K_b and not self.paused:
+                self.heli_launch()
+            elif self.state == 'heli' and e.key == pygame.K_SPACE and not self.paused:
+                self.heli_rocket()
             elif self.state == 'tank' and e.key == pygame.K_SPACE and not self.paused:
                 self.tk_fire()
             elif self.state == 'map' and e.key == pygame.K_h and not self.paused:
@@ -575,6 +582,8 @@ class CoreMixin:
             self.pt_throw()
         if e.type == pygame.MOUSEBUTTONDOWN and e.button == 3 and self.state == 'ground' and not self.paused:
             self.throw_grenade_p()
+        if e.type == pygame.MOUSEBUTTONDOWN and e.button == 3 and self.state == 'heli' and not self.paused:
+            self.heli_rocket()
         if e.type == pygame.MOUSEBUTTONDOWN and e.button == 3 and self.state == 'aerial' and not self.paused:
             self.air_bomb()
         if e.type == pygame.MOUSEBUTTONDOWN and e.button == 1 and not self.paused:
@@ -630,6 +639,8 @@ class CoreMixin:
             self.upd_tank(dt)
         elif self.state == 'upgrade':
             self.upd_upgrade(dt)
+        elif self.state == 'heli':
+            self.upd_heli(dt)
         elif self.state == 'port':
             self.upd_port(dt)
         elif self.state == 'ground':
@@ -708,6 +719,8 @@ class CoreMixin:
             self.draw_tank(cv)
         elif self.state == 'upgrade':
             self.draw_upgrade(cv)
+        elif self.state == 'heli':
+            self.draw_heli(cv)
         elif self.state == 'port':
             self.draw_port(cv)
         elif self.state == 'ground':

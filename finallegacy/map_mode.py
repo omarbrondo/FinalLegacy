@@ -4,7 +4,7 @@ import pygame
 import random
 from .common import (
     ANTENNA_ISLANDS, BOSS_NAMES, DECOR_ISLANDS, ENEMY_PORT,
-    EXTRA_ISLANDS, H, MAX_LANDING_ATTEMPTS, SHIELD_R,
+    EXTRA_ISLANDS, H, HELIPAD, MAX_LANDING_ATTEMPTS, SHIELD_R,
     SKY_W, VMAX, W, WIN_WAVE,
     WORLD_H, WORLD_W, angle_diff, bearing,
     clamp, coast_r, dist, draw_circ,
@@ -36,7 +36,7 @@ class MapMixin:
         """Baterías costeras enemigas sobre algunos islotes pequeños (se renuevan cada oleada)."""
         hp = 14 + 4 * self.wave
         self.nests = [dict(x=x, y=y, r=r, hp=float(hp), max=float(hp), cool=0.0, ang=180.0, nest=True, alive=True, seen=False)
-                      for (x, y, r, _s) in random.sample([i for i in DECOR_ISLANDS if dist(i[0], i[1], self.sx, self.sy) > 800], 10)]
+                      for (x, y, r, _s) in random.sample([i for i in DECOR_ISLANDS if i != HELIPAD and dist(i[0], i[1], self.sx, self.sy) > 800], 10)]
 
     def spawn_wave(self):
         n = min(3 + self.wave, 9)
@@ -215,8 +215,9 @@ class MapMixin:
                     self.ammo = min(40, self.ammo + 10)
                     self.toast('+10 munición', (255, 230, 90))
                 elif c['kind'] == 'fuel':
-                    self.fuel = min(100, self.fuel + 35)
-                    self.toast('+35% combustible', (120, 255, 140))
+                    amt = 60 if c.get('big') else 35
+                    self.fuel = min(100, self.fuel + amt)
+                    self.toast('+%d%% combustible' % amt, (120, 255, 140))
                 else:
                     self.hull = min(self.hull_max, self.hull + 30)
                     self.toast('+30 casco', (255, 255, 255))
@@ -250,6 +251,7 @@ class MapMixin:
                 self.fxm.add('smoke', c['x'] + random.uniform(-30, 30), c['y'] + random.uniform(-30, 10), 0, -25, 2.5,
                              8, 28, (50, 50, 50))
         self.fxm.update(dt)
+        self.heli_map_update(dt)
         # oleada completada
         if not self.enemies:
             self.wave_clear()
@@ -720,6 +722,7 @@ class MapMixin:
                 draw_circ(cv, sx_, sy_, SHIELD_R, (255, 130, 235), 150 + 80 * pulse, 3)
                 draw_circ(cv, sx_, sy_, SHIELD_R - 14, (160, 90, 255), 70, 1)
                 self.text(cv, '%s %s' % (BOSS_TYPES[en.get('btype', 0)]['label'], en['name']), self.f_s, (255, 150, 235), sx_, sy_ + 78, 'c')
+        self.draw_heli_map(cv, cx, cy)
         self.blit_ship(cv, 'p_map', self.sx, self.sy, self.sh, cx, cy)
         # HUD
         self.draw_hud(cv)
@@ -736,6 +739,9 @@ class MapMixin:
         thr = 1.0 if self.attack is not None else 1 - clamp(self.strike_t / 60.0, 0, 1)
         self.text(cv, 'AMENAZA ENEMIGA', self.f_s, (255, 190, 170), W - 296 + 8, 76)
         self.bar(cv, W - 296, 96, 282, 14, thr, (255, 90 + int(100 * (1 - thr)), 60), '')
+        self.text(cv, 'BLACKHAWK: %d misión(es) | próxima a los %d pts | bidón (C): %s' % (
+            self.heli_sorties, self.heli_next, 'en camino' if self.heli_fl else ('%ds' % math.ceil(self.heli_cd) if self.heli_cd > 0 else 'listo')),
+            self.f_s, (130, 255, 190), 14, 74)
         n_ant = sum(self.antennas.values())
         need = self.antennas_needed()
         self.text(cv, 'ANTENAS %d/%d  (jefe: %d)' % (n_ant, len(self.antennas), need), self.f_s,
@@ -754,6 +760,9 @@ class MapMixin:
         if dk:
             self.text(cv, 'PUERTO: mantené R para reabastecer y reparar',
                       self.f_m, (140, 255, 210), W // 2, H - 148, 'c')
+        elif self.near_helipad(260) and self.heli_sorties > 0:
+            self.text(cv, 'HELIPUERTO: presioná B para despegar en el BLACKHAWK (misiones: %d)' % self.heli_sorties,
+                      self.f_m, (130, 255, 190), W // 2, H - 148, 'c')
         elif self.nearest_port():
             self.text(cv, 'PUERTO ENEMIGO: presioná T para asaltarlo  |  Intentos: %d/2' % self.port_tries,
                       self.f_m, (255, 150, 120), W // 2, H - 148, 'c')
@@ -792,6 +801,7 @@ class MapMixin:
                 pygame.draw.polygon(cv, (120, 240, 255), [(mx_, my_ - 5), (mx_ + 4, my_ + 3), (mx_ - 4, my_ + 3)])
             else:
                 pygame.draw.circle(cv, (255, 220, 90), (mx_, my_), 5, 1)
+        pygame.draw.rect(cv, (130, 255, 190), (int(x0 + HELIPAD[0] * sc) - 3, int(y0 + HELIPAD[1] * sc) - 3, 6, 6), 1)
         pygame.draw.rect(cv, (140, 140, 150) if self.port_done else (255, 90, 70), (int(x0 + ENEMY_PORT[0] * sc) - 4, int(y0 + ENEMY_PORT[1] * sc) - 4, 8, 8), 2)
         for nst in self.nests:
             if nst['alive'] and (nst['seen'] or self.radar_t > 0):
