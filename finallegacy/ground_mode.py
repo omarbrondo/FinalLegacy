@@ -35,7 +35,7 @@ class GroundMixin:
             for rr in (30, 42):
                 pygame.draw.circle(s, (120, 230, 255), (cx, cy), rr, 1)
         elif city_seed is not None:
-            cs = self.make_city(int(R * 0.7), city_seed, False)
+            cs = self.make_city(int(R * 0.7), city_seed, False, 2.3)
             s.blit(cs, (ext - cs.get_width() // 2, ext - cs.get_height() // 2))
         else:
             cx, cy = ext, ext
@@ -575,7 +575,7 @@ class GroundMixin:
         elif g['mode'] == 'invasion':
             dcx, dcy = W / 2 - e['x'], H / 2 - e['y']
             dc = math.hypot(dcx, dcy)
-            if dc > 96:
+            if dc > 130:
                 if not (los and dp < T['range'] * 0.75):
                     moving = bearing(dcx, dcy)
             elif not g['city']['dead'] and g['phase'] == 'play':

@@ -110,6 +110,28 @@ class TankMixin:
                 return False
         return True
 
+    def tk_shell_step(self, s, dt, px, pz, pr, targets=()):
+        """Avanza un proyectil en pasos cortos. Los edificios lo frenan siempre (se comprueba el segmento recorrido) y
+        un blanco solo se impacta si hay línea de tiro libre hasta él: no se dispara a través de las paredes.
+        Devuelve (choca con edificio, blanco o impacto al jugador)."""
+        dist_ = math.hypot(s['vx'], s['vz']) * dt
+        n = max(1, int(dist_ / 1.0) + 1)
+        for i in range(n):
+            ox, oz = s['x'], s['z']
+            nx, nz = ox + s['vx'] * dt / n, oz + s['vz'] * dt / n
+            if not self.tk_los(ox, oz, nx, nz):
+                return True, None
+            s['x'], s['z'] = nx, nz
+            if px is not None:
+                if pr > 0 and math.hypot(nx - px, nz - pz) < pr and self.tk_los(nx, nz, px, pz):
+                    return False, True
+            else:
+                for e in targets:
+                    if math.hypot(nx - e['x'], nz - e['z']) < (e.get('rad', 4.4) if e['kind'] != 'missile' else 2.4) \
+                            and self.tk_los(nx, nz, e['x'], e['z']):
+                        return False, e
+        return False, (False if px is not None else None)
+
     def tk_say(self, s):
         self.k['msg'], self.k['msg_t'] = s, 1.4
 
@@ -120,7 +142,13 @@ class TankMixin:
             return
         p['cd'] = 0.7 * self.up_reload()
         sx, sz = math.sin(math.radians(p['yaw'])), math.cos(math.radians(p['yaw']))
-        k['pshells'].append(dict(x=p['x'] + sx * 3, y=1.9, z=p['z'] + sz * 3, vx=sx * 95, vz=sz * 95, life=1.5))
+        mx, mz = p['x'] + sx * 3, p['z'] + sz * 3
+        if not self.tk_los(p['x'], p['z'], mx, mz):          # pared pegada al cañón: el disparo estalla ahí
+            self.tk_boom(p['x'] + sx * 1.8, p['z'] + sz * 1.8, 2.0, 0.5)
+            self.audio.play('boom_s', .5)
+            self.shake = max(self.shake, 4)
+            return
+        k['pshells'].append(dict(x=p['x'] + sx * 2.0, y=1.9, z=p['z'] + sz * 2.0, vx=sx * 95, vz=sz * 95, life=1.5))
         self.audio.play('cannon', .8)
         self.shake = max(self.shake, 3)
 
@@ -391,44 +419,37 @@ class TankMixin:
                 self.tk_hurt(30)
                 self.audio.play('boom_s', .8)
         for s in k['shells'][:]:
-            s['x'] += s['vx'] * dt
-            s['z'] += s['vz'] * dt
+            hit_b, hit_p = self.tk_shell_step(s, dt, p['x'], p['z'], 2.9 if not p['dead'] else -1.0)
             s['life'] -= dt
-            hit_b = any(abs(s['x'] - b['x']) < b['hw'] and abs(s['z'] - b['z']) < b['hd'] for b in k['blds'])
-            if s['life'] <= 0 or abs(s['x']) > 140 or abs(s['z']) > 140 or hit_b:
+            if hit_b or hit_p or s['life'] <= 0 or abs(s['x']) > 140 or abs(s['z']) > 140:
                 k['shells'].remove(s)
                 if hit_b:
                     self.tk_boom(s['x'], s['z'], 2.2, 0.6)
-            elif not p['dead'] and math.hypot(s['x'] - p['x'], s['z'] - p['z']) < 2.9:
-                k['shells'].remove(s)
-                self.tk_hurt(s.get('dmg', 18))
+                elif hit_p:
+                    self.tk_hurt(s.get('dmg', 18))
         for s in k['pshells'][:]:
-            s['x'] += s['vx'] * dt
-            s['z'] += s['vz'] * dt
             s['life'] -= dt
-            gone = s['life'] <= 0 or abs(s['x']) > 140 or abs(s['z']) > 140
-            if not gone and any(abs(s['x'] - b['x']) < b['hw'] and abs(s['z'] - b['z']) < b['hd'] for b in k['blds']):
-                gone = True
+            hit_b, tgt = self.tk_shell_step(s, dt, None, None, 0.0, k['tanks'] + k['missiles'] + k['helis'])
+            gone = s['life'] <= 0 or abs(s['x']) > 140 or abs(s['z']) > 140 or hit_b
+            if hit_b:
                 self.tk_boom(s['x'], s['z'], 2.2, 0.6, s['y'])
                 for _ in range(8):
                     a = random.uniform(0, 6.283)
                     k['debris'].append(dict(x=s['x'], y=s['y'], z=s['z'], vx=math.cos(a) * 5, vy=random.uniform(2, 8),
                                             vz=math.sin(a) * 5, life=0.6))
-            if not gone:
-                for e in k['tanks'] + k['missiles'] + k['helis']:
-                    if math.hypot(s['x'] - e['x'], s['z'] - e['z']) < (e.get('rad', 4.4) if e['kind'] != 'missile' else 2.4):
-                        gone = True
-                        if e['kind'] == 'missile':
-                            self.tk_kill(e, 'missile')
-                        else:
-                            e['hp'] -= 1
-                            if e['hp'] <= 0:
-                                self.tk_kill(e, e['kind'])
-                            else:
-                                self.audio.play('hit', .6)
-                                self.tk_say('JEFE: %d%%' % (100 * e['hp'] // e['mhp']) if e.get('boss') else 'IMPACTO EN BLINDADO')
-                                self.tk_boom(e['x'], e['z'], 2.5, 0.5, 2.5)
-                        break
+            elif tgt is not None:
+                e = tgt
+                gone = True
+                if e['kind'] == 'missile':
+                    self.tk_kill(e, 'missile')
+                else:
+                    e['hp'] -= 1
+                    if e['hp'] <= 0:
+                        self.tk_kill(e, e['kind'])
+                    else:
+                        self.audio.play('hit', .6)
+                        self.tk_say('JEFE: %d%%' % (100 * e['hp'] // e['mhp']) if e.get('boss') else 'IMPACTO EN BLINDADO')
+                        self.tk_boom(e['x'], e['z'], 2.5, 0.5, 2.5)
             if gone and s in k['pshells']:
                 k['pshells'].remove(s)
         for bm in k['booms'][:]:

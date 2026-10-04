@@ -22,7 +22,10 @@ from .boss_art import BOSS_TYPES, make_boss_sprite
 class CoreMixin:
     def __init__(self):
         pygame.display.set_caption('FINAL LEGACY - Edición Omar Brondo')
-        self.screen = pygame.display.set_mode((W, H), pygame.SCALED)
+        try:
+            self.screen = pygame.display.set_mode((W, H), pygame.SCALED)
+        except pygame.error:                      # sin renderizador: ventana común (sin escalado)
+            self.screen = pygame.display.set_mode((W, H))
         self.canvas = pygame.Surface((W, H))
         self.clock = pygame.time.Clock()
         names = 'couriernew,consolas,dejavusansmono,liberationmono,monospace'
@@ -206,24 +209,29 @@ class CoreMixin:
                 pygame.draw.circle(land, (150, 156, 126), (int(hx - hr * .25), int(hy - hr * .3)), int(hr * .58))
                 pygame.draw.circle(land, (214, 218, 204), (int(hx - hr * .3), int(hy - hr * .4)), max(2, int(hr * .22)))
 
-    def make_city(self, r, seed, ruined):
+    def make_city(self, r, seed, ruined, k=1.0):
+        """Ciudad vista desde arriba. k > 1 agranda los edificios (invasión de infantería: a escala de los soldados)."""
         size = int(r * 2.6)
         s = pygame.Surface((size, size), pygame.SRCALPHA)
         c = size // 2
         rnd = random.Random(seed + 100)
-        pygame.draw.circle(s, (120, 120, 118) if not ruined else (60, 56, 52), (c, c), int(r * .56))
+        rad = r * (.56 if k == 1.0 else .78)
+        pygame.draw.circle(s, (120, 120, 118) if not ruined else (60, 56, 52), (c, c), int(rad))
+        if k != 1.0:
+            pygame.draw.circle(s, (92, 92, 96), (c, c), int(rad), 4)
+            pygame.draw.circle(s, (104, 104, 104), (c, c), int(rad * .5), 3)
         for a in range(0, 360, 45):
-            dx, dy = vec(a, r * .56)
+            dx, dy = vec(a, rad)
             pygame.draw.line(s, (80, 80, 84), (c, c), (c + dx, c + dy), 3)
         blds = []
-        for _ in range(60):
-            a, d = rnd.uniform(0, 6.28), rnd.uniform(0, r * .46)
+        for _ in range(400 if k != 1.0 else 60):
+            a, d = rnd.uniform(0, 6.28), rnd.uniform(0, r * (.46 if k == 1.0 else .62))
             bx, by = c + math.cos(a) * d, c + math.sin(a) * d
-            bw, bd = rnd.randint(14, 28), rnd.randint(8, 14)
-            hh = rnd.randint(14, 44)
-            if all(abs(bx - q[0]) > (bw + q[2]) / 2 + 3 or abs(by - q[1]) > 16 for q in blds):
+            bw, bd = int(rnd.randint(14, 28) * k), int(rnd.randint(8, 14) * k)
+            hh = int(rnd.randint(14, 44) * k)
+            if all(abs(bx - q[0]) > (bw + q[2]) / 2 + 3 or abs(by - q[1]) > 16 * k for q in blds):
                 blds.append((bx, by, bw, bd, hh))
-            if len(blds) >= 16:
+            if len(blds) >= (16 if k == 1.0 else 20):
                 break
         for bx, by, bw, bd, hh in blds:
             hh = hh if not ruined else hh // 5
@@ -235,9 +243,13 @@ class CoreMixin:
             pygame.draw.rect(s, wall, (bx - bw / 2, by - hh, bw, hh))
             pygame.draw.rect(s, roof, (bx - bw / 2, by - hh - bd, bw, bd))
             if not ruined:
-                for wy in range(int(by - hh + 4), int(by - 3), 7):
-                    for wx in range(int(bx - bw / 2 + 3), int(bx + bw / 2 - 3), 6):
-                        pygame.draw.rect(s, (255, 226, 130) if rnd.random() < .6 else (40, 50, 76), (wx, wy, 3, 3))
+                ws = max(3, int(3 * k))
+                for wy in range(int(by - hh + 4 * k), int(by - 3 * k), int(7 * k)):
+                    for wx in range(int(bx - bw / 2 + 3 * k), int(bx + bw / 2 - 3 * k), int(6 * k)):
+                        pygame.draw.rect(s, (255, 226, 130) if rnd.random() < .6 else (40, 50, 76), (wx, wy, ws, ws))
+                if k != 1.0:
+                    pygame.draw.rect(s, (60, 70, 92), (bx - bw / 2, by - hh, bw, hh), 1)
+                    pygame.draw.rect(s, (130, 142, 164), (bx - bw / 2, by - hh - bd, bw, bd), 1)
         if ruined:
             for _ in range(8):
                 pygame.draw.circle(s, (30, 26, 24), (int(c + rnd.uniform(-r * .4, r * .4)), int(c + rnd.uniform(-r * .4, r * .4))),

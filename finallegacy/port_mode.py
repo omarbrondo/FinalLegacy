@@ -339,11 +339,12 @@ class PortMixin:
                     if e['bcd'] <= 0:
                         e['burst'] -= 1
                         e['bcd'] = 0.13
-                        gy = e['y'] - (28 if (e['kneel'] and not e['moving']) else 44)
-                        ang = math.degrees(math.atan2(py - gy, dx)) + random.uniform(-6, 6)
-                        self.pt_ebullet(e['x'] + 30 * e['face'], gy, ang, 560, 7)
+                        pv = e.get('pv') or (e['x'], e['y'] - (50 if (e['kneel'] and not e['moving']) else 67))
+                        mx_, my_, ux, uy = self.pt_muzzle(k, pv, e['face'], p['x'], py)
+                        ang = math.degrees(math.atan2(uy, ux)) + random.uniform(-6, 6)
+                        self.pt_ebullet(mx_, my_, ang, 560, 7)
                         e['flash'] = 0.06
-                        self.pt_casing(e['x'] + 14 * e['face'], gy, e['face'])
+                        self.pt_casing(pv[0] + ux * 22, pv[1] + uy * 22, e['face'])
                         self.audio.play('mg', .15)
                 elif e['cd'] <= 0 and k == 'rifle' and ad < 700:
                     e['cd'] = random.uniform(1.3, 2.3)
@@ -356,10 +357,12 @@ class PortMixin:
                 if e['tele'] > 0:
                     e['tele'] -= dt
                     if e['tele'] <= 0:
-                        ang = math.degrees(math.atan2(py - (e['y'] - 34), dx))
-                        self.pt_ebullet(e['x'] + 40 * e['face'], e['y'] - 34, ang, 1100, 20, 2.0)
+                        pv = e.get('pv') or (e['x'], e['y'] - 50)
+                        mx_, my_, ux, uy = self.pt_muzzle('sniper', pv, e['face'], p['x'], py)
+                        ang = math.degrees(math.atan2(uy, ux))
+                        self.pt_ebullet(mx_, my_, ang, 1100, 20, 2.0)
                         e['flash'] = 0.08
-                        self.pt_casing(e['x'] + 14 * e['face'], e['y'] - 34, e['face'])
+                        self.pt_casing(pv[0] + ux * 22, pv[1] + uy * 22, e['face'])
                         self.audio.play('cannon', .35)
                         e['cd'] = random.uniform(2.2, 3.0)
                 elif e['cd'] <= 0:
@@ -791,6 +794,20 @@ class PortMixin:
             if pt['pt'] > (3.4 if pt['fail'] else 6.0):
                 self.end_port()
 
+    PT_MUZ = {'sniper': 106, 'flame': 62, 'player': 70}
+
+    def pt_muzzle(self, kind, pv, face, tx, ty):
+        """Boca del arma: parte del hombro (pivote del brazo dibujado) y sigue la inclinación real del arma (±80°).
+        Devuelve (x, y, dirx, diry) en coordenadas de mundo."""
+        px, py = pv
+        dx, dy = tx - px, ty - py
+        right = face > 0
+        th = math.atan2(dy, dx if right else -dx)
+        th = clamp(th, -math.radians(80), math.radians(80))
+        dirx, diry = (math.cos(th) if right else -math.cos(th)), math.sin(th)
+        ln = self.PT_MUZ.get(kind, 74)
+        return px + dirx * ln, py + diry * ln, dirx, diry
+
     def pt_shoot(self):
         pt = self.pt
         p = pt['p']
@@ -799,15 +816,14 @@ class PortMixin:
         hmg = p['hmg'] > 0
         p['cd'] = 0.075 if hmg else 0.115
         p['flash'] = 0.05
-        sx = p['x'] - pt['cam']
-        oy = p['y'] - (28 if p['crouch'] else 46)
-        a = math.atan2(self.aim[1] - oy, self.aim[0] - sx)
+        pv = p.get('pv') or (p['x'], p['y'] - (50 if p['crouch'] else 67))
+        mx, my, dx, dy = self.pt_muzzle('player', pv, p['face'], self.aim[0] + pt['cam'], self.aim[1])
+        a = math.atan2(dy, dx)
         a += math.radians(random.uniform(-3.5, 3.5) if hmg else random.uniform(-1.2, 1.2))
-        pt['bul'].append(dict(x=p['x'] + math.cos(a) * 34, y=oy + math.sin(a) * 34, vx=math.cos(a) * 980, vy=math.sin(a) * 980,
-                              dmg=1.0, life=0.9))
+        pt['bul'].append(dict(x=mx, y=my, vx=math.cos(a) * 980, vy=math.sin(a) * 980, dmg=1.0, life=0.9))
         self.audio.play('mg', .3)
         if random.random() < 0.7:
-            self.pt_casing(p['x'] + 10 * p['face'], oy, p['face'])
+            self.pt_casing(pv[0] + dx * 24, pv[1] + dy * 24, p['face'])
 
     def end_port(self):
         pt = self.pt
@@ -936,10 +952,9 @@ class PortMixin:
         cv.blit(rimg, (px - rimg.get_width() // 2, py - rimg.get_height() // 2))
         if flash and arm == 'gun':
             ln = {'sniper': 106, 'flame': 62, 'player': 70}.get(kind, 74)
-            ang = math.radians(rot if right else -rot)
-            mx = px + (math.cos(ang) * ln if right else -math.cos(ang) * ln)
-            my = py - math.sin(ang) * ln * (1 if right else -1) * (1 if right else 1)
-            my = py - math.sin(math.radians(rot)) * ln
+            th = math.radians(-rot if right else rot)
+            mx = px + (math.cos(th) if right else -math.cos(th)) * ln
+            my = py + math.sin(th) * ln
             self.pt_flash(cv, mx, my, -rot if right else rot, right)
         return px, py
 
@@ -1175,6 +1190,8 @@ class PortMixin:
                     pygame.draw.rect(cv, (8, 12, 24), (sx - 15, fy - 86, 30, 5))
                     pygame.draw.rect(cv, (240, 80, 70), (sx - 14, fy - 85, int(28 * e['hp'] / e['max']), 3))
                 continue
+            pvx, pvy = e.get('pv') or (e['x'], fy - 62)
+            tgt_aim = (p['x'] - pvx, (p['y'] - 30) - pvy)
             if k == 'knife':
                 pose = 'run' if moving else 'idle'
                 arm = 'knife'
@@ -1182,23 +1199,25 @@ class PortMixin:
             elif k == 'gren':
                 pose = 'run' if moving else 'idle'
                 arm = 'gun'
-                aim = (p['x'] - e['x'], (p['y'] - 40) - (fy - 40))
+                aim = tgt_aim
                 if e['thr'] > 0:
                     arm = 'wind' if e['thr'] > 0.14 else 'rel'
             elif k == 'sniper':
                 pose = 'crouch'
                 arm = 'gun'
-                aim = (p['x'] - e['x'], (p['y'] - 40) - (fy - 30))
+                aim = tgt_aim
             else:
                 pose = 'run' if moving else ('crouch' if e['kneel'] else 'idle')
                 arm = 'gun'
-                aim = (p['x'] - e['x'], (p['y'] - 40) - (fy - (28 if e['kneel'] and not moving else 40)))
+                aim = tgt_aim
             if k == 'flame':
                 pose = 'run' if moving else 'idle'
                 arm = 'gun'
-                aim = (p['x'] - e['x'], (p['y'] - 40) - (fy - 44))
+                aim = tgt_aim
             fi = int(e['ph']) if pose == 'run' else int(t * 3 + e['ph0'])
-            self.pt_char(cv, k, int(sx), fy, e['face'], pose, fi, aim, arm, e['hit'], 255, True, e['flash'] > 0 and k != 'flame')
+            r_ = self.pt_char(cv, k, int(sx), fy, e['face'], pose, fi, aim, arm, e['hit'], 255, True, e['flash'] > 0 and k != 'flame')
+            if r_:
+                e['pv'] = (r_[0] + cam, r_[1])
             if k == 'sniper' and e['tele'] > 0:
                 ay = e['y'] - 34
                 pygame.draw.line(cv, (255, 40, 40), (sx, ay), (p['x'] - cam, p['y'] - 36), 1)
@@ -1209,8 +1228,8 @@ class PortMixin:
         # jugador
         if not p['dead']:
             if not (p['inv'] > 0 and int(t * 20) % 2 == 0):
-                oy = 28 if p['crouch'] else 48
-                aim = (self.aim[0] - pcx, self.aim[1] - (p['y'] - oy))
+                pv_ = p.get('pv') or (p['x'], p['y'] - (50 if p['crouch'] else 67))
+                aim = (self.aim[0] + cam - pv_[0], self.aim[1] - pv_[1])
                 if not p['ground']:
                     pose, fi = ('jump' if p['vy'] < 0 else 'fall'), 0
                 elif p['crouch']:
@@ -1222,7 +1241,9 @@ class PortMixin:
                 arm = 'gun'
                 if p['thr'] > 0:
                     arm = 'wind' if p['thr'] > 0.16 else 'rel'
-                self.pt_char(cv, 'player', int(pcx - (p['face'] * 2 if p['flash'] > 0 else 0)), int(p['y']), p['face'], pose, fi, aim, arm, 0.0, 255, True, p['flash'] > 0)
+                r_ = self.pt_char(cv, 'player', int(pcx - (p['face'] * 2 if p['flash'] > 0 else 0)), int(p['y']), p['face'], pose, fi, aim, arm, 0.0, 255, True, p['flash'] > 0)
+                if r_:
+                    p['pv'] = (r_[0] + cam, r_[1])
         else:
             fi = min(5, int(p['dead_t'] * 12))
             self.pt_char(cv, 'player', int(pcx), int(p['y']), p['face'], 'die', fi, None, None)
