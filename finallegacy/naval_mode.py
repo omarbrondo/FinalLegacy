@@ -112,14 +112,15 @@ class NavalMixin:
         alive_p = p['sink'] is None
         thr = ((1 if (keys[pygame.K_w] or keys[pygame.K_UP]) else 0) - (1 if (keys[pygame.K_s] or keys[pygame.K_DOWN]) else 0)) if alive_p else 0
         turn = ((1 if (keys[pygame.K_d] or keys[pygame.K_RIGHT]) else 0) - (1 if (keys[pygame.K_a] or keys[pygame.K_LEFT]) else 0)) if alive_p else 0
-        if self.fuel <= 0:
-            thr = 0
+        vmax = 125 if self.fuel > 0 else 40               # sin combustible: motor auxiliar
         if thr > 0:
-            p['v'] = min(125, p['v'] + 80 * dt)
+            p['v'] = min(vmax, p['v'] + 80 * dt)
         elif thr < 0:
             p['v'] = max(-35, p['v'] - 110 * dt)
         else:
             p['v'] -= p['v'] * 0.5 * dt
+        if self.fuel <= 0:
+            p['v'] = min(p['v'], vmax)
         p['h'] = (p['h'] + turn * 62 * clamp(abs(p['v']) / 50, 0.25, 1) * (1 if p['v'] >= 0 else -1) * dt) % 360
         dx, dy = vec(p['h'], p['v'] * dt)
         p['x'] += dx
