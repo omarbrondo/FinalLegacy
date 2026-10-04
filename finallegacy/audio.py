@@ -3,6 +3,9 @@ import array
 import math
 import pygame
 import random
+import threading
+from collections import OrderedDict
+from . import music as composer
 from .common import SR, clamp
 
 
@@ -206,6 +209,48 @@ class Audio:
         self.music_s = {'calm': S(build_music('calm'), 0.8), 'battle': S(build_music('battle'), 0.8)}
         pygame.mixer.Channel(1).play(self.engine, loops=-1)
         pygame.mixer.Channel(1).set_volume(0.0)
+        self.tracks = OrderedDict()           # (modo, oleada) -> Sound ya listo
+        self.raw = {}                          # (modo, oleada) -> bytes generados por el hilo compositor
+        self.want = None
+        self.cur_key = None
+        self.req = []
+        self.cv = threading.Condition()
+        if composer.np is not None:
+            threading.Thread(target=self._composer_loop, daemon=True).start()
+
+    def _composer_loop(self):
+        np = composer.np
+        while True:
+            with self.cv:
+                while not self.req:
+                    self.cv.wait()
+                key = self.req.pop()                # lo último pedido primero
+            if key in self.raw or key in self.tracks:
+                continue
+            try:
+                x = composer.compose(key[0], key[1], SR)
+                pcm = (np.clip(x, -1, 1) * 30000 * 0.8).astype(np.int16)
+                self.raw[key] = np.repeat(pcm, self.ch).tobytes() if self.ch > 1 else pcm.tobytes()
+            except Exception:
+                self.raw[key] = None
+
+    def tick(self):
+        """Una vez por cuadro: pasa a la pieza pedida cuando el hilo compositor ya la terminó."""
+        key = self.want
+        if not self.ok or key is None or key == self.cur_key:
+            return
+        snd = self.tracks.get(key)
+        if snd is None and self.raw.get(key):
+            snd = pygame.mixer.Sound(buffer=self.raw.pop(key))
+            self.tracks[key] = snd
+            while len(self.tracks) > 6:
+                self.tracks.popitem(last=False)
+        if snd is not None:
+            self.tracks.move_to_end(key)
+            self.cur_key = key
+            ch = pygame.mixer.Channel(0)
+            ch.play(snd, loops=-1, fade_ms=700)
+            ch.set_volume(0.0 if self.muted else 0.33)
 
     def play(self, name, vol=1.0):
         if self.ok and not self.muted and name in self.sfx:
@@ -213,14 +258,31 @@ class Audio:
             s.set_volume(clamp(vol, 0, 1))
             s.play()
 
-    def music(self, style):
-        if not self.ok or style == self.cur:
+    def music(self, style, wave=1, fallback=None):
+        """style = modo ('map', 'defense', 'port'...), wave = oleada. Mientras se compone la pieza suena la básica."""
+        if not self.ok:
             return
-        self.cur = style
-        ch = pygame.mixer.Channel(0)
-        ch.stop()
-        if style:
-            ch.play(self.music_s[style], loops=-1, fade_ms=500)
+        if style is None:
+            self.want = self.cur_key = self.cur = None
+            pygame.mixer.Channel(0).stop()
+            return
+        key = (style, wave)
+        if composer.np is not None and key != self.want:
+            self.want = key
+            if key not in self.tracks and key not in self.raw:
+                with self.cv:
+                    self.req.append(key)
+                    self.cv.notify()
+        if key in self.tracks or (composer.np is not None and self.raw.get(key)):
+            self.tick()
+            return
+        fb = fallback or 'calm'                          # provisoria
+        if self.cur != fb or self.cur_key is not None and self.want != self.cur_key:
+            self.cur = fb
+            self.cur_key = None
+            ch = pygame.mixer.Channel(0)
+            ch.stop()
+            ch.play(self.music_s[fb], loops=-1, fade_ms=500)
             ch.set_volume(0.0 if self.muted else 0.33)
 
     def engine_vol(self, v):

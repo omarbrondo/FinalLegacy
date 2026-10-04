@@ -33,6 +33,7 @@ python final_legacy_omar.py
 | `upgrade_mode.py` | Pantalla de mejoras entre oleadas (elegir 1 de 3) |
 | `hazards.py` | Nubes tóxicas, máscara antigás y misil Tomahawk en infantería y puerto |
 | `heli_mode.py` | Helipuerto, Blackhawk (bidón de combustible) y misiones aire-tierra |
+| `music.py` | Compositor de música por modo y oleada |
 | `render_fx.py` | Post-proceso (bloom, viñeta, color, grano) y sprites suaves de humo/fuego/brillo |
 | `gamepad.py` | Mando Xbox y pantalla completa |
 | `game.py` | Clase `Game` (une los modos) y `main()` |
@@ -60,6 +61,10 @@ Una isla del mapa (con una H, también en el radar) tiene un helipuerto con un B
 - Cada **3000 puntos** (y cada vez más) ganás una misión. Acercate al helipuerto y presioná **B**: elegís entre **despejar una isla de antena**, cazar un buque enemigo o destruir una batería costera.
 - Si despejás una isla, al llegar con el barco y presionar **L** instalás la antena **sin combate**.
 - Misión aire-tierra (vista cenital): WASD volar, mouse apuntar, clic ametralladora, ESPACIO o clic derecho cohetes. Esquivá los misiles tierra-aire.
+
+## Música
+
+Cada modo tiene su propia música compuesta por código (con numpy): mapa, defensa, combate naval, jefe, aéreo, tierra, tanques, puerto, helicóptero, hackeo, mejoras y portada. Dentro de cada modo la pieza cambia con la oleada (tempo, tonalidad, modo musical, batería y melodía). Mientras se compone suena la música básica. Sin numpy se usan solo las dos pistas básicas.
 
 ## Gráficos HD
 
