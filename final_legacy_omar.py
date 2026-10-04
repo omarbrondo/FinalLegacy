@@ -584,6 +584,9 @@ class Game:
         self.ttur_p = make_tank_turret((84, 140, 150))
         self.ttur_e = make_tank_turret((160, 70, 62))
         self.side_ship = self.make_side_ship()
+        self.plane_p = self.make_plane(32, 48, (70, 140, 170))
+        self.plane_e = self.make_plane(32, 48, (150, 60, 60))
+        self.missile_gfx = self.make_missile()
 
         # ---- cielo de defensa
         sky = pygame.Surface((W, HZ))
@@ -681,6 +684,24 @@ class Game:
         pygame.draw.rect(s, (60, 66, 78), (192, 46, 18, 24))
         pygame.draw.rect(s, (255, 210, 70), (192, 54, 18, 4))
         pygame.draw.circle(s, (60, 70, 86), (232, 66), 11)
+        return s
+
+    def make_plane(self, wd, ln, col):
+        S = 2
+        w, l = wd * S, ln * S
+        s = pygame.Surface((w, l), pygame.SRCALPHA)
+        pygame.draw.polygon(s, shade(col, -30), [(w * .5, 0), (w * .8, l * .3), (w * .85, l * .7), (w * .5, l), (w * .15, l * .7), (w * .2, l * .3)])
+        pygame.draw.polygon(s, col, [(w * .48, l * .15), (w * .75, l * .35), (w * .78, l * .65), (w * .5, l * .9), (w * .22, l * .65), (w * .25, l * .35)])
+        for x in (w * .3, w * .7):
+            pygame.draw.circle(s, shade(col, -60), (int(x), int(l * .5)), int(w * .08))
+            pygame.draw.circle(s, shade(col, 40), (int(x), int(l * .5)), int(w * .05))
+        pygame.draw.circle(s, (255, 200, 100), (int(w * .5), int(l * .2)), int(w * .06))
+        return pygame.transform.smoothscale(s, (wd, ln))
+
+    def make_missile(self):
+        s = pygame.Surface((8, 32), pygame.SRCALPHA)
+        pygame.draw.polygon(s, (255, 200, 100), [(4, 0), (7, 8), (7, 24), (4, 32), (1, 24), (1, 8)])
+        pygame.draw.polygon(s, (255, 255, 255), [(3, 4), (5, 4), (5, 28), (3, 28)])
         return s
 
     # ------------------------------------------------------------ util
@@ -839,9 +860,9 @@ class Game:
     def go(self, state):
         self.state = state
         self.fade = 1.0
-        pygame.mouse.set_visible(state not in ('defense', 'combat', 'ground'))
+        pygame.mouse.set_visible(state not in ('defense', 'combat', 'aerial', 'ground'))
         self.audio.music({'title': 'calm', 'map': 'calm', 'defense': 'battle', 'combat': 'battle',
-                          'ground': 'battle', 'gameover': None}[state])
+                          'aerial': 'battle', 'ground': 'battle', 'gameover': None}[state])
         if state not in ('map', 'combat'):
             self.audio.engine_vol(0)
 
@@ -881,6 +902,8 @@ class Game:
                 self.fire_interceptor()
             elif self.state == 'ground' and e.key == pygame.K_SPACE and not self.paused:
                 self.fire_cannon_g()
+            elif self.state == 'aerial' and e.key == pygame.K_SPACE and not self.paused:
+                self.fire_aerial()
             elif self.state == 'combat' and not self.paused:
                 if e.key == pygame.K_SPACE:
                     self.fire_shell()
@@ -893,6 +916,8 @@ class Game:
                 self.start_game()
             elif self.state == 'defense':
                 self.fire_interceptor()
+            elif self.state == 'aerial':
+                self.fire_aerial()
             elif self.state == 'combat':
                 self.fire_shell()
 
@@ -926,6 +951,8 @@ class Game:
             self.upd_defense(dt)
         elif self.state == 'combat':
             self.upd_combat(dt)
+        elif self.state == 'aerial':
+            self.upd_aerial(dt)
         elif self.state == 'ground':
             self.upd_ground(dt)
         elif self.state in ('title', 'gameover'):
@@ -1528,6 +1555,144 @@ class Game:
             self.fx.splash(x, y, 1.0)
             self.audio.play('splash', .6)
 
+    # ---------------------------------------------------------- BATALLA AÉREA
+    def start_aerial(self):
+        self.fx = Particles()
+        n = min(6 + self.wave, 16)
+        self.a = dict(
+            p=dict(x=W / 2, y=H - 80.0, h=0.0, v=0.0, cool=0.0, hp=100.0, sink=None),
+            enemies=[], missiles=[], t=0.0, total=n, killed=0, phase='play', pt=0.0,
+            queue=sorted(random.uniform(0.4, 2.0 + n * 0.6) for _ in range(n)))
+        self.aim = [W / 2, 200.0]
+        self.go('aerial')
+        self.banner('¡BATALLA AÉREA!', 'Mouse: apuntar  |  Clic/ESPACIO: disparar  |  W/S: mover', (100, 180, 255), 3.0)
+
+    def spawn_aerial_enemy(self):
+        a = self.a
+        y = random.uniform(80, 200)
+        x = random.choice([-40, W + 40])
+        hp = 3 + self.wave // 2
+        a['enemies'].append(dict(x=x, y=y, vx=random.uniform(80 + self.wave * 8, 140 + self.wave * 12) * (1 if x < W / 2 else -1),
+                                 h=180 if x < W / 2 else 0, hp=hp, max=hp, cool=random.uniform(0.8, 1.8)))
+
+    def fire_aerial(self):
+        a = self.a
+        p = a['p']
+        if p['sink'] is not None or p['cool'] > 0:
+            return
+        if self.ammo <= 0:
+            self.audio.play('empty')
+            self.toast('¡Sin munición!', (255, 90, 80))
+            return
+        self.ammo -= 1
+        p['cool'] = 0.4
+        angle = bearing(self.aim[0] - p['x'], self.aim[1] - p['y'])
+        directions = [0, 30, -30, 60, -60]
+        for d in directions[:min(3, (self.wave // 2) + 1)]:
+            ang = angle + d
+            vx, vy = vec(ang, 500)
+            a['missiles'].append(dict(x=p['x'], y=p['y'], vx=vx, vy=vy, life=2.0, own='p'))
+        self.audio.play('launch', .8)
+        self.fx.add('glow', p['x'], p['y'], life=.15, r0=16, r1=32, col=(120, 200, 255))
+
+    def upd_aerial(self, dt):
+        a = self.a
+        p = a['p']
+        keys = pygame.key.get_pressed()
+
+        a['t'] += dt
+        p['cool'] = max(0.0, p['cool'] - dt)
+        p['hp'] = max(0.0, p['hp'] - random.random() * dt * 2 if p['hp'] > 0 else 0)
+
+        if keys[pygame.K_w] or keys[pygame.K_UP]:
+            p['y'] = max(40, p['y'] - 300 * dt)
+        if keys[pygame.K_s] or keys[pygame.K_DOWN]:
+            p['y'] = min(H - 40, p['y'] + 300 * dt)
+        if keys[pygame.K_a] or keys[pygame.K_LEFT]:
+            p['x'] = max(20, p['x'] - 300 * dt)
+        if keys[pygame.K_d] or keys[pygame.K_RIGHT]:
+            p['x'] = min(W - 20, p['x'] + 300 * dt)
+
+        while a['queue'] and a['queue'][0] <= a['t']:
+            a['queue'].pop(0)
+            self.spawn_aerial_enemy()
+
+        for e in a['enemies'][:]:
+            e['x'] += e['vx'] * dt
+            e['y'] += random.uniform(-1, 1) * 30 * dt
+            e['cool'] -= dt
+            if e['cool'] <= 0:
+                e['cool'] = random.uniform(1.0, 2.0)
+                vx, vy = vec(bearing(p['x'] - e['x'], p['y'] - e['y']), 300)
+                a['missiles'].append(dict(x=e['x'], y=e['y'], vx=vx, vy=vy, life=2.5, own='e'))
+                self.audio.play('launch', .3)
+
+            if e['x'] < -60 or e['x'] > W + 60 or e['y'] < 0 or e['y'] > H:
+                a['enemies'].remove(e)
+
+        for m in a['missiles'][:]:
+            m['x'] += m['vx'] * dt
+            m['y'] += m['vy'] * dt
+            m['life'] -= dt
+
+            if m['own'] == 'p':
+                hit = None
+                for e in a['enemies']:
+                    if dist(m['x'], m['y'], e['x'], e['y']) < 16:
+                        hit = e
+                        break
+                if hit:
+                    hit['hp'] -= 1
+                    self.fx.add('glow', m['x'], m['y'], life=.25, r0=8, r1=20, col=(255, 180, 100))
+                    self.audio.play('boom_s', .4)
+                    a['missiles'].remove(m)
+                    if hit['hp'] <= 0:
+                        a['enemies'].remove(hit)
+                        a['killed'] += 1
+                        pts = 150
+                        self.add_score(pts)
+                        self.pop('+%d' % pts, hit['x'], hit['y'])
+                        self.fx.explode(hit['x'], hit['y'], 0.9)
+                    continue
+            else:
+                if p['sink'] is None and dist(m['x'], m['y'], p['x'], p['y']) < 18:
+                    p['hp'] -= 15
+                    self.shake = max(self.shake, 6)
+                    self.audio.play('hit', .6)
+                    self.fx.add('glow', m['x'], m['y'], life=.3, r0=12, r1=28, col=(255, 140, 80))
+                    a['missiles'].remove(m)
+                    continue
+
+            if m['life'] <= 0 or m['x'] < -40 or m['x'] > W + 40 or m['y'] < -40 or m['y'] > H + 40:
+                if m in a['missiles']:
+                    a['missiles'].remove(m)
+
+        self.fx.update(dt)
+
+        if p['sink'] is None and p['hp'] <= 0:
+            p['sink'] = 0.0
+            self.fx.explode(p['x'], p['y'], 1.5, True)
+            self.audio.play('boom_l')
+            self.shake = 14
+            a['phase'] = 'result'
+            a['pt'] = -2.0
+            self.banner('¡AVIÓN DERRIBADO!', 'Derrota', (255, 80, 70), 3.0)
+
+        if a['phase'] == 'play' and not a['queue'] and not a['enemies'] and not a['missiles']:
+            a['phase'] = 'result'
+            a['pt'] = 0.0
+            bonus = 500 + 100 * self.wave
+            self.add_score(bonus)
+            self.audio.play('win', .7)
+            self.banner('¡VICTORIA AÉREA!', 'Bajas: %d   Bonus +%d' % (a['killed'], bonus), (120, 255, 160), 2.8)
+
+        if a['phase'] == 'result':
+            a['pt'] += dt
+            if a['pt'] > 2.8:
+                self.warned = False
+                self.strike_t = max(22.0, random.uniform(30, 42) - self.wave * 2)
+                self.go('map')
+
     # ---------------------------------------------------------- COMBATE TERRESTRE
     def make_ground(self, city, R):
         s = pygame.Surface((W, H), pygame.SRCALPHA)
@@ -1856,6 +2021,8 @@ class Game:
             self.draw_defense(cv)
         elif self.state == 'combat':
             self.draw_combat(cv)
+        elif self.state == 'aerial':
+            self.draw_aerial(cv)
         elif self.state == 'ground':
             self.draw_ground(cv)
         elif self.state == 'gameover':
@@ -2233,6 +2400,43 @@ class Game:
         pygame.draw.rect(cv, (8, 12, 24), (W // 2 - 60, H - 40, 120, 10))
         pygame.draw.rect(cv, (120, 255, 160) if rl >= 1 else (255, 200, 80), (W // 2 - 59, H - 39, int(118 * rl), 8))
         self.text(cv, 'Clic/ESPACIO disparar  |  E huir', self.f_s, (200, 220, 255), W // 2, H - 64, 'c')
+
+    # ---- batalla aérea
+    def draw_aerial(self, cv):
+        a = self.a
+        p = a['p']
+        cv.fill((20, 40, 90))
+        for y in range(0, H, 40):
+            pygame.draw.line(cv, (40, 70, 140), (0, y), (W, y), 1)
+        for x in range(0, W, 60):
+            pygame.draw.line(cv, (40, 70, 140), (x, 0), (x, H), 1)
+        for e in a['enemies']:
+            r = pygame.transform.rotate(self.plane_e, -e['h'])
+            cv.blit(r, (int(e['x']) - r.get_width() // 2, int(e['y']) - r.get_height() // 2))
+            if e['hp'] < e['max']:
+                pygame.draw.rect(cv, (8, 12, 24), (int(e['x']) - 16, int(e['y']) - 28, 32, 5))
+                pygame.draw.rect(cv, (240, 80, 70), (int(e['x']) - 15, int(e['y']) - 27, int(30 * e['hp'] / e['max']), 3))
+        for m in a['missiles']:
+            h = math.atan2(m['vy'], m['vx']) * 180 / math.pi
+            r = pygame.transform.rotate(self.missile_gfx, -h)
+            col = (100, 200, 255) if m['own'] == 'p' else (255, 150, 100)
+            glow(cv, m['x'], m['y'], 10, col, 0.6)
+            cv.blit(r, (int(m['x']) - r.get_width() // 2, int(m['y']) - r.get_height() // 2))
+        if p['sink'] is None or p['sink'] < 0.2:
+            r = pygame.transform.rotate(self.plane_p, -p['h'])
+            cv.blit(r, (int(p['x']) - r.get_width() // 2, int(p['y']) - r.get_height() // 2))
+        ax, ay = int(self.aim[0]), int(self.aim[1])
+        pygame.draw.circle(cv, (100, 255, 200), (ax, ay), 16, 2)
+        pygame.draw.circle(cv, (100, 255, 200), (ax, ay), 3)
+        for dx, dy in ((-30, 0), (30, 0), (0, -30), (0, 30)):
+            pygame.draw.line(cv, (100, 255, 200), (ax + dx // 2, ay + dy // 2), (ax + dx, ay + dy), 2)
+        self.draw_hud(cv, False)
+        self.panel(cv, (W // 2 - 230, 12, 460, 70), 170)
+        self.text(cv, '¡BATALLA AÉREA!', self.f_m, (100, 180, 255), W // 2, 16, 'c')
+        self.bar(cv, W // 2 - 210, 44, 420, 26, p['hp'] / 100, (80, 220, 110) if p['hp'] > 35 else (240, 80, 70), 'AVIÓN %d%%' % max(0, p['hp']))
+        left = len(a['queue']) + len(a['enemies'])
+        self.text(cv, 'ENEMIGOS: %d' % left, self.f_m, (255, 160, 140), W - 20, 90, 'r')
+        self.text(cv, 'W/S/A/D mover | Clic/ESPACIO disparar (múltiples direcciones)', self.f_s, (200, 220, 255), W // 2, H - 30, 'c')
 
 
 if __name__ == '__main__':
