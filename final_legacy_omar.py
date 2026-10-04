@@ -26,7 +26,8 @@ SKY_W = 640                   # ancho del skyline
 WIN_WAVE = 6                  # oleadas para ganar
 VMAX = 170.0                  # velocidad máx. del buque en el mapa (px/s)
 BOSS_WAVE = 3                 # cada cuántas oleadas aparece jefe final
-ANTENNA_ISLANDS = [2, 3, 4]   # índices de islas con antenas (de EXTRA_ISLANDS)
+ANTENNA_ISLANDS = [0, 1, 2, 3, 4]   # islas donde se puede desembarcar e instalar antena (índices de EXTRA_ISLANDS)
+ARENA_R = 330                  # radio de la isla en el combate de infantería
 LANDING_ENEMIES = 10           # enemigos por desembarque
 MAX_LANDING_ATTEMPTS = 3       # intentos máximos por isla
 
@@ -462,34 +463,136 @@ def make_turret(r, col):
     return pygame.transform.smoothscale(s, (size, size))
 
 
-def make_tank(wd, ln, col):
-    S = 3
-    w, l = wd * S, ln * S
-    s = pygame.Surface((w, l), pygame.SRCALPHA)
-    tr = w * .24
-    for x0 in (0, w - tr):
-        pygame.draw.rect(s, (30, 32, 36), (x0, 0, tr, l), border_radius=S * 3)
-        for k in range(S * 2, int(l), S * 5):
-            pygame.draw.line(s, (78, 80, 86), (x0 + 2, k), (x0 + tr - 2, k), S)
-    pygame.draw.rect(s, shade(col, -40), (tr * .7, l * .05, w - tr * 1.4, l * .9), border_radius=S * 3)
-    pygame.draw.rect(s, col, (tr * .95, l * .09, w - tr * 1.9, l * .82), border_radius=S * 3)
-    pygame.draw.polygon(s, shade(col, 25), [(w * .3, l * .09), (w * .7, l * .09), (w * .62, l * .2), (w * .38, l * .2)])
-    for i in range(4):
-        pygame.draw.line(s, shade(col, -55), (w * .32, l * (.8 + i * .035)), (w * .68, l * (.8 + i * .035)), S)
-    return pygame.transform.smoothscale(s, (wd, ln))
+ENEMY_TYPES = {
+    'rifle': dict(hp=4, speed=58, range=310, dmg=7, rate=(0.9, 1.5), pts=100),
+    'mg': dict(hp=7, speed=34, range=380, dmg=5, rate=(1.5, 2.3), pts=200),
+    'gren': dict(hp=4, speed=46, range=380, dmg=0, rate=(3.4, 4.8), pts=150),
+}
+TEAM_COL = {
+    'p': dict(uni=(72, 114, 102), vest=(46, 76, 70), helm=(86, 132, 114), trim=(255, 214, 90)),
+    'e': dict(uni=(138, 74, 62), vest=(92, 50, 44), helm=(154, 88, 68), trim=(36, 32, 32)),
+}
 
 
-def make_tank_turret(col):
-    S = 3
-    size = 64
-    s = pygame.Surface((size * S, size * S), pygame.SRCALPHA)
-    c = size * S // 2
-    pygame.draw.rect(s, shade(col, -70), (c - 3 * S, c - 28 * S, 6 * S, 28 * S))
-    pygame.draw.rect(s, shade(col, -20), (c - 4 * S, c - 30 * S, 8 * S, 5 * S))
-    pygame.draw.circle(s, shade(col, -40), (c, c), 13 * S)
-    pygame.draw.circle(s, shade(col, 20), (c, c), 10 * S)
-    pygame.draw.circle(s, shade(col, -30), (c + 3 * S, c + 3 * S), 3 * S)
-    return pygame.transform.smoothscale(s, (size, size))
+def make_soldier_frames(kind, team):
+    """4 cuadros de caminata de un soldado visto desde arriba, mirando al norte."""
+    S, N = 4, 56
+    C = N * S // 2
+    col = TEAM_COL[team]
+    skin, dark, steel = (226, 188, 154), (30, 30, 34), (44, 46, 52)
+    frames = []
+
+    def rc(s, c, x, y, w, h, r=0):
+        pygame.draw.rect(s, c, (C + x * S, C + y * S, w * S, h * S), border_radius=int(r * S))
+
+    def el(s, c, x, y, w, h):
+        pygame.draw.ellipse(s, c, (C + x * S, C + y * S, w * S, h * S))
+
+    def ci(s, c, x, y, r):
+        pygame.draw.circle(s, c, (int(C + x * S), int(C + y * S)), max(1, int(r * S)))
+
+    def ln(s, c, x0, y0, x1, y1, w):
+        pygame.draw.line(s, c, (C + x0 * S, C + y0 * S), (C + x1 * S, C + y1 * S), max(1, int(w * S)))
+
+    for sw in (0, 9, 0, -9):
+        s = pygame.Surface((N * S, N * S), pygame.SRCALPHA)
+        k = sw * 0.45
+        for side, off in ((-1, k), (1, -k)):
+            ln(s, shade(col['uni'], -35), side * 4.5, 2, side * 4.5, 5 + off, 4.2)
+            el(s, dark, side * 4.5 - 2.9, 3.5 + off, 5.8, 9)
+            el(s, (70, 66, 62), side * 4.5 - 2.2, 4.2 + off, 4.4, 4)
+        rc(s, shade(col['vest'], -25), -7.5, 2.5, 15, 11, 3)
+        rc(s, shade(col['vest'], 15), -7.5, 2.5, 15, 3, 2)
+        if kind == 'mg':
+            rc(s, (88, 96, 70), 6, 4, 6, 9, 1)
+            rc(s, (122, 130, 98), 6, 4, 6, 2, 1)
+        elif kind == 'gren':
+            for px in (-6.5, 2.5):
+                rc(s, shade(col['vest'], -10), px, 8, 4, 6, 1)
+                ci(s, (70, 84, 56), px + 2, 9, 1.5)
+        el(s, shade(col['uni'], -30), -10.4, -6.2, 20.8, 15)
+        el(s, col['uni'], -9.6, -5.6, 19.2, 13.4)
+        el(s, col['vest'], -7.4, -4.4, 14.8, 10.4)
+        for px in (-5.5, -1.6, 2.4):
+            rc(s, shade(col['vest'], -35), px, -2.8, 3.2, 3.6, 0.7)
+            rc(s, shade(col['vest'], 25), px, -2.8, 3.2, 0.9, 0.5)
+        if kind == 'mg':
+            for i in range(5):
+                rc(s, (214, 178, 70), 2.5 + i * 0.9, -9 + i * 1.5, 1.6, 1.8, 0.4)
+            ln(s, (150, 150, 156), -4.4, -22, -7.4, -16.5, 0.9)
+            ln(s, (150, 150, 156), 5.0, -22, 8.0, -16.5, 0.9)
+            rc(s, steel, -1.6, -31, 3.2, 20, 0.8)
+            rc(s, dark, -2.6, -22, 5.2, 4, 1)
+            rc(s, (110, 76, 48), -2.2, -9, 4.4, 8, 1.4)
+            rc(s, (84, 88, 94), -3.6, -17, 7.2, 3.2, 1)
+        elif kind == 'gren':
+            rc(s, steel, -0.5, -22, 2.2, 12, 0.6)
+            rc(s, dark, -1.8, -14, 4.6, 7, 1)
+            rc(s, (110, 76, 48), -1.8, -8, 4.2, 6, 1.2)
+            rc(s, dark, -0.9, -12, 2.6, 5.5, 0.6)
+        else:
+            rc(s, steel, -0.4, -29, 1.9, 17, 0.5)
+            rc(s, dark, -1.8, -17, 4.6, 9, 1)
+            rc(s, (110, 76, 48), -2.0, -9, 4.6, 8, 1.6)
+            rc(s, dark, -1.0, -13.5, 2.6, 5.5, 0.6)
+            ci(s, dark, 0.5, -29.6, 0.9)
+        hand_l = (-3.4, -15) if kind != 'gren' else (-7.4, -11.5)
+        hand_r = (3.4, -6.6)
+        ln(s, shade(col['uni'], -25), -8.4, -2.4, hand_l[0], hand_l[1], 4.4)
+        ln(s, shade(col['uni'], -25), 8.4, -2.4, hand_r[0], hand_r[1], 4.4)
+        ci(s, skin, hand_l[0], hand_l[1], 2.3)
+        ci(s, skin, hand_r[0], hand_r[1], 2.3)
+        if kind == 'gren':
+            ci(s, (60, 76, 50), hand_l[0] - 0.3, hand_l[1] - 1.2, 2.8)
+            ci(s, (96, 112, 78), hand_l[0] - 1.0, hand_l[1] - 2.0, 1.1)
+            ln(s, (190, 190, 196), hand_l[0] + 1.2, hand_l[1] - 3.6, hand_l[0] + 2.8, hand_l[1] - 1.6, 0.7)
+        ci(s, shade(col['helm'], -55), 0, -1.4, 6.5)
+        ci(s, col['helm'], 0, -1.6, 5.7)
+        ci(s, shade(col['helm'], 38), -1.6, -3.2, 2.5)
+        pygame.draw.arc(s, shade(col['helm'], -70), (C - 5.7 * S, C - 7.3 * S, 11.4 * S, 11.4 * S), 0, 6.3, int(S * 0.7))
+        for cx_, cy_, cr in ((-2.4, 0.6, 1.5), (2.2, -0.4, 1.3), (0.4, 2.6, 1.1), (3.0, -3.0, 0.9)):
+            ci(s, shade(col['helm'], -34), cx_, cy_, cr)
+        rc(s, col['trim'], -5.4, -2.2, 10.8, 1.3, 0.5)
+        for side in (-1, 1):
+            rc(s, col['trim'], side * 8.6 - 1.6, -4.4, 3.2, 3.6, 0.8)
+        el(s, skin, -2.6, -8.1, 5.2, 2.6)
+        rc(s, (40, 60, 80), -3.0, -7.6, 6.0, 1.3, 0.5)
+        frames.append(pygame.transform.smoothscale(s, (84, 84)))
+    return frames
+
+
+def draw_cover(surf, c):
+    x, y, r, kind = int(c['x']), int(c['y']), c['r'], c['kind']
+    rnd = random.Random(c['seed'])
+    sh = pygame.Surface((r * 4, r * 4), pygame.SRCALPHA)
+    pygame.draw.circle(sh, (0, 0, 0, 70), (r * 2 + 5, r * 2 + 7), int(r * 1.05))
+    surf.blit(sh, (x - r * 2, y - r * 2))
+    if kind == 'sandbag':
+        pygame.draw.circle(surf, (118, 98, 62), (x, y), r)
+        for ring, rad, n in ((0, r - 5, 11), (1, r - 13, 7)):
+            for i in range(n):
+                a = 6.2832 * i / n + ring * 0.4 + rnd.uniform(-.06, .06)
+                bx, by = x + math.cos(a) * rad, y + math.sin(a) * rad
+                pygame.draw.circle(surf, (150, 126, 84), (int(bx), int(by)), 7 - ring)
+                pygame.draw.circle(surf, (196, 172, 120), (int(bx - 1), int(by - 2)), 4 - ring)
+                pygame.draw.circle(surf, (120, 100, 66), (int(bx), int(by)), 7 - ring, 1)
+        pygame.draw.circle(surf, (96, 80, 52), (x, y), 5)
+    elif kind == 'rock':
+        pts = [(x + math.cos(a) * r * rnd.uniform(.8, 1.1), y + math.sin(a) * r * rnd.uniform(.8, 1.1))
+               for a in [6.2832 * i / 9 for i in range(9)]]
+        pygame.draw.polygon(surf, (84, 88, 92), pts)
+        pygame.draw.polygon(surf, (126, 130, 132), [(px * .8 + x * .2 - 3, py * .8 + y * .2 - 3) for px, py in pts])
+        pygame.draw.polygon(surf, (160, 164, 164), [(px * .45 + x * .55 - 5, py * .45 + y * .55 - 5) for px, py in pts])
+        pygame.draw.polygon(surf, (58, 62, 66), pts, 2)
+    else:
+        for ox, oy in ((-9, -8), (7, 6)):
+            bx, by = x + ox, y + oy
+            pygame.draw.rect(surf, (88, 62, 36), (bx - 15, by - 15, 30, 30), border_radius=3)
+            pygame.draw.rect(surf, (150, 108, 62), (bx - 13, by - 13, 26, 26), border_radius=2)
+            for k in (-8, 0, 8):
+                pygame.draw.line(surf, (112, 80, 46), (bx - 13, by + k), (bx + 13, by + k), 2)
+            pygame.draw.line(surf, (88, 62, 36), (bx - 13, by - 13), (bx + 13, by + 13), 3)
+            pygame.draw.line(surf, (88, 62, 36), (bx + 13, by - 13), (bx - 13, by + 13), 3)
 
 
 def make_shadow(surf):
@@ -581,15 +684,19 @@ class Game:
         reg('e_hull', make_ship(42, 112, (150, 60, 60), (170, 90, 80), (30, 30, 30), False))
         self.tur_p = make_turret(8, (70, 140, 170))
         self.tur_e = make_turret(8, (150, 60, 60))
-        reg('tank_p', make_tank(34, 50, (84, 140, 150)))
-        reg('tank_e', make_tank(34, 50, (160, 70, 62)))
-        self.ttur_p = make_tank_turret((84, 140, 150))
-        self.ttur_e = make_tank_turret((160, 70, 62))
+        self.sol = {'p': make_soldier_frames('rifle', 'p')}
+        for kd in ENEMY_TYPES:
+            self.sol['e_' + kd] = make_soldier_frames(kd, 'e')
+        hurt = pygame.Surface((W, H), pygame.SRCALPHA)
+        for i in range(70):
+            pygame.draw.rect(hurt, (200, 0, 0, int(150 * (1 - i / 70) ** 2)), (i, i, W - 2 * i, H - 2 * i), 1)
+        self.hurt_surf = hurt.convert_alpha()
         self.side_ship = self.make_side_ship()
         self.plane_p = self.make_plane(32, 48, (70, 140, 170))
         self.plane_e = self.make_plane(32, 48, (150, 60, 60))
         self.missile_gfx = self.make_missile()
         self.antenna_gfx = self.make_antenna()
+        self.antenna_big = self.make_antenna(1.5)
 
         # ---- cielo de defensa
         sky = pygame.Surface((W, HZ))
@@ -712,33 +819,37 @@ class Game:
         pygame.draw.polygon(s, (255, 255, 255), [(3, 4), (5, 4), (5, 28), (3, 28)])
         return s
 
-    def make_antenna(self):
-        s = pygame.Surface((24, 48), pygame.SRCALPHA)
-        pygame.draw.rect(s, (100, 100, 120), (9, 12, 6, 20))
-        pygame.draw.line(s, (150, 150, 180), (6, 20), (12, 12), 2)
-        pygame.draw.line(s, (150, 150, 180), (18, 20), (12, 12), 2)
-        pygame.draw.line(s, (150, 150, 180), (6, 28), (12, 22), 2)
-        pygame.draw.line(s, (150, 150, 180), (18, 28), (12, 22), 2)
-        pygame.draw.circle(s, (200, 220, 255), (12, 10), 3)
-        return s
-
-    def make_soldier(self, kind, col):
-        s = pygame.Surface((16, 28), pygame.SRCALPHA)
-        pygame.draw.circle(s, col, (8, 6), 3)
-        pygame.draw.rect(s, col, (6, 9, 4, 10))
-        pygame.draw.rect(s, shade(col, -30), (5, 8, 6, 2))
-        pygame.draw.line(s, shade(col, -60), (5, 12), (2, 18), 2)
-        pygame.draw.line(s, shade(col, -60), (11, 12), (14, 18), 2)
-        pygame.draw.line(s, shade(col, -60), (5, 17), (3, 27), 2)
-        pygame.draw.line(s, shade(col, -60), (11, 17), (13, 27), 2)
-        if kind == 'rifleman':
-            pygame.draw.rect(s, (100, 100, 100), (12, 10, 3, 8))
-        elif kind == 'mg':
-            pygame.draw.rect(s, (120, 80, 60), (11, 9, 4, 9))
-            pygame.draw.rect(s, (100, 100, 100), (13, 9, 2, 5))
-        elif kind == 'grenade':
-            pygame.draw.circle(s, (60, 60, 60), (13, 11), 2)
-        return s
+    def make_antenna(self, scale=1.0):
+        S = 4
+        w, h = 48 * S, 96 * S
+        s = pygame.Surface((w, h), pygame.SRCALPHA)
+        cx = w // 2
+        base_y, top_y = h - 10 * S, 16 * S
+        pygame.draw.ellipse(s, (0, 0, 0, 70), (cx - 20 * S, h - 11 * S, 40 * S, 9 * S))
+        pygame.draw.rect(s, (118, 120, 128), (cx - 16 * S, base_y, 32 * S, 7 * S), border_radius=S * 2)
+        pygame.draw.rect(s, (170, 172, 180), (cx - 16 * S, base_y, 32 * S, 2 * S), border_radius=S * 2)
+        n = 8
+        for i in range(n):
+            t0, t1 = i / n, (i + 1) / n
+            y0, y1 = base_y + (top_y - base_y) * t0, base_y + (top_y - base_y) * t1
+            hw0, hw1 = (12.5 - 10 * t0) * S, (12.5 - 10 * t1) * S
+            c = (190, 196, 208)
+            pygame.draw.line(s, c, (cx - hw0, y0), (cx + hw1, y1), S)
+            pygame.draw.line(s, c, (cx + hw0, y0), (cx - hw1, y1), S)
+            pygame.draw.line(s, (150, 156, 170), (cx - hw1, y1), (cx + hw1, y1), S)
+        for side in (-1, 1):
+            pygame.draw.line(s, (214, 220, 232), (cx + side * 12.5 * S, base_y), (cx + side * 2.5 * S, top_y), int(S * 1.6))
+        pygame.draw.rect(s, (96, 100, 112), (cx - 7 * S, 30 * S, 14 * S, 3 * S), border_radius=S)
+        pygame.draw.ellipse(s, (232, 236, 244), (cx - 21 * S, 22 * S, 18 * S, 14 * S))
+        pygame.draw.ellipse(s, (170, 178, 194), (cx - 19 * S, 24 * S, 14 * S, 10 * S))
+        pygame.draw.line(s, (90, 96, 110), (cx - 12 * S, 29 * S), (cx - 2 * S, 29 * S), int(S * 1.2))
+        pygame.draw.circle(s, (255, 190, 70), (cx - 4 * S, 29 * S), int(S * 1.4))
+        for dx in (3, 6):
+            pygame.draw.rect(s, (228, 232, 240), (cx + dx * S, 18 * S, 2 * S, 12 * S), border_radius=S // 2)
+        pygame.draw.line(s, (214, 220, 232), (cx, top_y), (cx, 6 * S), int(S * 1.2))
+        pygame.draw.circle(s, (255, 70, 60), (cx, 6 * S), int(S * 2.2))
+        pygame.draw.circle(s, (255, 190, 170), (cx - S // 2, 6 * S - S // 2), int(S * 0.9))
+        return pygame.transform.smoothscale(s, (int(48 * scale), int(96 * scale)))
 
     # ------------------------------------------------------------ util
     def text(self, dst, s, font, col, x, y, anchor='l', shadow=True, alpha=None):
@@ -938,8 +1049,10 @@ class Game:
                 self.start_game()
             elif self.state == 'defense' and e.key == pygame.K_SPACE and not self.paused:
                 self.fire_interceptor()
-            elif self.state == 'ground' and e.key == pygame.K_SPACE and not self.paused:
-                self.fire_cannon_g()
+            elif self.state == 'ground' and e.key in (pygame.K_SPACE, pygame.K_g) and not self.paused:
+                self.throw_grenade_p()
+            elif self.state == 'ground' and e.key == pygame.K_r and not self.paused:
+                self.start_reload()
             elif self.state == 'map' and e.key == pygame.K_l and not self.paused:
                 island = self.nearest_landing_island()
                 if island:
@@ -954,7 +1067,7 @@ class Game:
                 elif e.key == pygame.K_c:
                     self.cyber_attack()
         if e.type == pygame.MOUSEBUTTONDOWN and e.button == 3 and self.state == 'ground' and not self.paused:
-            self.fire_cannon_g()
+            self.throw_grenade_p()
         if e.type == pygame.MOUSEBUTTONDOWN and e.button == 1 and not self.paused:
             if self.state == 'title' or self.state == 'gameover':
                 self.start_game()
@@ -1170,30 +1283,6 @@ class Game:
                 best_dist = d
                 best_island = (i, x, y, r, s)
         return best_island
-
-    def start_landing(self, island_idx):
-        x, y, r, s = EXTRA_ISLANDS[island_idx]
-        if self.landing_attempts[island_idx] >= MAX_LANDING_ATTEMPTS:
-            self.toast('¡Isla asegurada! No hay más enemigos aquí.', (120, 255, 160))
-            return
-        self.landing_attempts[island_idx] += 1
-        n = LANDING_ENEMIES
-        kinds = ['tank'] * max(1, n // 4) + ['inf'] * (n - max(1, n // 4))
-        random.shuffle(kinds)
-        queue = sorted([(random.uniform(0.5, 3.0 + n * 0.8), k, random.randrange(3)) for k in kinds], key=lambda q: q[0])
-        self.fx = Particles()
-        self.g = dict(city=dict(name='ISLA %d' % (island_idx - 3), x=x, y=y, r=r, hp=100.0, dead=False, seed=s),
-                      R=r, seed=s, land=self.make_ground(dict(x=x, y=y, r=r, hp=100.0, dead=False, seed=s, name=''), r),
-                      angs=[random.uniform(0, 6.28) for _ in range(3)], queue=queue, enemies=[], bullets=[], boats=[],
-                      crates=[], t=0.0, total=n, kills=0, phase='play', pt=0.0, city0=100.0, fail=False,
-                      p=dict(x=W / 2.0, y=H / 2.0 + 150, h=0.0, v=0.0, hp=100.0, cd_mg=0.0, cd_c=0.0, sink=None,
-                             dust=0.0, tur=0.0), island_idx=island_idx)
-        self.aim = [W / 2, 200.0]
-        self.go('ground')
-        attempts_left = MAX_LANDING_ATTEMPTS - self.landing_attempts[island_idx]
-        self.banner('¡DESEMBARQUE EN ISLA %d!' % (island_idx - 3),
-                   'Enemigos: %d  |  Intentos restantes: %d' % (n, attempts_left),
-                   (100, 180, 255), 3.6)
 
     def wave_clear(self):
         bonus = 1000 * self.wave
@@ -1802,40 +1891,129 @@ class Game:
                 self.strike_t = max(22.0, random.uniform(30, 42) - self.wave * 2)
                 self.go('map')
 
-    # ---------------------------------------------------------- COMBATE TERRESTRE
-    def make_ground(self, city, R):
-        s = pygame.Surface((W, H), pygame.SRCALPHA)
-        self.paint_island(s, W / 2, H / 2, R, city['seed'], True)
-        cs = self.make_city(int(R * 0.7), city['seed'], False)
-        s.blit(cs, (W // 2 - cs.get_width() // 2, H // 2 - cs.get_height() // 2))
-        return s.convert_alpha()
+    # ---------------------------------------------------------- COMBATE DE INFANTERÍA
+    def isl_name(self, i):
+        return 'ISLA %d' % (i + 1)
 
-    def start_ground(self, city):
-        R = 250
-        n = min(8 + 3 * self.wave, 26)
-        tanks = min(n // 3, 1 + self.wave)
-        kinds = ['tank'] * tanks + ['inf'] * (n - tanks)
-        random.shuffle(kinds)
-        queue = sorted([(random.uniform(0.5, 6 + n * 1.1), k, random.randrange(3)) for k in kinds], key=lambda q: q[0])
+    def make_ground(self, seed, R, city_seed=None):
+        s = pygame.Surface((W, H), pygame.SRCALPHA)
+        self.paint_island(s, W / 2, H / 2, R, seed, True)
+        if city_seed is not None:
+            cs = self.make_city(int(R * 0.7), city_seed, False)
+            s.blit(cs, (W // 2 - cs.get_width() // 2, H // 2 - cs.get_height() // 2))
+        else:
+            cx, cy = W // 2, H // 2
+            pygame.draw.circle(s, (0, 0, 0, 60), (cx + 4, cy + 6), 50)
+            pygame.draw.circle(s, (150, 152, 150), (cx, cy), 48)
+            pygame.draw.circle(s, (196, 198, 194), (cx, cy), 44)
+            for k in range(20):
+                a0, a1 = 6.2832 * k / 20, 6.2832 * (k + 1) / 20
+                pts = [(cx + math.cos(a) * rr, cy + math.sin(a) * rr) for rr in (36, 42) for a in (a0, a1)]
+                pygame.draw.polygon(s, (240, 200, 40) if k % 2 else (40, 40, 44), [pts[0], pts[1], pts[3], pts[2]])
+            pygame.draw.circle(s, (130, 134, 134), (cx, cy), 30)
+            pygame.draw.circle(s, (92, 96, 98), (cx, cy), 30, 2)
+            pygame.draw.line(s, (92, 96, 98), (cx - 24, cy), (cx + 24, cy), 2)
+            pygame.draw.line(s, (92, 96, 98), (cx, cy - 24), (cx, cy + 24), 2)
+        return s
+
+    def gen_covers(self, seed, R, n, avoid):
+        covers = []
+        for _ in range(500):
+            if len(covers) >= n:
+                break
+            a = random.uniform(0, 6.2832)
+            d = random.uniform(0.24, 0.74) * coast_r(R, seed, a, 1.0)
+            x, y = W / 2 + math.cos(a) * d, H / 2 + math.sin(a) * d
+            kind = random.choice(('sandbag', 'sandbag', 'rock', 'crates'))
+            r = 24 if kind == 'sandbag' else 22
+            if any(dist(x, y, c['x'], c['y']) < c['r'] + r + 46 for c in covers):
+                continue
+            if any(dist(x, y, ax, ay) < r + ar for ax, ay, ar in avoid):
+                continue
+            covers.append(dict(x=x, y=y, r=r, kind=kind, seed=random.randrange(10 ** 6)))
+        return covers
+
+    def init_ground(self, mode, seed, city, covers_n, avoid, spawn, kinds, queue=None, island_idx=None):
+        R = ARENA_R
+        land = self.make_ground(seed, R, seed if mode == 'invasion' else None)
+        covers = self.gen_covers(seed, R, covers_n, avoid + [(spawn[0], spawn[1], 90)])
+        for c in covers:
+            draw_cover(land, c)
         self.fx = Particles()
-        self.g = dict(city=city, R=R, seed=city['seed'], land=self.make_ground(city, R),
-                      angs=[random.uniform(0, 6.28) for _ in range(3)], queue=queue, enemies=[], bullets=[], boats=[],
-                      crates=[], t=0.0, total=n, kills=0, phase='play', pt=0.0, city0=city['hp'], fail=False,
-                      p=dict(x=W / 2.0, y=H / 2.0 + 150, h=0.0, v=0.0, hp=100.0, cd_mg=0.0, cd_c=0.0, sink=None,
-                             dust=0.0, tur=0.0))
+        self.g = dict(mode=mode, city=city, R=R, seed=seed, land=land.convert_alpha(), covers=covers,
+                      angs=[random.uniform(0, 6.28) for _ in range(3)], queue=queue or [], enemies=[], bullets=[],
+                      nades=[], corpses=[], decals=[], boats=[], crates=[], t=0.0, total=len(kinds), kills=0,
+                      phase='play', pt=0.0, city0=city['hp'], fail=False, island_idx=island_idx, hurt=0.0,
+                      ant_t=0.0, spawn=spawn,
+                      p=dict(x=float(spawn[0]), y=float(spawn[1]), h=0.0, vx=0.0, vy=0.0, hp=100.0, mag=30, reload=0.0,
+                             cd=0.0, gren=4, gcd=0.0, ph=0.0, flash=0.0, bloom=0.0, dead=False, dead_t=0.0))
         self.aim = [W / 2, 200.0]
         self.go('ground')
-        self.banner('¡INVASIÓN ANFIBIA!', 'Defendé %s | Clic: ametralladora | ESPACIO: cañón' % city['name'],
-                    (255, 150, 60), 3.6)
+        return covers
+
+    def new_soldier(self, kind, x, y, h, state, mode, cover=None):
+        hp = ENEMY_TYPES[kind]['hp'] + self.wave // 2
+        return dict(x=x, y=y, h=h, h0=h, kind=kind, hp=float(hp), max=float(hp), cd=random.uniform(0.6, 1.6),
+                    state=state, mode=mode, cover=cover, ph=0.0, ph0=random.uniform(0, 6.28), flash=0.0, hit=0.0,
+                    burst=0, bcd=0.0, tele=0.0, aimlock=h, strafe=random.choice((-1, 1)), strafe_t=random.uniform(1, 3))
+
+    def start_landing(self, island_idx):
+        x, y, r, s = EXTRA_ISLANDS[island_idx]
+        if self.landing_attempts[island_idx] >= MAX_LANDING_ATTEMPTS:
+            self.toast('Sin intentos de desembarco en esta isla', (255, 140, 90))
+            return
+        self.landing_attempts[island_idx] += 1
+        n = LANDING_ENEMIES
+        n_mg, n_gr = max(1, n // 5), max(1, n // 5)
+        kinds = ['mg'] * n_mg + ['gren'] * n_gr + ['rifle'] * (n - n_mg - n_gr)
+        sy = H / 2 + coast_r(ARENA_R, s, math.pi / 2, 0.84)
+        spawn = (W / 2, sy)
+        city = dict(name=self.isl_name(island_idx), x=x, y=y, r=r, hp=100.0, dead=False, seed=s)
+        covers = self.init_ground('landing', s, city, 10, [(W / 2, H / 2, 80)], spawn, kinds, island_idx=island_idx)
+        g = self.g
+        random.shuffle(kinds)
+        order = sorted(range(len(covers)), key=lambda i: -dist(covers[i]['x'], covers[i]['y'], spawn[0], spawn[1]))
+        for i, kd in enumerate(kinds):
+            ci = order[i % len(order)] if covers else None
+            if ci is not None:
+                c = covers[ci]
+                away = bearing(c['x'] - spawn[0], c['y'] - spawn[1]) + (0 if i < len(order) else random.choice((-55, 55)))
+                ox, oy = vec(away, c['r'] + 12)
+                ex, ey = c['x'] + ox, c['y'] + oy
+            else:
+                ex, ey = W / 2, H / 2 - 100
+            d = dist(ex, ey, W / 2, H / 2) or 1.0
+            lim = coast_r(ARENA_R, s, math.atan2(ey - H / 2, ex - W / 2), 0.9)
+            if d > lim:
+                ex, ey = W / 2 + (ex - W / 2) / d * lim, H / 2 + (ey - H / 2) / d * lim
+            mode = 'pusher' if kd == 'rifle' and random.random() < 0.35 else 'defender'
+            e = self.new_soldier(kd, ex, ey, bearing(spawn[0] - ex, spawn[1] - ey), 'hold', mode, ci)
+            g['enemies'].append(e)
+        g['total'] = len(g['enemies'])
+        left = MAX_LANDING_ATTEMPTS - self.landing_attempts[island_idx]
+        self.banner('¡DESEMBARCO EN %s!' % self.isl_name(island_idx),
+                    'Eliminá a los %d soldados para instalar la antena  |  Intentos restantes: %d' % (n, left),
+                    (100, 180, 255), 4.0)
+
+    def start_ground(self, city):
+        n = min(8 + 3 * self.wave, 26)
+        n_mg = min(n // 6, 1 + self.wave // 2)
+        n_gr = min(n // 5, 1 + self.wave // 2)
+        kinds = ['mg'] * n_mg + ['gren'] * n_gr + ['rifle'] * (n - n_mg - n_gr)
+        random.shuffle(kinds)
+        queue = sorted([(random.uniform(0.5, 6 + n * 1.1), k, random.randrange(3)) for k in kinds], key=lambda q: q[0])
+        spawn = (W / 2, H / 2 + 175)
+        self.init_ground('invasion', city['seed'], city, 7, [(W / 2, H / 2, 150)], spawn, kinds, queue)
+        self.banner('¡INVASIÓN ANFIBIA!', 'Defendé %s | Clic: disparar | ESPACIO: granada | R: recargar' % city['name'],
+                    (255, 150, 60), 3.8)
 
     def spawn_ground_enemy(self, kind, idx):
         g = self.g
         a = g['angs'][idx]
         r = coast_r(g['R'], g['seed'], a, 0.97)
         x, y = W / 2 + math.cos(a) * r, H / 2 + math.sin(a) * r
-        hp = 2 if kind == 'inf' else 8 + self.wave
-        g['enemies'].append(dict(x=x, y=y, h=bearing(W / 2 - x, H / 2 - y), kind=kind, hp=hp, max=hp,
-                                 cd=random.uniform(0.5, 1.5), tur=0.0))
+        e = self.new_soldier(kind, x, y, bearing(W / 2 - x, H / 2 - y), 'combat', 'pusher')
+        g['enemies'].append(e)
         g['boats'].append([x + math.cos(a) * 55, y + math.sin(a) * 55, bearing(-math.cos(a), -math.sin(a)), 0.0])
         self.fx.splash(x + math.cos(a) * 40, y + math.sin(a) * 40, 0.8)
 
@@ -1847,38 +2025,149 @@ class Game:
             ax, ay = p['x'] + fx, p['y'] + fy
         return clamp(ax, 10, W - 10), clamp(ay, 10, H - 10)
 
-    def fire_cannon_g(self):
+    def g_step(self, s, dx, dy, is_player=False):
+        g = self.g
+        s['x'] += dx
+        s['y'] += dy
+        for c in g['covers']:
+            d = dist(s['x'], s['y'], c['x'], c['y']) or 1.0
+            m = c['r'] + 11
+            if d < m:
+                s['x'] = c['x'] + (s['x'] - c['x']) / d * m
+                s['y'] = c['y'] + (s['y'] - c['y']) / d * m
+        cx, cy = W / 2, H / 2
+        d = dist(s['x'], s['y'], cx, cy) or 1.0
+        lim = coast_r(g['R'], g['seed'], math.atan2(s['y'] - cy, s['x'] - cx), 0.92)
+        if d > lim:
+            s['x'], s['y'] = cx + (s['x'] - cx) / d * lim, cy + (s['y'] - cy) / d * lim
+        elif is_player and g['mode'] == 'invasion' and d < 62:
+            s['x'], s['y'] = cx + (s['x'] - cx) / d * 62, cy + (s['y'] - cy) / d * 62
+
+    def g_ign(self, x, y):
+        return {i for i, c in enumerate(self.g['covers']) if dist(x, y, c['x'], c['y']) < c['r'] + 16}
+
+    def g_los(self, x0, y0, x1, y1):
+        ign = self.g_ign(x0, y0)
+        vx, vy = x1 - x0, y1 - y0
+        L2 = vx * vx + vy * vy or 1.0
+        for i, c in enumerate(self.g['covers']):
+            if i in ign:
+                continue
+            t = clamp(((c['x'] - x0) * vx + (c['y'] - y0) * vy) / L2, 0, 1)
+            if dist(c['x'], c['y'], x0 + vx * t, y0 + vy * t) < c['r'] * 0.85:
+                return False
+        return True
+
+    def alert(self, e):
+        if e['state'] == 'combat':
+            return
+        e['state'] = 'combat'
+        for o in self.g['enemies']:
+            if o['state'] == 'hold' and dist(o['x'], o['y'], e['x'], e['y']) < 170:
+                o['state'] = 'combat'
+
+    def start_reload(self):
+        p = self.g['p']
+        if p['dead'] or p['reload'] > 0 or p['mag'] >= 30:
+            return
+        p['reload'] = 1.3
+        self.audio.play('blip', .6)
+
+    def player_shoot(self):
         g = self.g
         p = g['p']
-        if g['phase'] != 'play' or p['sink'] is not None or p['cd_c'] > 0:
+        if p['dead'] or p['reload'] > 0 or p['cd'] > 0 or g['phase'] != 'play':
             return
-        if self.ammo <= 0:
-            self.audio.play('empty')
-            self.toast('¡Sin munición de cañón! Usá la ametralladora', (255, 90, 80))
+        if p['mag'] <= 0:
+            self.start_reload()
             return
-        self.ammo -= 1
-        p['cd_c'] = 0.8
-        ax, ay = self.ground_aim()
-        rng = clamp(dist(p['x'], p['y'], ax, ay), 110, 560)
-        mx, my = vec(p['tur'], 30)
-        vx, vy = vec(p['tur'], 560)
-        g['bullets'].append(dict(x=p['x'] + mx, y=p['y'] + my, vx=vx, vy=vy, own='p', kind='shell', dmg=4, life=2.0,
-                                 rng=rng, trav=0.0))
-        self.audio.play('cannon', .8)
-        self.fx.add('glow', p['x'] + mx, p['y'] + my, life=.18, r0=18, r1=40, col=(255, 220, 150))
-        self.shake = max(self.shake, 4)
+        p['mag'] -= 1
+        p['cd'] = 0.1
+        p['flash'] = 0.06
+        p['bloom'] = min(6.0, p['bloom'] + 0.8)
+        ang = p['h'] + random.uniform(-1, 1) * (1.0 + p['bloom'])
+        mx, my = vec(p['h'], 40)
+        vx, vy = vec(ang, 580)
+        g['bullets'].append(dict(x=p['x'] + mx, y=p['y'] + my, vx=vx, vy=vy, own='p', dmg=1.0, life=0.85,
+                                 ign=self.g_ign(p['x'], p['y'])))
+        self.audio.play('mg', .3)
+        ex, ey = vec(p['h'] + 90, 12)
+        self.fx.add('spark', p['x'] + ex, p['y'] + ey, ex * 12, ey * 12 - 30, 0.4, col=(230, 190, 80), drag=2, grav=120)
+        for e in g['enemies']:
+            if e['state'] == 'hold' and dist(e['x'], e['y'], p['x'], p['y']) < 340:
+                self.alert(e)
 
-    def ground_explode(self, x, y, radius=62):
+    def throw_grenade_p(self):
         g = self.g
-        self.fx.explode(x, y, 1.0)
-        self.audio.play('boom_s', .6)
-        self.shake = max(self.shake, 5)
+        p = g['p']
+        if p['dead'] or p['gren'] <= 0 or p['gcd'] > 0 or g['phase'] != 'play':
+            return
+        p['gren'] -= 1
+        p['gcd'] = 0.7
+        ax, ay = self.ground_aim()
+        d = clamp(dist(p['x'], p['y'], ax, ay), 80, 330)
+        tx, ty = vec(p['h'], d)
+        g['nades'].append(dict(x0=p['x'], y0=p['y'], x1=p['x'] + tx, y1=p['y'] + ty, t=0.0, T=d / 240 + 0.35, own='p'))
+        self.audio.play('blip', .8)
+        for e in g['enemies']:
+            if e['state'] == 'hold' and dist(e['x'], e['y'], p['x'], p['y']) < 300:
+                self.alert(e)
+
+    def enemy_shoot(self, e, aim, spread, speed, dmg):
+        g = self.g
+        a = aim + random.uniform(-spread, spread)
+        mx, my = vec(a, 40)
+        vx, vy = vec(a, speed)
+        g['bullets'].append(dict(x=e['x'] + mx, y=e['y'] + my, vx=vx, vy=vy, own='e', dmg=dmg, life=1.3,
+                                 ign=self.g_ign(e['x'], e['y'])))
+        e['flash'] = 0.06
+        e['h'] = aim
+        if dist(e['x'], e['y'], g['p']['x'], g['p']['y']) < 560:
+            self.audio.play('mg', .2)
+
+    def enemy_throw(self, e):
+        g = self.g
+        p = g['p']
+        tx = clamp(p['x'] + p['vx'] * 0.5 + random.uniform(-24, 24), 60, W - 60)
+        ty = clamp(p['y'] + p['vy'] * 0.5 + random.uniform(-24, 24), 60, H - 60)
+        d = dist(e['x'], e['y'], tx, ty)
+        g['nades'].append(dict(x0=e['x'], y0=e['y'], x1=tx, y1=ty, t=0.0, T=clamp(d / 230, 0.8, 1.7), own='e'))
+        e['h'] = bearing(tx - e['x'], ty - e['y'])
+        self.audio.play('blip', .5)
+
+    def explode_nade(self, n):
+        g = self.g
+        p = g['p']
+        x, y, R = n['x1'], n['y1'], 62
+        self.fx.explode(x, y, 1.1, True)
+        self.audio.play('boom_s', .7)
+        self.shake = max(self.shake, 7)
+        g['decals'].append((x, y, R * 0.55))
+        g['decals'] = g['decals'][-40:]
         for e in g['enemies'][:]:
             d = dist(x, y, e['x'], e['y'])
-            if d < radius:
-                e['hp'] -= 4 if d < radius * 0.45 else 2
+            if d < R:
+                e['hp'] -= (6.5 if n['own'] == 'p' else 2.0) * (1 - 0.45 * d / R)
+                e['hit'] = 0.15
+                if e['state'] == 'hold':
+                    self.alert(e)
                 if e['hp'] <= 0:
                     self.kill_ground_enemy(e)
+        d = dist(x, y, p['x'], p['y'])
+        if not p['dead'] and d < R:
+            dmg = int(38 * (1 - 0.6 * d / R))
+            self.hurt_player(dmg)
+
+    def hurt_player(self, dmg):
+        g = self.g
+        p = g['p']
+        if p['dead'] or g['phase'] != 'play':
+            return
+        p['hp'] -= dmg
+        g['hurt'] = 0.5
+        self.shake = max(self.shake, 4 + dmg * 0.5)
+        self.audio.play('hit', .5)
+        self.pop('-%d' % dmg, p['x'], p['y'] - 22, (255, 110, 100))
 
     def kill_ground_enemy(self, e):
         g = self.g
@@ -1886,68 +2175,147 @@ class Game:
             return
         g['enemies'].remove(e)
         g['kills'] += 1
-        pts = 50 if e['kind'] == 'inf' else 200
+        pts = ENEMY_TYPES[e['kind']]['pts']
         self.add_score(pts)
-        self.pop('+%d' % pts, e['x'], e['y'] - 14)
-        if e['kind'] == 'tank':
-            self.fx.explode(e['x'], e['y'], 1.3, True)
-            self.audio.play('boom_s', .8)
-            self.shake = max(self.shake, 7)
+        self.pop('+%d' % pts, e['x'], e['y'] - 18)
+        g['corpses'].append(dict(x=e['x'], y=e['y'], h=e['h'] + random.uniform(-60, 60), kind=e['kind'], age=0.0))
+        g['corpses'] = g['corpses'][-30:]
+        self.fx.add('glow', e['x'], e['y'], life=.25, r0=8, r1=22, col=(255, 160, 90))
+        for _ in range(6):
+            a = random.uniform(0, 6.28)
+            self.fx.add('spark', e['x'], e['y'], math.cos(a) * 110, math.sin(a) * 110, 0.35, col=(255, 200, 120), drag=2)
+        if random.random() < 0.18:
+            g['crates'].append(dict(x=e['x'], y=e['y'], t=0.0, kind=random.choice(('med', 'gren'))))
+
+    def mv(self, e, ang, speed, dt):
+        dx, dy = vec(ang, speed * dt)
+        self.g_step(e, dx, dy)
+        e['ph'] += speed * dt / 9.0
+
+    def ai_soldier(self, e, dt):
+        g = self.g
+        p = g['p']
+        T = ENEMY_TYPES[e['kind']]
+        alive = not p['dead']
+        e['cd'] -= dt
+        e['flash'] = max(0.0, e['flash'] - dt)
+        e['hit'] = max(0.0, e['hit'] - dt)
+        dp = dist(e['x'], e['y'], p['x'], p['y']) if alive else 9999.0
+        if e['state'] == 'hold':
+            e['h'] = (e['h0'] + 38 * math.sin(g['t'] * 0.7 + e['ph0'])) % 360
+            if alive and dp < 235:
+                self.alert(e)
+            return
+        sp = T['speed'] * (1 + 0.03 * self.wave)
+        los = alive and dp < T['range'] and self.g_los(e['x'], e['y'], p['x'], p['y'])
+        to_p = bearing(p['x'] - e['x'], p['y'] - e['y']) if alive else e['h']
+        e['strafe_t'] -= dt
+        if e['strafe_t'] <= 0:
+            e['strafe'] *= -1
+            e['strafe_t'] = random.uniform(1.2, 3.2)
+        moving = None
+        if g['mode'] == 'invasion':
+            dcx, dcy = W / 2 - e['x'], H / 2 - e['y']
+            dc = math.hypot(dcx, dcy)
+            if dc > 96:
+                if not (los and dp < T['range'] * 0.75):
+                    moving = bearing(dcx, dcy)
+            elif not g['city']['dead'] and g['phase'] == 'play':
+                g['city']['hp'] = max(0.0, g['city']['hp'] - {'rifle': 0.35, 'mg': 0.5, 'gren': 0.6}[e['kind']] * dt)
+                if random.random() < dt * 3:
+                    self.fx.add('glow', W / 2 + random.uniform(-60, 60), H / 2 + random.uniform(-50, 50), life=.25,
+                                r0=8, r1=20, col=(255, 150, 70))
+                if e['state'] == 'combat' and not los:
+                    e['h'] = bearing(dcx, dcy)
+        elif e['kind'] == 'gren':
+            if dp < 185:
+                moving = to_p + 180
+            elif dp > 330:
+                moving = to_p
+            else:
+                moving = to_p + 90 * e['strafe']
+                sp *= 0.5
+        elif e['kind'] == 'mg':
+            if dp > T['range'] * 1.15:
+                moving, sp = to_p, sp * 0.8
+        elif e['mode'] == 'pusher':
+            moving = to_p + 28 * e['strafe'] if dp > 165 else to_p + 90 * e['strafe']
+        elif e['cover'] is not None:
+            c = g['covers'][e['cover']]
+            away = bearing(c['x'] - g['spawn'][0], c['y'] - g['spawn'][1])
+            px_, py_ = vec(away + 90, math.sin(g['t'] * 1.1 + e['ph0']) * 28)
+            ax_, ay_ = vec(away, c['r'] + 12)
+            tx, ty = c['x'] + ax_ + px_, c['y'] + ay_ + py_
+            if dist(e['x'], e['y'], tx, ty) > 4:
+                moving, sp = bearing(tx - e['x'], ty - e['y']), sp * 0.85
+        if moving is not None:
+            self.mv(e, moving, sp, dt)
+        if alive and (los or e['burst'] > 0 or e['tele'] > 0 or e['kind'] == 'gren'):
+            target = to_p
         else:
-            self.fx.add('glow', e['x'], e['y'], life=.25, r0=8, r1=22, col=(255, 160, 90))
-            for _ in range(5):
-                a = random.uniform(0, 6.28)
-                self.fx.add('spark', e['x'], e['y'], math.cos(a) * 110, math.sin(a) * 110, 0.35, col=(255, 200, 120), drag=2)
-        if random.random() < (0.45 if e['kind'] == 'tank' else 0.06):
-            g['crates'].append(dict(x=e['x'], y=e['y'], t=0.0))
+            target = moving if moving is not None else e['h']
+        e['h'] = (e['h'] + clamp(angle_diff(e['h'], target), -420 * dt, 420 * dt)) % 360
+        if not alive:
+            return
+        wv = self.wave
+        if e['burst'] > 0:
+            e['bcd'] -= dt
+            if e['bcd'] <= 0:
+                e['burst'] -= 1
+                if e['kind'] == 'mg':
+                    self.enemy_shoot(e, e['aimlock'], 5.0, 390, T['dmg'])
+                    e['bcd'] = 0.09
+                else:
+                    self.enemy_shoot(e, to_p, max(2.5, 6.5 - 0.5 * wv) + dp * 0.008, 340, T['dmg'])
+                    e['bcd'] = 0.17
+        elif e['tele'] > 0:
+            e['tele'] -= dt
+            if e['tele'] <= 0:
+                e['burst'], e['bcd'] = 8, 0.0
+        elif e['cd'] <= 0:
+            if e['kind'] == 'gren':
+                if 110 < dp < T['range']:
+                    self.enemy_throw(e)
+                    e['cd'] = random.uniform(*T['rate']) * max(0.6, 1 - 0.05 * wv)
+            elif los:
+                e['cd'] = random.uniform(*T['rate']) * max(0.6, 1 - 0.05 * wv)
+                if e['kind'] == 'mg':
+                    e['tele'] = 0.55
+                    e['aimlock'] = to_p
+                    self.audio.play('ping', .25)
+                else:
+                    e['burst'], e['bcd'] = (2 if wv >= 3 else 1), 0.0
 
     def upd_ground(self, dt):
         g = self.g
         p, city = g['p'], g['city']
         keys = pygame.key.get_pressed()
         g['t'] += dt
-        alive = p['sink'] is None
-        thr = ((1 if (keys[pygame.K_w] or keys[pygame.K_UP]) else 0) - (1 if (keys[pygame.K_s] or keys[pygame.K_DOWN]) else 0)) if alive else 0
-        turn = ((1 if (keys[pygame.K_d] or keys[pygame.K_RIGHT]) else 0) - (1 if (keys[pygame.K_a] or keys[pygame.K_LEFT]) else 0)) if alive else 0
-        if thr > 0:
-            p['v'] = min(125, p['v'] + 280 * dt)
-        elif thr < 0:
-            p['v'] = max(-65, p['v'] - 280 * dt)
-        else:
-            p['v'] -= p['v'] * min(1.0, 6 * dt)
-        p['h'] = (p['h'] + turn * 100 * dt) % 360
-        dx, dy = vec(p['h'], p['v'] * dt)
-        p['x'] += dx
-        p['y'] += dy
-        cx, cy = W / 2, H / 2
-        d = dist(p['x'], p['y'], cx, cy) or 1.0
-        lim = coast_r(g['R'], g['seed'], math.atan2(p['y'] - cy, p['x'] - cx), 0.92)
-        if d > lim:
-            p['x'], p['y'] = cx + (p['x'] - cx) / d * lim, cy + (p['y'] - cy) / d * lim
-            p['v'] *= 0.5
-        elif d < 62:
-            p['x'], p['y'] = cx + (p['x'] - cx) / d * 62, cy + (p['y'] - cy) / d * 62
-            p['v'] *= 0.5
-        self.audio.engine_vol(abs(p['v']) / 125 * 0.7 + 0.15 if alive else 0)
-        p['dust'] -= dt
-        if abs(p['v']) > 20 and p['dust'] <= 0 and alive:
-            p['dust'] = 0.06
-            bx, by = vec(p['h'], -22)
-            self.fx.add('smoke', p['x'] + bx, p['y'] + by, 0, 0, 0.9, 4, 12, (170, 150, 110))
+        g['hurt'] = max(0.0, g['hurt'] - dt)
+        alive = not p['dead']
         if alive:
+            mx = (1 if (keys[pygame.K_d] or keys[pygame.K_RIGHT]) else 0) - (1 if (keys[pygame.K_a] or keys[pygame.K_LEFT]) else 0)
+            my = (1 if (keys[pygame.K_s] or keys[pygame.K_DOWN]) else 0) - (1 if (keys[pygame.K_w] or keys[pygame.K_UP]) else 0)
+            n = math.hypot(mx, my) or 1.0
+            sp = 135.0 if mx or my else 0.0
+            ox, oy = p['x'], p['y']
+            self.g_step(p, mx / n * sp * dt, my / n * sp * dt, True)
+            p['vx'], p['vy'] = (p['x'] - ox) / max(dt, 1e-4), (p['y'] - oy) / max(dt, 1e-4)
+            p['ph'] += math.hypot(p['vx'], p['vy']) * dt / 9.0
             ax, ay = self.ground_aim()
-            p['tur'] = bearing(ax - p['x'], ay - p['y'])
-        p['cd_mg'] = max(0.0, p['cd_mg'] - dt)
-        p['cd_c'] = max(0.0, p['cd_c'] - dt)
-        if alive and g['phase'] == 'play' and (pygame.mouse.get_pressed()[0] or keys[pygame.K_f]) and p['cd_mg'] <= 0:
-            p['cd_mg'] = 0.11
-            sp = p['tur'] + random.uniform(-2.5, 2.5)
-            mx, my = vec(p['tur'], 30)
-            vx, vy = vec(sp, 720)
-            g['bullets'].append(dict(x=p['x'] + mx, y=p['y'] + my, vx=vx, vy=vy, own='p', kind='mg', dmg=1, life=0.8))
-            self.audio.play('mg', .35)
-            self.fx.add('glow', p['x'] + mx, p['y'] + my, life=.08, r0=8, r1=16, col=(255, 230, 150))
-        # desembarcos
+            p['h'] = bearing(ax - p['x'], ay - p['y'])
+            p['cd'] = max(0.0, p['cd'] - dt)
+            p['gcd'] = max(0.0, p['gcd'] - dt)
+            p['flash'] = max(0.0, p['flash'] - dt)
+            p['bloom'] = max(0.0, p['bloom'] - 7 * dt)
+            if p['reload'] > 0:
+                p['reload'] -= dt
+                if p['reload'] <= 0:
+                    p['mag'] = 30
+            elif p['mag'] <= 0:
+                self.start_reload()
+            if (pygame.mouse.get_pressed()[0] or keys[pygame.K_f]) and g['phase'] == 'play':
+                self.player_shoot()
         if g['phase'] == 'play':
             while g['queue'] and g['queue'][0][0] <= g['t']:
                 _, kind, idx = g['queue'].pop(0)
@@ -1955,108 +2323,78 @@ class Game:
         for b in g['boats']:
             b[3] += dt
         g['boats'] = [b for b in g['boats'] if b[3] < 1.8]
-        # IA enemiga
         for e in g['enemies'][:]:
-            e['cd'] -= dt
-            inf = e['kind'] == 'inf'
-            dcx, dcy = cx - e['x'], cy - e['y']
-            dc = math.hypot(dcx, dcy)
-            dp = dist(e['x'], e['y'], p['x'], p['y']) if alive else 9999
-            shooting = dp < (240 if inf else 340)
-            sp = 52 if inf else 36 + 3 * self.wave
-            if dc > 96:
-                if not (inf and shooting):
-                    want = bearing(dcx, dcy)
-                    e['h'] = (e['h'] + clamp(angle_diff(e['h'], want), -120 * dt, 120 * dt)) % 360
-                    mx, my = vec(e['h'], sp * dt)
-                    e['x'] += mx
-                    e['y'] += my
-            elif not city['dead'] and g['phase'] == 'play':
-                city['hp'] = max(0.0, city['hp'] - (0.35 if inf else 1.0) * dt)
-                if random.random() < dt * (3 if inf else 1.4):
-                    self.fx.add('glow', cx + random.uniform(-60, 60), cy + random.uniform(-50, 50), life=.25, r0=8, r1=20,
-                                col=(255, 150, 70))
-            e['tur'] = bearing(p['x'] - e['x'], p['y'] - e['y']) if shooting else bearing(dcx, dcy)
-            if e['cd'] <= 0 and (shooting or dc < 150):
-                e['cd'] = random.uniform(0.8, 1.4) if inf else random.uniform(2.2, 3.0)
-                aim = (e['tur'] if shooting else bearing(dcx, dcy)) + random.uniform(-7, 7)
-                mx, my = vec(aim, 26)
-                vx, vy = vec(aim, 320 if inf else 270)
-                g['bullets'].append(dict(x=e['x'] + mx, y=e['y'] + my, vx=vx, vy=vy, own='e',
-                                         kind='mg' if inf else 'shell', dmg=2 if inf else 12, life=1.1 if inf else 1.5))
-                if dp < 520:
-                    self.audio.play('mg' if inf else 'cannon', .22 if inf else .4)
-                if not inf:
-                    self.fx.add('glow', e['x'] + mx, e['y'] + my, life=.18, r0=14, r1=30, col=(255, 160, 120))
-        # proyectiles
+            self.ai_soldier(e, dt)
         for b in g['bullets'][:]:
-            step = math.hypot(b['vx'], b['vy']) * dt
             b['x'] += b['vx'] * dt
             b['y'] += b['vy'] * dt
             b['life'] -= dt
-            gone = b['life'] <= 0 or not (-60 < b['x'] < W + 60 and -60 < b['y'] < H + 60)
+            if b['life'] <= 0 or not (-40 < b['x'] < W + 40 and -40 < b['y'] < H + 40):
+                g['bullets'].remove(b)
+                continue
+            blocked = False
+            for i, c in enumerate(g['covers']):
+                if i not in b['ign'] and dist(b['x'], b['y'], c['x'], c['y']) < c['r'] * 0.9:
+                    blocked = True
+                    break
+            if blocked:
+                self.fx.add('smoke', b['x'], b['y'], 0, -10, 0.5, 3, 9, (190, 170, 130))
+                for _ in range(3):
+                    self.fx.add('spark', b['x'], b['y'], random.uniform(-80, 80), random.uniform(-80, 80), 0.2,
+                                col=(255, 220, 140), drag=2)
+                g['bullets'].remove(b)
+                continue
             if b['own'] == 'p':
-                hit = None
-                for e in g['enemies']:
-                    if dist(b['x'], b['y'], e['x'], e['y']) < (13 if e['kind'] == 'inf' else 22):
-                        hit = e
-                        break
-                if b['kind'] == 'mg':
-                    if hit:
-                        hit['hp'] -= b['dmg']
-                        self.fx.add('spark', b['x'], b['y'], random.uniform(-90, 90), random.uniform(-90, 90), 0.25,
-                                    col=(255, 220, 140), drag=2)
-                        g['bullets'].remove(b)
-                        if hit['hp'] <= 0:
-                            self.kill_ground_enemy(hit)
-                    elif gone:
-                        g['bullets'].remove(b)
-                else:
-                    b['trav'] += step
-                    if hit or b['trav'] >= b['rng'] or gone:
-                        g['bullets'].remove(b)
-                        self.ground_explode(b['x'], b['y'])
-            else:
-                if p['sink'] is None and dist(b['x'], b['y'], p['x'], p['y']) < 19:
+                hit = next((e for e in g['enemies'] if dist(b['x'], b['y'], e['x'], e['y']) < 13), None)
+                if hit:
+                    hit['hp'] -= b['dmg']
+                    hit['hit'] = 0.1
+                    if hit['state'] == 'hold':
+                        self.alert(hit)
+                    self.fx.add('spark', b['x'], b['y'], random.uniform(-90, 90), random.uniform(-90, 90), 0.25,
+                                col=(255, 120, 90), drag=2)
                     g['bullets'].remove(b)
-                    p['hp'] -= b['dmg']
-                    self.shake = max(self.shake, 4 + b['dmg'] * 0.7)
-                    self.audio.play('hit', .5)
-                    if b['kind'] == 'shell':
-                        self.fx.explode(b['x'], b['y'], 0.8)
-                    else:
-                        self.fx.add('spark', b['x'], b['y'], random.uniform(-90, 90), random.uniform(-90, 90), 0.25,
-                                    col=(255, 220, 140), drag=2)
-                    self.pop('-%d' % b['dmg'], b['x'], b['y'] - 16, (255, 110, 100))
-                elif gone:
-                    g['bullets'].remove(b)
-                    if b['kind'] == 'shell':
-                        self.fx.explode(b['x'], b['y'], 0.5)
-        # cajas
+                    if hit['hp'] <= 0:
+                        self.kill_ground_enemy(hit)
+            elif alive and dist(b['x'], b['y'], p['x'], p['y']) < 12:
+                g['bullets'].remove(b)
+                self.fx.add('spark', b['x'], b['y'], random.uniform(-90, 90), random.uniform(-90, 90), 0.25,
+                            col=(255, 120, 90), drag=2)
+                self.hurt_player(int(b['dmg']))
+        for n in g['nades'][:]:
+            n['t'] += dt
+            if n['t'] >= n['T']:
+                g['nades'].remove(n)
+                self.explode_nade(n)
         for q in g['crates'][:]:
             q['t'] += dt
-            if alive and dist(q['x'], q['y'], p['x'], p['y']) < 32:
+            if alive and dist(q['x'], q['y'], p['x'], p['y']) < 24:
                 g['crates'].remove(q)
-                self.ammo = min(40, self.ammo + 3)
                 self.audio.play('pickup', .8)
-                self.pop('+3 CAÑÓN', q['x'], q['y'] - 16, (255, 230, 90))
-            elif q['t'] > 25:
+                if q['kind'] == 'med':
+                    p['hp'] = min(100.0, p['hp'] + 30)
+                    self.pop('+30 SALUD', q['x'], q['y'] - 16, (120, 255, 150))
+                else:
+                    p['gren'] = min(6, p['gren'] + 2)
+                    self.pop('+2 GRANADAS', q['x'], q['y'] - 16, (255, 230, 90))
+            elif q['t'] > 30:
                 g['crates'].remove(q)
-        # daño al tanque / ciudad
-        if p['sink'] is None and p['hp'] <= 0:
-            p['sink'] = 0.0
-            self.fx.explode(p['x'], p['y'], 1.6, True)
-            self.audio.play('boom_l')
-            self.shake = 14
+        for c in g['corpses']:
+            c['age'] += dt
+        if p['dead']:
+            p['dead_t'] += dt
+        elif p['hp'] <= 0:
+            p['dead'] = True
+            self.fx.explode(p['x'], p['y'], 0.9)
+            self.audio.play('boom_s')
+            self.shake = 10
             if g['phase'] == 'play':
-                g['phase'], g['fail'], g['pt'] = 'result', True, -1.2
-                self.banner('¡TANQUE DESTRUIDO!', 'La ciudad queda sin defensa', (255, 80, 70), 3.0)
-        if p['sink'] is not None:
-            p['sink'] += dt
-        if city['hp'] <= 0 and not city['dead']:
+                g['phase'], g['fail'], g['pt'] = 'result', True, -0.6
+                self.banner('¡SOLDADO CAÍDO!', 'La misión fracasó', (255, 80, 70), 3.0)
+        if g['mode'] == 'invasion' and city['hp'] <= 0 and not city['dead']:
             city['dead'] = True
             for _ in range(8):
-                self.fx.explode(cx + random.uniform(-80, 80), cy + random.uniform(-60, 60), 1.3, True)
+                self.fx.explode(W / 2 + random.uniform(-80, 80), H / 2 + random.uniform(-60, 60), 1.3, True)
             self.audio.play('boom_l')
             self.shake = 20
             if g['phase'] == 'play':
@@ -2066,38 +2404,48 @@ class Game:
         if g['phase'] == 'play' and not g['queue'] and not g['enemies']:
             g['phase'], g['pt'] = 'result', 0.0
             bonus = 300
-            if city['hp'] >= g['city0'] - 0.01:
+            if g['mode'] == 'invasion' and city['hp'] >= g['city0'] - 0.01:
                 bonus += 400
             self.add_score(bonus)
             self.audio.play('win', .7)
-            self.banner('¡ISLA ASEGURADA!', 'Bajas enemigas: %d   Bonus +%d' % (g['kills'], bonus), (120, 255, 160), 2.8)
+            if g['mode'] == 'landing':
+                self.banner('¡ISLA ASEGURADA!', 'Instalando antena...  Bonus +%d' % bonus, (120, 255, 160), 3.2)
+            else:
+                self.banner('¡ISLA ASEGURADA!', 'Bajas enemigas: %d   Bonus +%d' % (g['kills'], bonus), (120, 255, 160), 2.8)
         if g['phase'] == 'result':
             g['pt'] += dt
-            if g['pt'] > 2.8:
+            if not g['fail']:
+                g['ant_t'] += dt
+            if g['pt'] > (3.6 if g['mode'] == 'landing' and not g['fail'] else 2.8):
                 self.end_ground()
 
     def end_ground(self):
         g = self.g
         city = g['city']
-        island_idx = g.get('island_idx')
-
-        if g['fail']:
-            self.hull = max(0.0, self.hull - 25)
-            self.ammo = max(0, self.ammo - 5)
-            self.toast('Desembarque fallido: -25 casco, -5 munición', (255, 140, 90))
-            if self.hull <= 0:
-                return self.game_over('Tu barco se hundió')
+        if g['mode'] == 'landing':
+            i = g['island_idx']
+            if g['fail']:
+                self.hull = max(0.0, self.hull - 25)
+                self.ammo = max(0, self.ammo - 5)
+                left = MAX_LANDING_ATTEMPTS - self.landing_attempts[i]
+                self.toast('Desembarco fallido: -25 casco, -5 munición  (intentos: %d)' % left, (255, 140, 90))
+                if self.hull <= 0:
+                    return self.game_over('Tu barco se hundió')
+            elif i in self.antennas and not self.antennas[i]:
+                self.antennas[i] = True
+                n = sum(self.antennas.values())
+                self.toast('¡ANTENA INSTALADA en %s!' % self.isl_name(i), (120, 255, 160))
+                self.banner('ANTENA OPERATIVA', '%d/%d antenas  |  Ciberataque disponible contra el jefe' % (n, len(self.antennas)),
+                            (120, 220, 255), 3.4)
         else:
-            if island_idx is not None and island_idx in ANTENNA_ISLANDS:
-                if not self.antennas[island_idx]:
-                    self.antennas[island_idx] = True
-                    self.toast('¡ANTENA INSTALADA en isla %d!' % (island_idx - 3), (120, 255, 160))
-                    self.banner('SISTEMA DEFENSIVO', 'Antena #%d operativa. Ciberataque disponible.' % (island_idx - 3), (120, 220, 255), 3.0)
-
-        self.warned = False
-        self.strike_t = max(22.0, random.uniform(30, 42) - self.wave * 2)
-        if all(c['dead'] for c in self.cities):
-            return self.game_over('Todas las ciudades fueron destruidas')
+            if g['fail'] and not city['dead']:
+                city['hp'] = max(0.0, city['hp'] - 30)
+                if city['hp'] <= 0:
+                    city['dead'] = True
+            self.warned = False
+            self.strike_t = max(22.0, random.uniform(30, 42) - self.wave * 2)
+            if all(c['dead'] for c in self.cities):
+                return self.game_over('Todas las ciudades fueron destruidas')
         self.go('map')
 
     # ------------------------------------------------------------ DIBUJO
@@ -2197,7 +2545,7 @@ class Game:
                  'DEFENSA   Mouse o flechas apuntan   Clic/ESPACIO lanzan interceptor',
                  'COMBATE   Mouse apunta y dispara (el proyectil tarda: ¡adelantate!)',
                  '          Esquivá los círculos rojos   E: huir',
-                 'TIERRA   W/S/A/D tanque   Clic ametralladora   ESPACIO cañón',
+                 'TIERRA   WASD soldado   Clic disparar   R recargar   ESPACIO granada   L: desembarcar',
                  'P pausa   M sonido   F1 efecto CRT']
         for i, ln in enumerate(lines):
             self.text(cv, ln, self.f_s, (220, 232, 255), W // 2 - 360, 350 + i * 30)
@@ -2268,6 +2616,27 @@ class Game:
             pygame.draw.rect(cv, (120, 84, 50), (sx - 11, sy - 11, 22, 22), border_radius=3)
             pygame.draw.rect(cv, col, (sx - 11, sy - 11, 22, 22), 2, border_radius=3)
             self.text(cv, {'ammo': 'M', 'fuel': 'C', 'repair': '+'}[q['kind']], self.f_s, (255, 255, 255), sx, sy - 9, 'c', shadow=False)
+        for i in ANTENNA_ISLANDS:
+            ix, iy, ir, _sd = EXTRA_ISLANDS[i]
+            sx, sy = ix - cx, iy - cy
+            if not (-200 < sx < W + 200 and -200 < sy < H + 200):
+                continue
+            if self.antennas[i]:
+                cv.blit(self.antenna_gfx, (sx - 24, sy - 82))
+                if int(self.t * 1.6) % 2 == 0:
+                    glow(cv, sx, sy - 76, 18, (255, 70, 60))
+                for j in range(3):
+                    ph = (self.t * 0.7 + j / 3) % 1
+                    draw_circ(cv, sx, sy - 76, 8 + ph * 50, (120, 240, 255), 150 * (1 - ph), 2)
+                self.text(cv, self.isl_name(i) + ' - ANTENA', self.f_s, (150, 240, 255), sx, sy + ir * 0.95, 'c')
+            else:
+                pulse = 0.5 + 0.5 * math.sin(self.t * 3 + i)
+                draw_circ(cv, sx, sy, 26 + pulse * 6, (255, 220, 90), 150, 2)
+                pygame.draw.line(cv, (230, 230, 230), (sx, sy + 8), (sx, sy - 34), 2)
+                pygame.draw.polygon(cv, (255, 210, 70), [(sx, sy - 34), (sx + 20, sy - 27), (sx, sy - 20)])
+                left = MAX_LANDING_ATTEMPTS - self.landing_attempts[i]
+                self.text(cv, '%s - %s' % (self.isl_name(i), 'DESEMBARCO (%d)' % left if left > 0 else 'SIN INTENTOS'),
+                          self.f_s, (255, 230, 140) if left > 0 else (200, 120, 110), sx, sy + ir * 0.95, 'c')
         self.fxm.draw(cv, cx, cy)
         for en in self.enemies:
             self.blit_ship(cv, 'e_map', en['x'], en['y'], en['h'], cx, cy)
@@ -2290,9 +2659,13 @@ class Game:
             if island:
                 island_idx, x, y, r, s = island
                 attempts = self.landing_attempts[island_idx]
-                self.text(cv, 'ISLA %d CERCANA: presioná L para desembarcar  |  Intentos: %d/%d' %
-                         (island_idx - 3, attempts, MAX_LANDING_ATTEMPTS),
-                         self.f_m, (100, 180, 255), W // 2, H - 60, 'c')
+                if attempts >= MAX_LANDING_ATTEMPTS:
+                    self.text(cv, '%s: sin intentos de desembarco' % self.isl_name(island_idx),
+                              self.f_m, (255, 140, 110), W // 2, H - 60, 'c')
+                else:
+                    self.text(cv, '%s CERCANA: presioná L para desembarcar (10 soldados enemigos)  |  Intentos: %d/%d' %
+                              (self.isl_name(island_idx), attempts, MAX_LANDING_ATTEMPTS),
+                              self.f_m, (100, 180, 255), W // 2, H - 60, 'c')
             elif self.fuel <= 0:
                 self.text(cv, 'SIN COMBUSTIBLE', self.f_m, (255, 90, 80), W // 2, H - 60, 'c')
         if self.warned and int(self.t * 4) % 2 == 0:
@@ -2308,6 +2681,12 @@ class Game:
             pygame.draw.circle(cv, (70, 120, 70), (int(x0 + ix * sc), int(y0 + iy * sc)), max(2, int(ir * sc * 1.1)))
         for c in self.cities:
             pygame.draw.rect(cv, (90, 90, 90) if c['dead'] else (255, 220, 80), (x0 + c['x'] * sc - 3, y0 + c['y'] * sc - 3, 6, 6))
+        for i in ANTENNA_ISLANDS:
+            mx_, my_ = int(x0 + EXTRA_ISLANDS[i][0] * sc), int(y0 + EXTRA_ISLANDS[i][1] * sc)
+            if self.antennas[i]:
+                pygame.draw.polygon(cv, (120, 240, 255), [(mx_, my_ - 5), (mx_ + 4, my_ + 3), (mx_ - 4, my_ + 3)])
+            else:
+                pygame.draw.circle(cv, (255, 220, 90), (mx_, my_), 5, 1)
         for q in self.crates:
             pygame.draw.circle(cv, (120, 255, 255), (int(x0 + q['x'] * sc), int(y0 + q['y'] * sc)), 2)
         for en in self.enemies:
@@ -2400,48 +2779,102 @@ class Game:
         self.text(cv, 'MISILES: %d' % left, self.f_m, (255, 160, 140), W - 20, 90, 'r')
         self.text(cv, 'Clic / ESPACIO: lanzar interceptor', self.f_s, (200, 220, 255), W // 2, H - 30, 'c')
 
-    # ---- terrestre
+    # ---- terrestre (infantería)
+    def blit_soldier(self, dst, key, x, y, ang, frame, hit=0.0, dead=False):
+        draw_circ(dst, x + 4, y + 5, 14, (0, 0, 0), 70)
+        r = pygame.transform.rotate(self.sol[key][frame % 4], -ang)
+        if hit > 0 or dead:
+            r = r.copy()
+            if dead:
+                r.fill((95, 95, 95), special_flags=pygame.BLEND_RGB_MULT)
+            else:
+                r.fill((110, 110, 110, 0), special_flags=pygame.BLEND_RGB_ADD)
+        dst.blit(r, (int(x) - r.get_width() // 2, int(y) - r.get_height() // 2))
+
+    def draw_boat(self, cv, x, y, a):
+        h = math.radians(a)
+        sn, cs = math.sin(h), math.cos(h)
+        pts = [(x + sn * (-ly) + cs * lx, y - cs * (-ly) + sn * lx) for lx, ly in ((0, -30), (15, -14), (15, 22), (-15, 22), (-15, -14))]
+        pygame.draw.polygon(cv, (70, 82, 92), pts)
+        pygame.draw.polygon(cv, (128, 142, 152), [(x + (px - x) * .78, y + (py - y) * .78) for px, py in pts])
+        pygame.draw.polygon(cv, (210, 222, 232), pts, 2)
+
     def draw_ground(self, cv):
         g = self.g
         p, city = g['p'], g['city']
-        self.draw_ocean(cv, 0, 0, self.t)
+        t = self.t
+        self.draw_ocean(cv, 0, 0, t)
         cv.blit(g['land'], (0, 0))
-        for x, y, a, t in g['boats']:
-            h = math.radians(a)
-            sn, cs = math.sin(h), math.cos(h)
-            pts = []
-            for lx, ly in ((0, -18), (9, -8), (9, 14), (-9, 14), (-9, -8)):
-                pts.append((x + sn * (-ly) + cs * lx, y - cs * (-ly) + sn * lx))
-            pygame.draw.polygon(cv, (96, 108, 120), pts)
-            pygame.draw.polygon(cv, (200, 215, 230), pts, 2)
+        for x, y, r in g['decals']:
+            draw_circ(cv, x, y, r, (28, 24, 20), 140)
+        if g['mode'] == 'landing':
+            if g['phase'] == 'result' and not g['fail']:
+                k = clamp(g['ant_t'] / 1.8, 0, 1)
+                bw, bh = self.antenna_big.get_size()
+                hh = int(bh * k)
+                if hh > 0:
+                    cv.blit(self.antenna_big, (W // 2 - bw // 2, H // 2 + 20 - hh), area=pygame.Rect(0, bh - hh, bw, hh))
+                if k >= 1:
+                    for j in range(3):
+                        ph = (t * 0.8 + j / 3) % 1
+                        draw_circ(cv, W // 2, H // 2 - bh + 30, 14 + ph * 80, (120, 240, 255), 170 * (1 - ph), 2)
+            self.draw_boat(cv, g['spawn'][0], g['spawn'][1] + 58, 0)
+        for x, y, a, _t in g['boats']:
+            self.draw_boat(cv, x, y, a)
+        for c in g['corpses']:
+            if c['age'] < 14:
+                self.blit_soldier(cv, 'e_' + c['kind'], c['x'], c['y'], c['h'], 0, dead=True)
         for q in g['crates']:
-            glow(cv, q['x'], q['y'], 30, (255, 210, 70), 0.6)
-            pygame.draw.rect(cv, (120, 84, 50), (q['x'] - 9, q['y'] - 9, 18, 18), border_radius=3)
-            pygame.draw.rect(cv, (255, 210, 70), (q['x'] - 9, q['y'] - 9, 18, 18), 2, border_radius=3)
-        for e in g['enemies']:
-            if e['kind'] == 'tank':
-                self.blit_ship(cv, 'tank_e', e['x'], e['y'], e['h'])
-                self.blit_turret(cv, self.ttur_e, e['x'], e['y'], e['tur'])
-                if e['hp'] < e['max']:
-                    pygame.draw.rect(cv, (8, 12, 24), (e['x'] - 18, e['y'] - 36, 36, 5))
-                    pygame.draw.rect(cv, (240, 80, 70), (e['x'] - 17, e['y'] - 35, int(34 * e['hp'] / e['max']), 3))
+            glow(cv, q['x'], q['y'], 28, (120, 255, 150) if q['kind'] == 'med' else (255, 210, 70), 0.6)
+            pygame.draw.rect(cv, (236, 240, 236) if q['kind'] == 'med' else (96, 110, 70), (q['x'] - 9, q['y'] - 9, 18, 18), border_radius=3)
+            if q['kind'] == 'med':
+                pygame.draw.rect(cv, (220, 50, 50), (q['x'] - 6, q['y'] - 2, 12, 4))
+                pygame.draw.rect(cv, (220, 50, 50), (q['x'] - 2, q['y'] - 6, 4, 12))
             else:
-                ex, ey = int(e['x']), int(e['y'])
-                draw_circ(cv, ex + 3, ey + 4, 6, (0, 0, 0), 70)
-                fx_, fy_ = vec(e['tur'] if dist(e['x'], e['y'], p['x'], p['y']) < 240 else e['h'], 12)
-                pygame.draw.line(cv, (40, 30, 30), (ex, ey), (ex + fx_, ey + fy_), 2)
-                pygame.draw.circle(cv, (170, 64, 60), (ex, ey), 5)
-                pygame.draw.circle(cv, (100, 44, 42), (ex, ey), 3)
-        if p['sink'] is None or p['sink'] < 0.15:
-            self.blit_ship(cv, 'tank_p', p['x'], p['y'], p['h'])
-            self.blit_turret(cv, self.ttur_p, p['x'], p['y'], p['tur'])
+                pygame.draw.circle(cv, (60, 76, 50), (int(q['x']), int(q['y'])), 5)
+                pygame.draw.circle(cv, (255, 210, 70), (int(q['x']), int(q['y'])), 8, 2)
+        actors = [(e['y'], 'e', e) for e in g['enemies']] + [(p['y'], 'p', p)]
+        for _, who, s in sorted(actors, key=lambda a: a[0]):
+            if who == 'e':
+                self.blit_soldier(cv, 'e_' + s['kind'], s['x'], s['y'], s['h'], int(s['ph']) % 4, s['hit'])
+                if s['state'] == 'hold':
+                    self.text(cv, 'z', self.f_s, (200, 210, 230), s['x'] + 12, s['y'] - 40, shadow=False, alpha=150)
+                if s['hp'] < s['max']:
+                    pygame.draw.rect(cv, (8, 12, 24), (s['x'] - 14, s['y'] - 34, 28, 5))
+                    pygame.draw.rect(cv, (240, 80, 70), (s['x'] - 13, s['y'] - 33, int(26 * s['hp'] / s['max']), 3))
+                if s['tele'] > 0:
+                    mx, my = vec(s['aimlock'], 44)
+                    ex, ey = vec(s['aimlock'], 430)
+                    if int(t * 24) % 2 == 0:
+                        pygame.draw.line(cv, (255, 50, 50), (s['x'] + mx, s['y'] + my), (s['x'] + ex, s['y'] + ey), 1)
+                    self.text(cv, '!', self.f_m, (255, 70, 60), s['x'], s['y'] - 58, 'c')
+                if s['flash'] > 0:
+                    fx_, fy_ = vec(s['h'], 46)
+                    glow(cv, s['x'] + fx_, s['y'] + fy_, 20, (255, 200, 120))
+            elif s['dead']:
+                self.blit_soldier(cv, 'p', s['x'], s['y'], s['h'], 0, dead=True)
+            else:
+                self.blit_soldier(cv, 'p', s['x'], s['y'], s['h'], int(s['ph']) % 4)
+                if s['flash'] > 0:
+                    fx_, fy_ = vec(s['h'], 46)
+                    glow(cv, s['x'] + fx_, s['y'] + fy_, 22, (255, 230, 150))
         for b in g['bullets']:
-            if b['kind'] == 'mg':
-                col = (255, 240, 150) if b['own'] == 'p' else (255, 150, 120)
-                pygame.draw.line(cv, col, (b['x'], b['y']), (b['x'] - b['vx'] * 0.02, b['y'] - b['vy'] * 0.02), 2)
+            col = (255, 240, 150) if b['own'] == 'p' else (255, 150, 110)
+            pygame.draw.line(cv, col, (b['x'], b['y']), (b['x'] - b['vx'] * 0.035, b['y'] - b['vy'] * 0.035), 2)
+            glow(cv, b['x'], b['y'], 7, col, 0.7)
+        for n in g['nades']:
+            k = n['t'] / n['T']
+            x, y = lerp(n['x0'], n['x1'], k), lerp(n['y0'], n['y1'], k)
+            hh = math.sin(math.pi * k) * 34
+            pulse = 0.5 + 0.5 * math.sin(t * 14)
+            if n['own'] == 'e':
+                draw_circ(cv, n['x1'], n['y1'], 62, (255, 60, 50), 28 + 30 * pulse)
+                draw_circ(cv, n['x1'], n['y1'], 62, (255, 90, 70), 150 + 80 * pulse, 2)
             else:
-                glow(cv, b['x'], b['y'], 14, (255, 220, 150) if b['own'] == 'p' else (255, 140, 110))
-                pygame.draw.circle(cv, (255, 255, 255), (int(b['x']), int(b['y'])), 3)
+                draw_circ(cv, n['x1'], n['y1'], 62, (255, 255, 255), 60, 1)
+            draw_circ(cv, x + 2, y + 3, 5, (0, 0, 0), 80)
+            pygame.draw.circle(cv, (58, 74, 48), (int(x), int(y - hh)), 5)
+            pygame.draw.circle(cv, (110, 128, 92), (int(x - 1), int(y - hh - 1)), 2)
         self.fx.draw(cv)
         ax, ay = self.ground_aim()
         ax, ay = int(ax), int(ay)
@@ -2449,23 +2882,33 @@ class Game:
         pygame.draw.circle(cv, (255, 230, 120), (ax, ay), 2)
         for dx, dy in ((-24, 0), (24, 0), (0, -24), (0, 24)):
             pygame.draw.line(cv, (255, 230, 120), (ax + dx // 2, ay + dy // 2), (ax + dx, ay + dy), 2)
-        # HUD
-        self.panel(cv, (14, H - 96, 330, 82), 160)
-        self.bar(cv, 26, H - 86, 306, 24, p['hp'] / 100, (80, 220, 110) if p['hp'] > 35 else (240, 80, 70), 'TANQUE %d%%' % max(0, p['hp']))
-        self.bar(cv, 26, H - 56, 306, 24, self.ammo / 40, (255, 210, 70) if self.ammo > 6 else (240, 80, 70), 'CAÑON %d' % self.ammo)
+        if g['hurt'] > 0:
+            self.hurt_surf.set_alpha(int(255 * clamp(g['hurt'] * 2, 0, 1)))
+            cv.blit(self.hurt_surf, (0, 0))
+        self.panel(cv, (14, H - 126, 330, 112), 160)
+        self.bar(cv, 26, H - 116, 306, 24, p['hp'] / 100, (80, 220, 110) if p['hp'] > 35 else (240, 80, 70), 'SOLDADO %d%%' % max(0, p['hp']))
+        if p['reload'] > 0:
+            self.bar(cv, 26, H - 86, 306, 24, 1 - p['reload'] / 1.3, (255, 160, 70), 'RECARGANDO...')
+        else:
+            self.bar(cv, 26, H - 86, 306, 24, p['mag'] / 30, (255, 210, 70) if p['mag'] > 8 else (240, 80, 70), 'CARGADOR %d/30' % p['mag'])
+        self.text(cv, 'GRANADAS', self.f_s, (235, 245, 255), 26, H - 54)
+        for i in range(p['gren']):
+            pygame.draw.circle(cv, (58, 74, 48), (140 + i * 24, H - 45), 8)
+            pygame.draw.circle(cv, (150, 170, 120), (138 + i * 24, H - 48), 3)
         self.panel(cv, (14, 12, 250, 56), 160)
         self.text(cv, 'PUNTOS %07d' % self.score, self.f_m, (255, 255, 255), 26, 18)
         self.text(cv, 'OLEADA %d/%d   REC %d' % (self.wave, WIN_WAVE, self.hiscore), self.f_s, (160, 200, 240), 26, 42)
         self.panel(cv, (W // 2 - 230, 12, 460, 70), 170)
         self.text(cv, city['name'], self.f_m, (255, 255, 255), W // 2, 16, 'c')
-        col = (80, 230, 110) if city['hp'] > 60 else ((255, 200, 70) if city['hp'] > 30 else (240, 80, 70))
-        self.bar(cv, W // 2 - 210, 44, 420, 26, city['hp'] / 100, col, 'CIUDAD %d%%' % city['hp'])
-        left = len(g['queue']) + len(g['enemies'])
-        self.text(cv, 'ENEMIGOS: %d' % left, self.f_m, (255, 160, 140), W - 20, 90, 'r')
-        cdr = 1 - clamp(p['cd_c'] / 0.8, 0, 1)
-        pygame.draw.rect(cv, (8, 12, 24), (W // 2 - 60, H - 40, 120, 10))
-        pygame.draw.rect(cv, (120, 255, 160) if cdr >= 1 else (255, 200, 80), (W // 2 - 59, H - 39, int(118 * cdr), 8))
-        self.text(cv, 'W/S/A/D tanque | Clic/F ametralladora | ESPACIO/clic der. cañón', self.f_s, (200, 220, 255), W // 2, H - 64, 'c')
+        if g['mode'] == 'landing':
+            left = len(g['enemies'])
+            self.bar(cv, W // 2 - 210, 44, 420, 26, left / max(1, g['total']), (240, 80, 70), 'ENEMIGOS %d/%d' % (left, g['total']))
+        else:
+            col = (80, 230, 110) if city['hp'] > 60 else ((255, 200, 70) if city['hp'] > 30 else (240, 80, 70))
+            self.bar(cv, W // 2 - 210, 44, 420, 26, city['hp'] / 100, col, 'CIUDAD %d%%' % city['hp'])
+            self.text(cv, 'ENEMIGOS: %d' % (len(g['queue']) + len(g['enemies'])), self.f_m, (255, 160, 140), W - 20, 90, 'r')
+        self.text(cv, 'WASD mover | Mouse apuntar | Clic disparar | R recargar | ESPACIO/clic der. granada | las coberturas frenan balas',
+                  self.f_s, (200, 220, 255), W // 2, H - 30, 'c')
 
     # ---- combate
     def draw_combat(self, cv):
