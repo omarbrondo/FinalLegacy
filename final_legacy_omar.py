@@ -26,7 +26,7 @@ SKY_W = 640                   # ancho del skyline
 WIN_WAVE = 6                  # oleadas para ganar
 VMAX = 170.0                  # velocidad máx. del buque en el mapa (px/s)
 BOSS_WAVE = 3                 # cada cuántas oleadas aparece jefe final
-ANTENNA_ISLANDS = [4, 5, 6]   # índices de islas con antenas (de EXTRA_ISLANDS)
+ANTENNA_ISLANDS = [2, 3, 4]   # índices de islas con antenas (de EXTRA_ISLANDS)
 LANDING_ENEMIES = 10           # enemigos por desembarque
 MAX_LANDING_ATTEMPTS = 3       # intentos máximos por isla
 
@@ -1089,15 +1089,25 @@ class Game:
             self.warned = True
             self.strike_city = random.choice(alive)
             self.strike_n += 1
-            self.strike_kind = 'ground' if (self.strike_n == 2 or (self.strike_n > 2 and random.random() < 0.45)) else 'missile'
+            rand = random.random()
+            if self.strike_n == 2 or (self.strike_n > 2 and rand < 0.3):
+                self.strike_kind = 'ground'
+            elif self.wave >= 3 and rand < 0.6:
+                self.strike_kind = 'aerial'
+            else:
+                self.strike_kind = 'missile'
             self.audio.play('alarm')
             if self.strike_kind == 'ground':
                 self.banner('¡INVASIÓN ANFIBIA!', 'Desembarco en ' + self.strike_city['name'], (255, 150, 60), 3.8)
+            elif self.strike_kind == 'aerial':
+                self.banner('¡ATAQUE AÉREO!', 'Cazas enemigos en aproximación', (150, 100, 255), 3.8)
             else:
                 self.banner('¡ALERTA DE MISILES!', 'Objetivo: ' + self.strike_city['name'], (255, 80, 70), 3.8)
         if self.warned and self.strike_t <= 0:
             if self.strike_kind == 'ground':
                 self.start_ground(self.strike_city)
+            elif self.strike_kind == 'aerial':
+                self.start_aerial()
             else:
                 self.start_defense(self.strike_city)
             return
