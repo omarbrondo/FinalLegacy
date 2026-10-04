@@ -1663,6 +1663,12 @@ class Game:
                 self.crt_on = not self.crt_on
             elif e.key == pygame.K_m:
                 self.audio.toggle_mute()
+            elif e.key in (pygame.K_F2, pygame.K_F3, pygame.K_F4) and self.state == 'map' and not self.paused:
+                alive = [c for c in self.cities if not c['dead']]
+                if alive:
+                    self.strike_city = random.choice(alive)
+                    self.warned = False
+                    {pygame.K_F2: self.start_tank, pygame.K_F3: self.start_aerial, pygame.K_F4: self.start_ground}[e.key](self.strike_city)
             elif e.key in (pygame.K_p, pygame.K_ESCAPE) and self.state in ('map', 'defense', 'combat', 'ground', 'aerial', 'hack', 'tank'):
                 self.paused = not self.paused
             elif e.key == pygame.K_q and self.paused:
@@ -4746,7 +4752,7 @@ class Game:
                  'TANQUE   W/S avanzar   A/D girar   ESPACIO o clic: cañón',
                  'JEFE   Instalá antenas en las islas (L) y hackeá su escudo con H cerca del buque',
                  'AIRE   WASD mover   ESPACIO disparar   B bomba',
-                 'P pausa   M sonido   F1 efecto CRT']
+                 'P pausa   M sonido   F1 efecto CRT   F2 tanques   F3 aéreo   F4 desembarco (modo prueba)']
         for i, ln in enumerate(lines):
             self.text(cv, ln, self.f_s, (220, 232, 255), W // 2 - 360, 336 + i * 28)
         if int(t * 2) % 2 == 0:
