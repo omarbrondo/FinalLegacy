@@ -595,6 +595,124 @@ def draw_cover(surf, c):
             pygame.draw.line(surf, (88, 62, 36), (bx + 13, by - 13), (bx - 13, by + 13), 3)
 
 
+def make_f16(body, dark, accent, scale=0.9):
+    """F-16 visto desde arriba, morro al norte."""
+    S, WU, HU = 4, 88, 96
+    s = pygame.Surface((WU * S, HU * S), pygame.SRCALPHA)
+    cx, cy = WU * S / 2, HU * S / 2
+
+    def P(x, y):
+        return (cx + x * S, cy + y * S)
+
+    def poly(c, pts, mirror=False, w=0):
+        pygame.draw.polygon(s, c, [P(x, y) for x, y in pts], w)
+        if mirror:
+            pygame.draw.polygon(s, c, [P(-x, y) for x, y in pts], w)
+
+    def line(c, a, b, w, mirror=False):
+        pygame.draw.line(s, c, P(*a), P(*b), max(1, int(w * S)))
+        if mirror:
+            pygame.draw.line(s, c, P(-a[0], a[1]), P(-b[0], b[1]), max(1, int(w * S)))
+
+    poly(shade(dark, -25), [(5, 25), (20, 41), (20, 46), (5, 39)], True)
+    poly(dark, [(5, 26), (18, 40), (18, 43), (5, 37)], True)
+    poly(shade(dark, -30), [(4, -5), (36, 20), (36, 28), (5, 25)], True)
+    poly(dark, [(5, -2), (34, 20), (34, 26), (6, 23)], True)
+    poly(shade(body, -8), [(5.5, 0), (31, 20), (31, 24), (6.5, 21)], True)
+    line(shade(body, 28), (5, -4), (35, 20), 0.9, True)
+    line(shade(dark, -40), (7, 6), (30, 22), 0.5, True)
+    line((190, 194, 202), (36.2, 11), (36.2, 31), 1.7, True)
+    poly((220, 60, 50), [(35.3, 7), (37.1, 7), (37.1, 12), (35.3, 12)], True)
+    pygame.draw.circle(s, (240, 240, 244), P(22, 17), int(3.2 * S))
+    pygame.draw.circle(s, accent, P(22, 17), int(2.2 * S))
+    pygame.draw.circle(s, (240, 240, 244), P(22, 17), int(0.9 * S))
+    pygame.draw.circle(s, (240, 240, 244), P(-22, 17), int(3.2 * S))
+    pygame.draw.circle(s, accent, P(-22, 17), int(2.2 * S))
+    pygame.draw.circle(s, (240, 240, 244), P(-22, 17), int(0.9 * S))
+    poly(shade(dark, -35), [(0, -44), (2.4, -34), (4.8, -18), (6.6, -4), (7.4, 12), (6.6, 30), (5, 42), (0, 45)], True)
+    poly(body, [(0, -42), (2, -33), (4, -17), (5.6, -4), (6.2, 12), (5.6, 30), (4, 41), (0, 43)], True)
+    poly(shade(body, 22), [(0, -40), (1.2, -32), (2.4, -14), (3.2, 4), (3.4, 20), (2.6, 38), (0, 40)], True)
+    for sx in (-1, 1):
+        pygame.draw.ellipse(s, shade(dark, -45), (cx + (sx * 6.9 - 1.6) * S, cy - 2 * S, 3.2 * S, 15 * S))
+        pygame.draw.ellipse(s, (22, 22, 26), (cx + (sx * 6.9 - 0.9) * S, cy - 1 * S, 1.8 * S, 4 * S))
+    line(shade(body, -30), (0, 8), (0, 37), 0.7)
+    for yy in (-8, 4, 16, 28):
+        line(shade(body, -22), (-5.2, yy), (5.2, yy), 0.35)
+    pygame.draw.ellipse(s, (16, 36, 66), (cx - 3.9 * S, cy - 33 * S, 7.8 * S, 20 * S))
+    pygame.draw.ellipse(s, (36, 86, 142), (cx - 3.2 * S, cy - 32 * S, 6.4 * S, 18 * S))
+    pygame.draw.ellipse(s, (120, 180, 232), (cx - 2.2 * S, cy - 31 * S, 3.2 * S, 11 * S))
+    pygame.draw.line(s, (236, 246, 255), P(-1.2, -29), P(-1.2, -22), max(1, int(0.6 * S)))
+    pygame.draw.circle(s, (34, 34, 40), P(0, 43.5), int(3.8 * S))
+    pygame.draw.circle(s, (92, 92, 100), P(0, 43.5), int(3.8 * S), max(1, S // 2))
+    pygame.draw.circle(s, (16, 16, 18), P(0, 43.5), int(2.4 * S))
+    return pygame.transform.smoothscale(s, (int(WU * scale), int(HU * scale)))
+
+
+def make_f117(accent, scale=0.9):
+    """F-117 facetado visto desde arriba, morro al norte."""
+    S, WU, HU = 4, 100, 96
+    s = pygame.Surface((WU * S, HU * S), pygame.SRCALPHA)
+    cx, cy = WU * S / 2, HU * S / 2
+
+    def P(x, y):
+        return (cx + x * S, cy + y * S)
+
+    def poly(c, pts, mirror=0):
+        pygame.draw.polygon(s, c, [P(x, y) for x, y in pts])
+        if mirror:
+            pygame.draw.polygon(s, shade(c, mirror), [P(-x, y) for x, y in pts])
+
+    outline = [(0, -44), (9, -29), (42, 17), (32, 19), (26, 36), (13, 26), (0, 42)]
+    poly((14, 15, 18), [(x * 1.03, y * 1.03 + (0.6 if y > 0 else -0.6)) for x, y in outline], 0)
+    pygame.draw.polygon(s, (14, 15, 18), [P(-x * 1.03, y * 1.03 + (0.6 if y > 0 else -0.6)) for x, y in outline])
+    poly((82, 86, 98), [(0, -44), (9, -29), (0, -12)], -14)
+    poly((50, 53, 62), [(0, -12), (9, -29), (42, 17), (17, 8)], -12)
+    poly((36, 38, 45), [(17, 8), (42, 17), (32, 19), (26, 36), (13, 26)], -10)
+    poly((62, 66, 76), [(0, -12), (17, 8), (13, 26), (0, 42)], -16)
+    for sx in (1, -1):
+        pts = [P(sx * 9, -29), P(sx * 42, 17), P(sx * 32, 19), P(sx * 26, 36), P(sx * 13, 26), P(0, 42), P(0, -44)]
+        pygame.draw.lines(s, shade(accent, -60), True, pts, max(1, S // 2))
+        pygame.draw.line(s, shade((82, 86, 98), 30), P(sx * 9, -29), P(sx * 42, 17), max(1, int(S * 0.5)))
+        pygame.draw.line(s, shade((50, 53, 62), -20), P(sx * 17, 8), P(sx * 42, 17), max(1, int(S * 0.4)))
+        pygame.draw.rect(s, accent, (cx + (sx * 9.5 - 2.6) * S, cy + 31.2 * S, 5.2 * S, 1.6 * S))
+    pygame.draw.polygon(s, (14, 28, 46), [P(0, -27), (P(4.2, -18)), P(0, -9), P(-4.2, -18)])
+    pygame.draw.polygon(s, (52, 112, 170), [P(0, -25), P(3, -18), P(0, -11), P(-3, -18)])
+    pygame.draw.polygon(s, (150, 206, 244), [P(-0.4, -23), P(1.6, -18), P(-0.4, -14)])
+    return pygame.transform.smoothscale(s, (int(WU * scale), int(HU * scale)))
+
+
+def make_cloud(seed):
+    rnd = random.Random(seed)
+    w, h = 260, 140
+    S = 2
+    puffs = [(rnd.uniform(52, w - 52), rnd.uniform(48, h - 40), rnd.uniform(26, 46)) for _ in range(11)]
+    s = pygame.Surface((w * S, h * S), pygame.SRCALPHA)
+    sh = pygame.Surface((w * S, h * S), pygame.SRCALPHA)
+    for x, y, r in puffs:
+        pygame.draw.circle(s, (170, 186, 212, 235), (x * S, (y + 9) * S), r * S)
+        pygame.draw.circle(sh, (0, 14, 40, 255), (x * S, (y + 9) * S), r * S)
+    for x, y, r in puffs:
+        pygame.draw.circle(s, (230, 238, 250, 240), (x * S, y * S), r * S * .93)
+    for x, y, r in puffs:
+        pygame.draw.circle(s, (255, 255, 255, 245), ((x - r * .2) * S, (y - r * .3) * S), r * S * .62)
+    return (pygame.transform.smoothscale(s, (w, h)).convert_alpha(),
+            pygame.transform.smoothscale(sh, (w, h)).convert_alpha())
+
+
+def make_bell():
+    S = 4
+    s = pygame.Surface((26 * S, 28 * S), pygame.SRCALPHA)
+    pygame.draw.ellipse(s, (170, 110, 20), (3 * S, 2 * S, 20 * S, 22 * S))
+    pygame.draw.rect(s, (170, 110, 20), (3 * S, 14 * S, 20 * S, 9 * S))
+    pygame.draw.ellipse(s, (250, 200, 50), (4 * S, 3 * S, 18 * S, 20 * S))
+    pygame.draw.rect(s, (250, 200, 50), (4 * S, 14 * S, 18 * S, 8 * S))
+    pygame.draw.ellipse(s, (255, 240, 150), (7 * S, 5 * S, 6 * S, 10 * S))
+    pygame.draw.rect(s, (170, 110, 20), (2 * S, 21 * S, 22 * S, 3 * S), border_radius=S)
+    pygame.draw.circle(s, (120, 80, 20), (13 * S, 26 * S), int(2.2 * S))
+    pygame.draw.circle(s, (170, 110, 20), (13 * S, 3 * S), int(2 * S), S // 2)
+    return pygame.transform.smoothscale(s, (26, 28))
+
+
 def make_shadow(surf):
     sh = surf.copy()
     sh.fill((0, 0, 0, 255), special_flags=pygame.BLEND_RGBA_MULT)
@@ -692,9 +810,23 @@ class Game:
             pygame.draw.rect(hurt, (200, 0, 0, int(150 * (1 - i / 70) ** 2)), (i, i, W - 2 * i, H - 2 * i), 1)
         self.hurt_surf = hurt.convert_alpha()
         self.side_ship = self.make_side_ship()
-        self.plane_p = self.make_plane(32, 48, (70, 140, 170))
-        self.plane_e = self.make_plane(32, 48, (150, 60, 60))
-        self.missile_gfx = self.make_missile()
+        flip = lambda s: pygame.transform.flip(s, False, True)
+        isl, isl_r = [], (55, 72, 90, 110)
+        for k, r in enumerate(isl_r):
+            sz = int(r * 4.4)
+            s_ = pygame.Surface((sz, sz), pygame.SRCALPHA)
+            self.paint_island(s_, sz / 2, sz / 2, r, 21 + k, False)
+            isl.append(s_.convert_alpha())
+        gb = pygame.Surface((80, 80), pygame.SRCALPHA)
+        draw_cover(gb, dict(x=40, y=40, r=24, kind='sandbag', seed=3))
+        self.air = dict(
+            f16=make_f16((170, 182, 196), (108, 120, 138), (60, 100, 200), 0.9),
+            viper=flip(make_f16((172, 100, 90), (112, 58, 54), (30, 30, 30), 0.72)),
+            stealth=flip(make_f117((220, 70, 56), 0.62)),
+            bomber=flip(make_f117((255, 150, 40), 1.7)),
+            boss=flip(make_f117((255, 90, 60), 3.0)),
+            bell=make_bell(), shadows={}, isl=isl, isl_r=isl_r, gbase=gb.convert_alpha(),
+            clouds=[make_cloud(s_) for s_ in (1, 2, 3, 4)])
         self.antenna_gfx = self.make_antenna()
         self.antenna_big = self.make_antenna(1.5)
 
@@ -794,29 +926,6 @@ class Game:
         pygame.draw.rect(s, (60, 66, 78), (192, 46, 18, 24))
         pygame.draw.rect(s, (255, 210, 70), (192, 54, 18, 4))
         pygame.draw.circle(s, (60, 70, 86), (232, 66), 11)
-        return s
-
-    def make_plane(self, wd, ln, col):
-        S = 3
-        w, l = wd * S, ln * S
-        s = pygame.Surface((w, l), pygame.SRCALPHA)
-        fuselaje = [(w * .5, 0), (w * .65, l * .2), (w * .68, l * .5), (w * .65, l * .8), (w * .5, l), (w * .35, l * .8), (w * .32, l * .5), (w * .35, l * .2)]
-        pygame.draw.polygon(s, shade(col, -40), fuselaje)
-        pygame.draw.polygon(s, col, [(w * .48, l * .15), (w * .62, l * .35), (w * .63, l * .65), (w * .5, l * .9), (w * .38, l * .65), (w * .37, l * .35)])
-        alas = [(w * .2, l * .45), (w * .35, l * .4), (w * .5, l * .42), (w * .65, l * .4), (w * .8, l * .45), (w * .75, l * .55), (w * .5, l * .58), (w * .25, l * .55)]
-        pygame.draw.polygon(s, shade(col, -20), alas)
-        pygame.draw.polygon(s, shade(col, 20), alas, 2)
-        for x in (w * .3, w * .7):
-            pygame.draw.circle(s, (50, 50, 50), (int(x), int(l * .5)), int(w * .1))
-            pygame.draw.circle(s, shade(col, -80), (int(x), int(l * .5)), int(w * .08))
-        pygame.draw.circle(s, (255, 220, 150), (int(w * .5), int(l * .15)), int(w * .07))
-        pygame.draw.line(s, shade(col, 60), (int(w * .5), int(l * .6)), (int(w * .5), int(l * .85)), int(w * .04))
-        return pygame.transform.smoothscale(s, (wd, ln))
-
-    def make_missile(self):
-        s = pygame.Surface((8, 32), pygame.SRCALPHA)
-        pygame.draw.polygon(s, (255, 200, 100), [(4, 0), (7, 8), (7, 24), (4, 32), (1, 24), (1, 8)])
-        pygame.draw.polygon(s, (255, 255, 255), [(3, 4), (5, 4), (5, 28), (3, 28)])
         return s
 
     def make_antenna(self, scale=1.0):
@@ -1040,7 +1149,7 @@ class Game:
                 self.crt_on = not self.crt_on
             elif e.key == pygame.K_m:
                 self.audio.toggle_mute()
-            elif e.key in (pygame.K_p, pygame.K_ESCAPE) and self.state in ('map', 'defense', 'combat', 'ground'):
+            elif e.key in (pygame.K_p, pygame.K_ESCAPE) and self.state in ('map', 'defense', 'combat', 'ground', 'aerial'):
                 self.paused = not self.paused
             elif e.key == pygame.K_q and self.paused:
                 pygame.quit()
@@ -1057,8 +1166,8 @@ class Game:
                 island = self.nearest_landing_island()
                 if island:
                     self.start_landing(island[0])
-            elif self.state == 'aerial' and e.key == pygame.K_SPACE and not self.paused:
-                self.fire_aerial()
+            elif self.state == 'aerial' and e.key in (pygame.K_b, pygame.K_x) and not self.paused:
+                self.air_bomb()
             elif self.state == 'combat' and not self.paused:
                 if e.key == pygame.K_SPACE:
                     self.fire_shell()
@@ -1068,13 +1177,13 @@ class Game:
                     self.cyber_attack()
         if e.type == pygame.MOUSEBUTTONDOWN and e.button == 3 and self.state == 'ground' and not self.paused:
             self.throw_grenade_p()
+        if e.type == pygame.MOUSEBUTTONDOWN and e.button == 3 and self.state == 'aerial' and not self.paused:
+            self.air_bomb()
         if e.type == pygame.MOUSEBUTTONDOWN and e.button == 1 and not self.paused:
             if self.state == 'title' or self.state == 'gameover':
                 self.start_game()
             elif self.state == 'defense':
                 self.fire_interceptor()
-            elif self.state == 'aerial':
-                self.fire_aerial()
             elif self.state == 'combat':
                 self.fire_shell()
 
@@ -1247,14 +1356,14 @@ class Game:
             if self.strike_kind == 'ground':
                 self.banner('¡INVASIÓN ANFIBIA!', 'Desembarco en ' + self.strike_city['name'], (255, 150, 60), 3.8)
             elif self.strike_kind == 'aerial':
-                self.banner('¡ATAQUE AÉREO!', 'Cazas enemigos en aproximación', (150, 100, 255), 3.8)
+                self.banner('¡ATAQUE AÉREO!', 'Cazas enemigos sobre ' + self.strike_city['name'], (150, 100, 255), 3.8)
             else:
                 self.banner('¡ALERTA DE MISILES!', 'Objetivo: ' + self.strike_city['name'], (255, 80, 70), 3.8)
         if self.warned and self.strike_t <= 0:
             if self.strike_kind == 'ground':
                 self.start_ground(self.strike_city)
             elif self.strike_kind == 'aerial':
-                self.start_aerial()
+                self.start_aerial(self.strike_city)
             else:
                 self.start_defense(self.strike_city)
             return
@@ -1753,143 +1862,448 @@ class Game:
             self.fx.splash(x, y, 1.0)
             self.audio.play('splash', .6)
 
-    # ---------------------------------------------------------- BATALLA AÉREA
-    def start_aerial(self):
+    # ---------------------------------------------------------- BATALLA AÉREA (estilo Twinbee)
+    AIR_SCROLL = 80.0
+
+    def start_aerial(self, city=None):
         self.fx = Particles()
-        n = min(6 + self.wave, 16)
-        self.a = dict(
-            p=dict(x=W / 2, y=H - 80.0, h=0.0, v=0.0, cool=0.0, hp=100.0, sink=None),
-            enemies=[], missiles=[], t=0.0, total=n, killed=0, phase='play', pt=0.0,
-            queue=sorted(random.uniform(0.4, 2.0 + n * 0.6) for _ in range(n)))
-        self.aim = [W / 2, 200.0]
+        w = self.wave
+        kinds = ['vee', 'line', 'dive', 'vee', 'pair', 'line', 'bomber', 'dive', 'vee', 'pair']
+        events, t = [], 2.0
+        gap = max(3.4, 4.8 - 0.15 * w)
+        for i in range(8 + w):
+            k = kinds[i % len(kinds)]
+            if k == 'bomber' and w < 2:
+                k = 'line'
+            events.append((t, k, random.uniform(200, W - 200)))
+            t += gap + random.uniform(-0.4, 0.8)
+        self.a = dict(city=city, t=0.0, scroll=0.0, phase='play', pt=0.0, fail=False, kills=0, bells=0,
+                      p=dict(x=W / 2, y=H - 140.0, hp=100.0, inv=0.0, cd=0.0, bcd=0.0, wl=1, shield=0.0, vx=0.0, dead=False),
+                      foes=[], ebul=[], pbul=[], bombs=[], ground=[], caps=[], bellitems=[], isl=[], clouds=[],
+                      forms={}, fid=0, events=events, boss_t=t + 2.5, boss=None, boss_dead=False,
+                      isl_t=0.0, boat_t=6.0, cloud_t=0.0)
+        for yy in (-200, 100, 330, 560):
+            self.air_spawn_island(random.uniform(80, W - 80), yy)
+        for _ in range(9):
+            self.air_spawn_cloud(random.uniform(0, H))
         self.go('aerial')
-        self.banner('¡BATALLA AÉREA!', 'Mouse: apuntar  |  Clic/ESPACIO: disparar  |  W/S: mover', (100, 180, 255), 3.0)
+        self.banner('¡BATALLA AÉREA!', 'WASD mover | mantener ESPACIO/clic: disparar | B/clic der.: bomba a objetivos terrestres',
+                    (100, 180, 255), 4.0)
 
-    def spawn_aerial_enemy(self):
+    def air_spawn_island(self, x, y):
         a = self.a
-        y = random.uniform(80, 200)
-        x = random.choice([-40, W + 40])
-        hp = 3 + self.wave // 2
-        a['enemies'].append(dict(x=x, y=y, vx=random.uniform(80 + self.wave * 8, 140 + self.wave * 12) * (1 if x < W / 2 else -1),
-                                 h=180 if x < W / 2 else 0, hp=hp, max=hp, cool=random.uniform(0.8, 1.8)))
+        idx = random.randrange(len(self.air['isl']))
+        r = self.air['isl_r'][idx]
+        isl = dict(x=x, y=y, i=idx, r=r)
+        a['isl'].append(isl)
+        for _ in range(random.choice((0, 1, 1, 2))):
+            ang, d = random.uniform(0, 6.28), random.uniform(0.1, 0.5) * r
+            a['ground'].append(dict(kind='sam', x=x + math.cos(ang) * d, y=y + math.sin(ang) * d, vx=0.0, hp=3,
+                                    cd=random.uniform(1.0, 3.0), ang=180.0))
 
-    def fire_aerial(self):
+    def air_spawn_cloud(self, y):
+        self.a['clouds'].append(dict(x=random.uniform(-100, W + 100), y=y, v=random.uniform(125, 175),
+                                     i=random.randrange(len(self.air['clouds'])), bell=random.random() < 0.09,
+                                     s=random.uniform(0.7, 1.3), tw=random.uniform(0, 6.28)))
+
+    def air_foe(self, kind, x, y, fid=None, **kw):
+        w = self.wave
+        hp = {'viper': 2 + w // 3, 'stealth': 5 + w // 2, 'bomber': 16 + 3 * w}[kind]
+        f = dict(kind=kind, x=x, y=y, bx=x, hp=float(hp), max=float(hp), t=0.0, ph=random.uniform(0, 6.28),
+                 cd=random.uniform(1.2, 2.8), fid=fid, vx=0.0, vy=0.0, mode=0, hit=0.0)
+        f.update(kw)
+        self.a['foes'].append(f)
+        return f
+
+    def air_spawn_formation(self, kind, x):
+        a = self.a
+        a['fid'] += 1
+        fid = a['fid']
+        if kind == 'vee':
+            offs = [(0, 0), (-50, -38), (50, -38), (-100, -76), (100, -76)]
+            for ox, oy in offs:
+                self.air_foe('viper', clamp(x + ox, 50, W - 50), -50 + oy, fid)
+        elif kind == 'line':
+            for i in range(6):
+                self.air_foe('viper', x, -50 - i * 52, fid)
+        elif kind == 'dive':
+            side = random.choice((-1, 1))
+            for i in range(3):
+                self.air_foe('stealth', -60 if side < 0 else W + 60, 70 + i * 70, fid, mode=side)
+        elif kind == 'pair':
+            for ox in (-90, 90):
+                self.air_foe('stealth', clamp(x + ox, 80, W - 80), -60, fid, mode=0)
+        elif kind == 'bomber':
+            self.air_foe('bomber', x, -90, fid)
+        a['forms'][fid] = dict(n=sum(1 for f in a['foes'] if f['fid'] == fid), escaped=False)
+
+    def air_ebul(self, x, y, ang, speed, r=5):
+        spd = speed * (1 + 0.03 * self.wave)
+        vx, vy = vec(ang, spd)
+        self.a['ebul'].append(dict(x=x, y=y, vx=vx, vy=vy, r=r))
+
+    def air_boom(self, x, y, size=1.0, big=False, snd='boom_s'):
+        self.fx.explode(x, y, size, big)
+        self.audio.play(snd, .5)
+
+    def air_kill_foe(self, f):
+        a = self.a
+        if f not in a['foes']:
+            return
+        a['foes'].remove(f)
+        a['kills'] += 1
+        pts = {'viper': 100, 'stealth': 250, 'bomber': 800}[f['kind']]
+        self.add_score(pts)
+        self.pop('+%d' % pts, f['x'], f['y'] - 20)
+        self.air_boom(f['x'], f['y'], {'viper': 0.9, 'stealth': 1.1, 'bomber': 2.0}[f['kind']], f['kind'] == 'bomber')
+        form = a['forms'].get(f['fid'])
+        if form:
+            form['n'] -= 1
+            if form['n'] <= 0 and not form['escaped']:
+                a['caps'].append(dict(x=f['x'], y=f['y'], kind=random.choice(('W', 'W', 'H', 'S')), t=0.0))
+        elif f['kind'] == 'bomber':
+            a['caps'].append(dict(x=f['x'], y=f['y'], kind='W', t=0.0))
+
+    def air_fire_player(self):
         a = self.a
         p = a['p']
-        if p['sink'] is not None or p['cool'] > 0:
+        wl = p['wl']
+        angs = {1: (0,), 2: (-3, 3), 3: (-9, 0, 9), 4: (-16, -8, 0, 8, 16)}[wl]
+        for k, ang in enumerate(angs):
+            off = (k - (len(angs) - 1) / 2) * (9 if wl == 2 else 5)
+            vx, vy = vec(ang, 800)
+            a['pbul'].append(dict(x=p['x'] + off, y=p['y'] - 36, vx=vx, vy=vy))
+        self.audio.play('mg', .15)
+
+    def air_bomb(self):
+        a = self.a
+        p = a['p']
+        if p['dead'] or p['bcd'] > 0 or a['phase'] != 'play':
             return
-        if self.ammo <= 0:
-            self.audio.play('empty')
-            self.toast('¡Sin munición!', (255, 90, 80))
+        p['bcd'] = 0.55
+        tx, ty = p['x'], max(60.0, p['y'] - 200)
+        a['bombs'].append(dict(x0=p['x'], y0=p['y'], x1=tx, y1=ty, t=0.0, T=0.7))
+        self.audio.play('launch', .35)
+
+    def air_hit_ground(self, g, dmg):
+        a = self.a
+        g['hp'] -= dmg
+        if g['hp'] <= 0 and g in a['ground']:
+            a['ground'].remove(g)
+            pts = 300 if g['kind'] == 'sam' else 400
+            self.add_score(pts)
+            self.pop('+%d' % pts, g['x'], g['y'] - 18)
+            self.air_boom(g['x'], g['y'], 1.2, True)
+            if random.random() < 0.5:
+                a['caps'].append(dict(x=g['x'], y=g['y'], kind=random.choice(('W', 'H', 'S')), t=0.0))
+
+    def air_hurt(self, dmg):
+        a = self.a
+        p = a['p']
+        if p['dead'] or p['inv'] > 0 or a['phase'] != 'play':
             return
-        self.ammo -= 1
-        p['cool'] = 0.4
-        angle = bearing(self.aim[0] - p['x'], self.aim[1] - p['y'])
-        directions = [0, 30, -30, 60, -60]
-        for d in directions[:min(3, (self.wave // 2) + 1)]:
-            ang = angle + d
-            vx, vy = vec(ang, 500)
-            a['missiles'].append(dict(x=p['x'], y=p['y'], vx=vx, vy=vy, life=2.0, own='p'))
-        self.audio.play('launch', .8)
-        self.fx.add('glow', p['x'], p['y'], life=.15, r0=16, r1=32, col=(120, 200, 255))
+        if p['shield'] > 0:
+            p['shield'] = max(0.0, p['shield'] - 1.2)
+            p['inv'] = 0.25
+            self.audio.play('hit', .3)
+            return
+        p['hp'] -= dmg
+        p['inv'] = 1.3
+        p['wl'] = max(1, p['wl'] - (1 if dmg >= 20 else 0))
+        self.shake = max(self.shake, 8)
+        self.audio.play('hit', .6)
+        self.pop('-%d' % dmg, p['x'], p['y'] - 40, (255, 110, 100))
 
     def upd_aerial(self, dt):
         a = self.a
         p = a['p']
         keys = pygame.key.get_pressed()
-
+        mouse = pygame.mouse.get_pressed()
         a['t'] += dt
-        p['cool'] = max(0.0, p['cool'] - dt)
-        p['hp'] = max(0.0, p['hp'] - random.random() * dt * 2 if p['hp'] > 0 else 0)
-
-        if keys[pygame.K_w] or keys[pygame.K_UP]:
-            p['y'] = max(40, p['y'] - 300 * dt)
-        if keys[pygame.K_s] or keys[pygame.K_DOWN]:
-            p['y'] = min(H - 40, p['y'] + 300 * dt)
-        if keys[pygame.K_a] or keys[pygame.K_LEFT]:
-            p['x'] = max(20, p['x'] - 300 * dt)
-        if keys[pygame.K_d] or keys[pygame.K_RIGHT]:
-            p['x'] = min(W - 20, p['x'] + 300 * dt)
-
-        while a['queue'] and a['queue'][0] <= a['t']:
-            a['queue'].pop(0)
-            self.spawn_aerial_enemy()
-
-        for e in a['enemies'][:]:
-            e['x'] += e['vx'] * dt
-            e['y'] += random.uniform(-1, 1) * 30 * dt
-            e['cool'] -= dt
-            if e['cool'] <= 0:
-                e['cool'] = random.uniform(1.0, 2.0)
-                vx, vy = vec(bearing(p['x'] - e['x'], p['y'] - e['y']), 300)
-                a['missiles'].append(dict(x=e['x'], y=e['y'], vx=vx, vy=vy, life=2.5, own='e'))
-                self.audio.play('launch', .3)
-
-            if e['x'] < -60 or e['x'] > W + 60 or e['y'] < 0 or e['y'] > H:
-                a['enemies'].remove(e)
-
-        for m in a['missiles'][:]:
-            m['x'] += m['vx'] * dt
-            m['y'] += m['vy'] * dt
-            m['life'] -= dt
-
-            if m['own'] == 'p':
-                hit = None
-                for e in a['enemies']:
-                    if dist(m['x'], m['y'], e['x'], e['y']) < 16:
-                        hit = e
-                        break
-                if hit:
-                    hit['hp'] -= 1
-                    self.fx.add('glow', m['x'], m['y'], life=.25, r0=8, r1=20, col=(255, 180, 100))
-                    self.audio.play('boom_s', .4)
-                    a['missiles'].remove(m)
-                    if hit['hp'] <= 0:
-                        a['enemies'].remove(hit)
-                        a['killed'] += 1
-                        pts = 150
-                        self.add_score(pts)
-                        self.pop('+%d' % pts, hit['x'], hit['y'])
-                        self.fx.explode(hit['x'], hit['y'], 0.9)
-                    continue
+        sc = self.AIR_SCROLL
+        a['scroll'] += sc * dt
+        p['cd'] = max(0.0, p['cd'] - dt)
+        p['bcd'] = max(0.0, p['bcd'] - dt)
+        p['inv'] = max(0.0, p['inv'] - dt)
+        p['shield'] = max(0.0, p['shield'] - dt)
+        if not p['dead']:
+            mx = (1 if (keys[pygame.K_d] or keys[pygame.K_RIGHT]) else 0) - (1 if (keys[pygame.K_a] or keys[pygame.K_LEFT]) else 0)
+            my = (1 if (keys[pygame.K_s] or keys[pygame.K_DOWN]) else 0) - (1 if (keys[pygame.K_w] or keys[pygame.K_UP]) else 0)
+            n = math.hypot(mx, my) or 1.0
+            p['vx'] += (mx / n * 320 - p['vx']) * min(1, dt * 12)
+            p['x'] = clamp(p['x'] + p['vx'] * dt, 44, W - 44)
+            p['y'] = clamp(p['y'] + my / n * 300 * dt, 150, H - 70)
+            if (keys[pygame.K_SPACE] or keys[pygame.K_f] or mouse[0]) and p['cd'] <= 0 and a['phase'] == 'play':
+                p['cd'] = 0.11
+                self.air_fire_player()
+            if random.random() < dt * 40:
+                self.fx.add('glow', p['x'] + random.uniform(-3, 3), p['y'] + 42, 0, 60, 0.15, 8, 3, (255, 150, 60))
+        # escenario
+        for isl in a['isl'][:]:
+            isl['y'] += sc * dt
+            if isl['y'] > H + isl['r'] * 2.4:
+                a['isl'].remove(isl)
+        for g in a['ground'][:]:
+            g['y'] += (sc if g['kind'] == 'sam' else sc * 0.7) * dt
+            g['x'] += g['vx'] * dt
+            if g['y'] > H + 60:
+                a['ground'].remove(g)
+                continue
+            if 20 < g['y'] < H * 0.7 and not p['dead']:
+                g['ang'] = bearing(p['x'] - g['x'], p['y'] - g['y'])
+                g['cd'] -= dt
+                if g['cd'] <= 0:
+                    g['cd'] = random.uniform(2.2, 3.4)
+                    self.air_ebul(g['x'], g['y'], g['ang'] + random.uniform(-4, 4), 190)
+        for c in a['clouds'][:]:
+            c['y'] += c['v'] * dt
+            if c['y'] > H + 120:
+                a['clouds'].remove(c)
+        a['isl_t'] -= dt
+        if a['isl_t'] <= 0:
+            a['isl_t'] = random.uniform(4.0, 7.0)
+            self.air_spawn_island(random.uniform(60, W - 60), -260)
+        a['cloud_t'] -= dt
+        if a['cloud_t'] <= 0:
+            a['cloud_t'] = random.uniform(0.7, 1.6)
+            self.air_spawn_cloud(-140)
+        a['boat_t'] -= dt
+        if a['boat_t'] <= 0 and a['phase'] == 'play' and not a['boss']:
+            a['boat_t'] = random.uniform(8, 13)
+            a['ground'].append(dict(kind='boat', x=random.uniform(120, W - 120), y=-50.0, vx=random.uniform(-25, 25),
+                                    hp=4, cd=2.0, ang=180.0))
+        # guion
+        if a['phase'] == 'play':
+            while a['events'] and a['events'][0][0] <= a['t']:
+                _, kind, x = a['events'].pop(0)
+                self.air_spawn_formation(kind, x)
+            if a['boss'] is None and a['t'] >= a['boss_t']:
+                hp = 80 + 20 * self.wave
+                a['boss'] = dict(x=W / 2, y=-170.0, hp=float(hp), max=float(hp), t=0.0, pc=2.0, pi=0, stream=0, sd=0.0,
+                                 wc=1.2, hit=0.0)
+                self.audio.play('alarm')
+                self.banner('¡ALERTA! COMANDANTE STEALTH', 'Destruí al bombardero furtivo', (255, 90, 70), 3.2)
+        # enemigos
+        for f in a['foes'][:]:
+            f['t'] += dt
+            f['hit'] = max(0.0, f['hit'] - dt)
+            k = f['kind']
+            if k == 'viper':
+                f['y'] += (110 + 3 * self.wave) * dt
+                f['x'] = f['bx'] + math.sin(f['t'] * 2.2 + f['ph']) * 55
+            elif k == 'stealth' and f['mode'] != 0:
+                if f['t'] < 1.3:
+                    f['x'] += -f['mode'] * 230 * dt
+                    f['y'] += 30 * dt
+                else:
+                    if f['t'] < 1.45:
+                        f['vx'] = clamp((p['x'] - f['x']) * 1.4, -230, 230)
+                    f['x'] += f['vx'] * dt
+                    f['y'] += 270 * dt
+            elif k == 'stealth':
+                f['y'] += 150 * dt
+                if f['t'] < 2.4:
+                    f['x'] += clamp(p['x'] - f['x'], -1, 1) * 60 * dt
+            elif k == 'bomber':
+                f['y'] += (45 if f['y'] < 150 or f['t'] > 18 else 0) * dt
+                f['x'] = f['bx'] + math.sin(f['t'] * 0.6) * 140
+            f['cd'] -= dt
+            if f['cd'] <= 0 and 30 < f['y'] < H * 0.65 and not p['dead'] and a['phase'] == 'play':
+                aim = bearing(p['x'] - f['x'], p['y'] - f['y'])
+                if k == 'viper':
+                    f['cd'] = random.uniform(2.0, 3.6)
+                    self.air_ebul(f['x'], f['y'] + 20, aim + random.uniform(-3, 3), 210)
+                elif k == 'stealth':
+                    f['cd'] = random.uniform(2.2, 3.0)
+                    for da in (-14, 0, 14):
+                        self.air_ebul(f['x'], f['y'] + 20, aim + da, 230)
+                else:
+                    f['cd'] = 1.15
+                    f['mode'] += 1
+                    if f['mode'] % 2:
+                        for i in range(12):
+                            self.air_ebul(f['x'], f['y'] + 10, i * 30 + f['t'] * 20, 150, 6)
+                    else:
+                        for da in (-18, -9, 0, 9, 18):
+                            self.air_ebul(f['x'], f['y'] + 30, aim + da, 220)
+            if f['y'] > H + 90 or f['x'] < -140 or f['x'] > W + 140:
+                a['foes'].remove(f)
+                form = a['forms'].get(f['fid'])
+                if form:
+                    form['escaped'] = True
+        # jefe
+        b = a['boss']
+        if b and not a['boss_dead']:
+            b['t'] += dt
+            b['hit'] = max(0.0, b['hit'] - dt)
+            if b['y'] < 175:
+                b['y'] += 80 * dt
             else:
-                if p['sink'] is None and dist(m['x'], m['y'], p['x'], p['y']) < 18:
-                    p['hp'] -= 15
-                    self.shake = max(self.shake, 6)
-                    self.audio.play('hit', .6)
-                    self.fx.add('glow', m['x'], m['y'], life=.3, r0=12, r1=28, col=(255, 140, 80))
-                    a['missiles'].remove(m)
-                    continue
-
-            if m['life'] <= 0 or m['x'] < -40 or m['x'] > W + 40 or m['y'] < -40 or m['y'] > H + 40:
-                if m in a['missiles']:
-                    a['missiles'].remove(m)
-
+                b['x'] = W / 2 + math.sin(b['t'] * 0.55) * (W / 2 - 230)
+                rage = b['hp'] < b['max'] * 0.5
+                b['pc'] -= dt
+                if b['pc'] <= 0 and not p['dead']:
+                    pat = b['pi'] % 3
+                    b['pi'] += 1
+                    b['pc'] = 1.7 if rage else 2.5
+                    aim = bearing(p['x'] - b['x'], p['y'] - b['y'])
+                    if pat == 0:
+                        for i in range(-3, 4):
+                            self.air_ebul(b['x'], b['y'] + 60, aim + i * 11, 215)
+                    elif pat == 1:
+                        off = random.uniform(0, 360)
+                        for i in range(20 if rage else 16):
+                            self.air_ebul(b['x'], b['y'] + 20, off + i * (360 / (20 if rage else 16)), 150, 6)
+                    else:
+                        b['stream'], b['sd'] = 12 if rage else 9, 0.0
+                if b['stream'] > 0:
+                    b['sd'] -= dt
+                    if b['sd'] <= 0 and not p['dead']:
+                        b['stream'] -= 1
+                        b['sd'] = 0.08
+                        self.air_ebul(b['x'], b['y'] + 50, bearing(p['x'] - b['x'], p['y'] - b['y']) + random.uniform(-2, 2), 270)
+                b['wc'] -= dt
+                if b['wc'] <= 0 and not p['dead']:
+                    b['wc'] = 1.2 if rage else 1.8
+                    for sx in (-1, 1):
+                        self.air_ebul(b['x'] + sx * 110, b['y'] + 30, bearing(p['x'] - b['x'] - sx * 110, p['y'] - b['y'] - 30), 230)
+        # balas del jugador
+        for bl in a['pbul'][:]:
+            bl['x'] += bl['vx'] * dt
+            bl['y'] += bl['vy'] * dt
+            if bl['y'] < -30 or bl['x'] < -30 or bl['x'] > W + 30:
+                a['pbul'].remove(bl)
+                continue
+            hit = None
+            for f in a['foes']:
+                if dist(bl['x'], bl['y'], f['x'], f['y']) < {'viper': 24, 'stealth': 30, 'bomber': 60}[f['kind']]:
+                    hit = f
+                    break
+            if hit:
+                hit['hp'] -= 1
+                hit['hit'] = 0.08
+                a['pbul'].remove(bl)
+                self.fx.add('spark', bl['x'], bl['y'], random.uniform(-100, 100), random.uniform(-60, 60), 0.2, col=(255, 230, 150), drag=2)
+                if hit['hp'] <= 0:
+                    self.air_kill_foe(hit)
+                continue
+            if b and not a['boss_dead'] and dist(bl['x'], bl['y'], b['x'], b['y'] + 10) < 80:
+                b['hp'] -= 1
+                b['hit'] = 0.08
+                a['pbul'].remove(bl)
+                self.fx.add('spark', bl['x'], bl['y'], random.uniform(-100, 100), random.uniform(-60, 60), 0.2, col=(255, 230, 150), drag=2)
+                continue
+            for c in a['clouds']:
+                if c['bell'] and abs(bl['x'] - c['x']) < 90 * c['s'] and abs(bl['y'] - c['y']) < 40 * c['s']:
+                    c['bell'] = False
+                    a['bellitems'].append(dict(x=c['x'], y=c['y'], vx=random.choice((-1, 1)) * 60, t=0.0))
+                    self.audio.play('pickup', .4)
+                    break
+        # balas enemigas
+        for eb in a['ebul'][:]:
+            eb['x'] += eb['vx'] * dt
+            eb['y'] += eb['vy'] * dt
+            if not (-30 < eb['x'] < W + 30 and -30 < eb['y'] < H + 30):
+                a['ebul'].remove(eb)
+            elif not p['dead'] and dist(eb['x'], eb['y'], p['x'], p['y']) < eb['r'] + 8:
+                a['ebul'].remove(eb)
+                self.air_hurt(10)
+        # bombas
+        for bm in a['bombs'][:]:
+            bm['t'] += dt
+            if bm['t'] >= bm['T']:
+                a['bombs'].remove(bm)
+                self.fx.add('ring', bm['x1'], bm['y1'], life=0.5, r0=6, r1=60, col=(255, 230, 170))
+                self.air_boom(bm['x1'], bm['y1'], 1.0)
+                for g in a['ground'][:]:
+                    if dist(g['x'], g['y'], bm['x1'], bm['y1']) < 58:
+                        self.air_hit_ground(g, 3)
+        # cápsulas y campanas
+        for q in a['caps'][:]:
+            q['t'] += dt
+            q['y'] += 90 * dt
+            if not p['dead'] and dist(q['x'], q['y'], p['x'], p['y']) < 34:
+                a['caps'].remove(q)
+                self.audio.play('pickup')
+                if q['kind'] == 'W':
+                    p['wl'] = min(4, p['wl'] + 1)
+                    self.pop('ARMA %d' % p['wl'], p['x'], p['y'] - 40, (255, 200, 90))
+                elif q['kind'] == 'H':
+                    p['hp'] = min(100.0, p['hp'] + 30)
+                    self.pop('+30 AVIÓN', p['x'], p['y'] - 40, (120, 255, 150))
+                else:
+                    p['shield'] = 7.0
+                    self.pop('ESCUDO', p['x'], p['y'] - 40, (120, 220, 255))
+            elif q['y'] > H + 30:
+                a['caps'].remove(q)
+        for bl_ in a['bellitems'][:]:
+            bl_['t'] += dt
+            bl_['y'] += 85 * dt
+            bl_['x'] += bl_['vx'] * dt
+            if bl_['x'] < 40 or bl_['x'] > W - 40:
+                bl_['vx'] *= -1
+            if not p['dead'] and dist(bl_['x'], bl_['y'], p['x'], p['y']) < 32:
+                a['bellitems'].remove(bl_)
+                a['bells'] += 1
+                self.add_score(300)
+                self.pop('+300', bl_['x'], bl_['y'] - 20, (255, 220, 90))
+                self.audio.play('pickup', .8)
+            elif bl_['y'] > H + 30:
+                a['bellitems'].remove(bl_)
+        # choque contra enemigos
+        if not p['dead']:
+            for f in a['foes'][:]:
+                if dist(f['x'], f['y'], p['x'], p['y']) < {'viper': 28, 'stealth': 32, 'bomber': 56}[f['kind']] and p['inv'] <= 0:
+                    self.air_hurt(20)
+                    if f['kind'] != 'bomber':
+                        self.air_kill_foe(f)
+        if b and not a['boss_dead'] and not p['dead'] and dist(b['x'], b['y'], p['x'], p['y']) < 85:
+            self.air_hurt(20)
+        # jefe derrotado / jugador caído
+        if b and not a['boss_dead'] and b['hp'] <= 0:
+            a['boss_dead'] = True
+            self.add_score(4000)
+            for _ in range(10):
+                self.air_boom(b['x'] + random.uniform(-90, 90), b['y'] + random.uniform(-60, 60), 1.6, True, 'boom_l')
+            for f in a['foes'][:]:
+                self.air_boom(f['x'], f['y'], 1.0)
+                a['foes'].remove(f)
+            a['ebul'].clear()
+            self.shake = 22
+            if a['phase'] == 'play':
+                a['phase'], a['pt'] = 'result', 0.0
+                bonus = 500 + 100 * self.wave
+                self.add_score(bonus)
+                self.ammo = min(40, self.ammo + 8)
+                self.audio.play('win', .7)
+                self.banner('¡VICTORIA AÉREA!', 'Bajas: %d   Jefe +4000   Bonus +%d   (+8 munición)' % (a['kills'], bonus),
+                            (120, 255, 160), 3.2)
+        if not p['dead'] and p['hp'] <= 0:
+            p['dead'] = True
+            self.air_boom(p['x'], p['y'], 1.8, True, 'boom_l')
+            self.shake = 16
+            if a['phase'] == 'play':
+                a['phase'], a['fail'], a['pt'] = 'result', True, -1.0
+                self.banner('¡AVIÓN DERRIBADO!', 'El ataque aéreo daña la ciudad', (255, 80, 70), 3.0)
         self.fx.update(dt)
-
-        if p['sink'] is None and p['hp'] <= 0:
-            p['sink'] = 0.0
-            self.fx.explode(p['x'], p['y'], 1.5, True)
-            self.audio.play('boom_l')
-            self.shake = 14
-            a['phase'] = 'result'
-            a['pt'] = -2.0
-            self.banner('¡AVIÓN DERRIBADO!', 'Derrota', (255, 80, 70), 3.0)
-
-        if a['phase'] == 'play' and not a['queue'] and not a['enemies'] and not a['missiles']:
-            a['phase'] = 'result'
-            a['pt'] = 0.0
-            bonus = 500 + 100 * self.wave
-            self.add_score(bonus)
-            self.audio.play('win', .7)
-            self.banner('¡VICTORIA AÉREA!', 'Bajas: %d   Bonus +%d' % (a['killed'], bonus), (120, 255, 160), 2.8)
-
         if a['phase'] == 'result':
             a['pt'] += dt
-            if a['pt'] > 2.8:
-                self.warned = False
-                self.strike_t = max(22.0, random.uniform(30, 42) - self.wave * 2)
-                self.go('map')
+            if a['pt'] > 3.0:
+                self.end_aerial()
+
+    def end_aerial(self):
+        a = self.a
+        city = a['city']
+        if a['fail'] and city and not city['dead']:
+            city['hp'] = max(0.0, city['hp'] - 25)
+            self.toast('Los cazas bombardearon %s: -25%%' % city['name'], (255, 140, 90))
+            if city['hp'] <= 0:
+                city['dead'] = True
+        self.warned = False
+        self.strike_t = max(22.0, random.uniform(30, 42) - self.wave * 2)
+        if all(c['dead'] for c in self.cities):
+            return self.game_over('Todas las ciudades fueron destruidas')
+        self.go('map')
 
     # ---------------------------------------------------------- COMBATE DE INFANTERÍA
     def isl_name(self, i):
@@ -2907,8 +3321,7 @@ class Game:
             col = (80, 230, 110) if city['hp'] > 60 else ((255, 200, 70) if city['hp'] > 30 else (240, 80, 70))
             self.bar(cv, W // 2 - 210, 44, 420, 26, city['hp'] / 100, col, 'CIUDAD %d%%' % city['hp'])
             self.text(cv, 'ENEMIGOS: %d' % (len(g['queue']) + len(g['enemies'])), self.f_m, (255, 160, 140), W - 20, 90, 'r')
-        self.text(cv, 'WASD mover | Mouse apuntar | Clic disparar | R recargar | ESPACIO/clic der. granada | las coberturas frenan balas',
-                  self.f_s, (200, 220, 255), W // 2, H - 30, 'c')
+        self.text(cv, 'WASD mover | Clic disparar | R recargar | ESPACIO granada', self.f_s, (200, 220, 255), W - 14, H - 30, 'r')
 
     # ---- combate
     def draw_combat(self, cv):
@@ -2980,47 +3393,138 @@ class Game:
     def draw_aerial(self, cv):
         a = self.a
         p = a['p']
-        for y in range(H):
-            k = y / H
-            c = (int(10 + k * 40), int(20 + k * 60), int(80 + k * 60))
-            pygame.draw.line(cv, c, (0, y), (W, y))
-        px = (self.t * 30) % 256
-        for x in range(int(-px), W, 256):
-            for y in range(0, H, 60):
-                pts = [(x + 20, y + 20), (x + 60, y), (x + 100, y + 20), (x + 80, y + 50), (x + 40, y + 40)]
-                pygame.draw.polygon(cv, (180, 200, 220), pts)
-                pygame.draw.polygon(cv, (200, 220, 240), pts, 1)
-        for y in range(0, H, 40):
-            pygame.draw.line(cv, (40, 70, 140), (0, y), (W, y), 1)
-        for x in range(0, W, 60):
-            pygame.draw.line(cv, (40, 70, 140), (x, 0), (x, H), 1)
-        for e in a['enemies']:
-            r = pygame.transform.rotate(self.plane_e, -e['h'])
-            cv.blit(r, (int(e['x']) - r.get_width() // 2, int(e['y']) - r.get_height() // 2))
-            if e['hp'] < e['max']:
-                pygame.draw.rect(cv, (8, 12, 24), (int(e['x']) - 16, int(e['y']) - 28, 32, 5))
-                pygame.draw.rect(cv, (240, 80, 70), (int(e['x']) - 15, int(e['y']) - 27, int(30 * e['hp'] / e['max']), 3))
-        for m in a['missiles']:
-            h = math.atan2(m['vy'], m['vx']) * 180 / math.pi
-            r = pygame.transform.rotate(self.missile_gfx, -h)
-            col = (100, 200, 255) if m['own'] == 'p' else (255, 150, 100)
-            glow(cv, m['x'], m['y'], 10, col, 0.6)
-            cv.blit(r, (int(m['x']) - r.get_width() // 2, int(m['y']) - r.get_height() // 2))
-        if p['sink'] is None or p['sink'] < 0.2:
-            r = pygame.transform.rotate(self.plane_p, -p['h'])
-            cv.blit(r, (int(p['x']) - r.get_width() // 2, int(p['y']) - r.get_height() // 2))
-        ax, ay = int(self.aim[0]), int(self.aim[1])
-        pygame.draw.circle(cv, (100, 255, 200), (ax, ay), 16, 2)
-        pygame.draw.circle(cv, (100, 255, 200), (ax, ay), 3)
-        for dx, dy in ((-30, 0), (30, 0), (0, -30), (0, 30)):
-            pygame.draw.line(cv, (100, 255, 200), (ax + dx // 2, ay + dy // 2), (ax + dx, ay + dy), 2)
-        self.draw_hud(cv, False)
+        t = self.t
+        A = self.air
+        self.draw_ocean(cv, 0, -a['scroll'], t)
+        for c in a['clouds']:
+            cs, sh = A['clouds'][c['i']]
+            w2, h2 = int(cs.get_width() * c['s']), int(cs.get_height() * c['s'])
+            sh2 = pygame.transform.smoothscale(sh, (w2, h2)) if c['s'] != 1 else sh
+            sh2.set_alpha(55)
+            cv.blit(sh2, (c['x'] - w2 // 2 + 70, c['y'] - h2 // 2 + 110))
+        for isl in a['isl']:
+            spr = A['isl'][isl['i']]
+            cv.blit(spr, (isl['x'] - spr.get_width() // 2, isl['y'] - spr.get_height() // 2))
+        for g in a['ground']:
+            if g['kind'] == 'sam':
+                cv.blit(A['gbase'], (g['x'] - A['gbase'].get_width() // 2, g['y'] - A['gbase'].get_height() // 2))
+                self.blit_turret(cv, self.tur_e, g['x'], g['y'], g['ang'])
+            else:
+                self.blit_ship(cv, 'e_map', g['x'], g['y'], 180 + g['vx'] * 0.3)
+        if not p['dead']:
+            tx, ty = int(p['x']), int(max(60, p['y'] - 200))
+            draw_circ(cv, tx, ty, 26, (255, 230, 170), 70, 1)
+            pygame.draw.line(cv, (255, 230, 170), (tx - 8, ty), (tx + 8, ty), 1)
+            pygame.draw.line(cv, (255, 230, 170), (tx, ty - 8), (tx, ty + 8), 1)
+        for bm in a['bombs']:
+            k = bm['t'] / bm['T']
+            x, y = lerp(bm['x0'], bm['x1'], k), lerp(bm['y0'], bm['y1'], k)
+            draw_circ(cv, x, y, 5, (0, 0, 0), 90)
+            r = int(7 - 3 * k)
+            pygame.draw.ellipse(cv, (36, 40, 46), (x - r, y - 40 * (1 - k) - r * 1.6, r * 2, r * 3.2))
+            pygame.draw.ellipse(cv, (110, 118, 128), (x - r * 0.5, y - 40 * (1 - k) - r * 1.4, r, r * 1.4))
+        for c in a['clouds']:
+            cs, _ = A['clouds'][c['i']]
+            w2, h2 = int(cs.get_width() * c['s']), int(cs.get_height() * c['s'])
+            spr = pygame.transform.smoothscale(cs, (w2, h2)) if c['s'] != 1 else cs
+            spr.set_alpha(215)
+            cv.blit(spr, (c['x'] - w2 // 2, c['y'] - h2 // 2))
+            if c['bell']:
+                for j in range(3):
+                    ph = (t * 1.3 + j * 0.33 + c['tw']) % 1
+                    glow(cv, c['x'] + math.cos(j * 2.1 + c['tw']) * 50 * c['s'], c['y'] + math.sin(j * 2.1) * 12, 8 + ph * 12, (255, 220, 90), 1 - ph)
+        for q in a['caps']:
+            col = {'W': (255, 150, 50), 'H': (80, 220, 110), 'S': (90, 190, 255)}[q['kind']]
+            glow(cv, q['x'], q['y'], 30, col, 0.7)
+            pygame.draw.circle(cv, shade(col, -70), (int(q['x']), int(q['y'])), 14)
+            pygame.draw.circle(cv, col, (int(q['x']), int(q['y'])), 12)
+            pygame.draw.circle(cv, (255, 255, 255), (int(q['x'] - 4), int(q['y'] - 4)), 3)
+            self.text(cv, q['kind'], self.f_s, (255, 255, 255), q['x'], q['y'] - 8, 'c', shadow=False)
+        for b_ in a['bellitems']:
+            bob = math.sin(b_['t'] * 8) * 3
+            glow(cv, b_['x'], b_['y'], 24, (255, 220, 90), 0.6)
+            cv.blit(A['bell'], (b_['x'] - 13, b_['y'] - 14 + bob))
+        sh_off = (34, 52)
+
+        def shadow(spr, x, y):
+            sh = A['shadows'].get(id(spr))
+            if sh is None:
+                sh = A['shadows'][id(spr)] = make_shadow(spr)
+            sh.set_alpha(75)
+            cv.blit(sh, (x - sh.get_width() // 2 + sh_off[0], y - sh.get_height() // 2 + sh_off[1]))
+        for f in a['foes']:
+            spr = A[{'viper': 'viper', 'stealth': 'stealth', 'bomber': 'bomber'}[f['kind']]]
+            shadow(spr, f['x'], f['y'])
+            if f['hit'] > 0:
+                spr = spr.copy()
+                spr.fill((90, 90, 90, 0), special_flags=pygame.BLEND_RGB_ADD)
+            cv.blit(spr, (f['x'] - spr.get_width() // 2, f['y'] - spr.get_height() // 2))
+            if f['kind'] == 'bomber':
+                for sx in (-1, 1):
+                    glow(cv, f['x'] + sx * 22, f['y'] - 18, 20, (255, 140, 60), 0.7)
+                pygame.draw.rect(cv, (8, 12, 24), (f['x'] - 40, f['y'] - 80, 80, 6))
+                pygame.draw.rect(cv, (240, 80, 70), (f['x'] - 39, f['y'] - 79, int(78 * f['hp'] / f['max']), 4))
+            else:
+                glow(cv, f['x'], f['y'] - 36 if f['kind'] == 'viper' else f['y'] - 28, 12, (255, 150, 70), 0.6)
+        b = a['boss']
+        if b and not a['boss_dead']:
+            spr = A['boss']
+            shadow(spr, b['x'], b['y'])
+            if b['hit'] > 0:
+                spr = spr.copy()
+                spr.fill((90, 90, 90, 0), special_flags=pygame.BLEND_RGB_ADD)
+            cv.blit(spr, (b['x'] - spr.get_width() // 2, b['y'] - spr.get_height() // 2))
+            for sx in (-1, 1):
+                glow(cv, b['x'] + sx * 36, b['y'] - 54, 28 + 4 * math.sin(t * 20), (255, 120, 60), 0.8)
+        if not p['dead']:
+            shadow(A['f16'], p['x'], p['y'])
+            spr = A['f16']
+            bank = clamp(p['vx'] / 320, -1, 1)
+            if abs(bank) > 0.05:
+                spr = pygame.transform.smoothscale(spr, (int(spr.get_width() * (1 - 0.22 * abs(bank))), spr.get_height()))
+            blink = p['inv'] > 0 and int(t * 18) % 2 == 0
+            fl_ = 14 + 8 * math.sin(t * 60)
+            pygame.draw.polygon(cv, (255, 170, 60), [(p['x'] - 4, p['y'] + 42), (p['x'] + 4, p['y'] + 42), (p['x'], p['y'] + 42 + fl_ * 2)])
+            pygame.draw.polygon(cv, (255, 245, 200), [(p['x'] - 2, p['y'] + 42), (p['x'] + 2, p['y'] + 42), (p['x'], p['y'] + 42 + fl_)])
+            glow(cv, p['x'], p['y'] + 48, 26, (255, 160, 70), 0.8)
+            if not blink:
+                cv.blit(spr, (p['x'] - spr.get_width() // 2, p['y'] - spr.get_height() // 2))
+            if p['shield'] > 0:
+                pulse = 0.6 + 0.4 * math.sin(t * 10)
+                draw_circ(cv, p['x'], p['y'], 54, (110, 210, 255), 50 * pulse + 20)
+                draw_circ(cv, p['x'], p['y'], 54, (170, 235, 255), 200, 2)
+        for bl in a['pbul']:
+            pygame.draw.line(cv, (255, 244, 170), (bl['x'], bl['y']), (bl['x'] - bl['vx'] * 0.03, bl['y'] - bl['vy'] * 0.03), 3)
+            pygame.draw.line(cv, (255, 255, 255), (bl['x'], bl['y']), (bl['x'] - bl['vx'] * 0.015, bl['y'] - bl['vy'] * 0.015), 1)
+        for eb in a['ebul']:
+            glow(cv, eb['x'], eb['y'], eb['r'] * 3, (255, 90, 60), 0.8)
+            pygame.draw.circle(cv, (255, 120, 70), (int(eb['x']), int(eb['y'])), eb['r'])
+            pygame.draw.circle(cv, (255, 235, 200), (int(eb['x']), int(eb['y'])), max(2, eb['r'] - 2))
+        self.fx.draw(cv)
+        self.panel(cv, (14, 12, 250, 56), 160)
+        self.text(cv, 'PUNTOS %07d' % self.score, self.f_m, (255, 255, 255), 26, 18)
+        self.text(cv, 'OLEADA %d/%d   REC %d' % (self.wave, WIN_WAVE, self.hiscore), self.f_s, (160, 200, 240), 26, 42)
+        self.panel(cv, (14, H - 100, 330, 86), 160)
+        self.bar(cv, 26, H - 90, 306, 24, p['hp'] / 100, (80, 220, 110) if p['hp'] > 35 else (240, 80, 70), 'F-16 %d%%' % max(0, p['hp']))
+        self.text(cv, 'ARMA', self.f_s, (235, 245, 255), 26, H - 56)
+        for i in range(4):
+            pygame.draw.rect(cv, (255, 190, 70) if i < p['wl'] else (50, 56, 70), (86 + i * 26, H - 54, 20, 12), border_radius=3)
+        self.text(cv, 'BOMBA', self.f_s, (235, 245, 255), 206, H - 56)
+        rdy = 1 - clamp(p['bcd'] / 0.55, 0, 1)
+        pygame.draw.rect(cv, (8, 12, 24), (270, H - 54, 60, 12))
+        pygame.draw.rect(cv, (120, 255, 160) if rdy >= 1 else (255, 200, 80), (271, H - 53, int(58 * rdy), 10))
+        self.text(cv, 'CAMPANAS %d' % a['bells'], self.f_s, (255, 220, 120), 26, H - 36)
         self.panel(cv, (W // 2 - 230, 12, 460, 70), 170)
-        self.text(cv, '¡BATALLA AÉREA!', self.f_m, (100, 180, 255), W // 2, 16, 'c')
-        self.bar(cv, W // 2 - 210, 44, 420, 26, p['hp'] / 100, (80, 220, 110) if p['hp'] > 35 else (240, 80, 70), 'AVIÓN %d%%' % max(0, p['hp']))
-        left = len(a['queue']) + len(a['enemies'])
-        self.text(cv, 'ENEMIGOS: %d' % left, self.f_m, (255, 160, 140), W - 20, 90, 'r')
-        self.text(cv, 'W/S/A/D mover | Clic/ESPACIO disparar (múltiples direcciones)', self.f_s, (200, 220, 255), W // 2, H - 30, 'c')
+        b = a['boss']
+        if b and not a['boss_dead']:
+            self.text(cv, 'COMANDANTE STEALTH', self.f_m, (255, 110, 90), W // 2, 16, 'c')
+            self.bar(cv, W // 2 - 210, 44, 420, 26, b['hp'] / b['max'], (240, 80, 70), 'JEFE')
+        else:
+            self.text(cv, '¡BATALLA AÉREA!', self.f_m, (100, 180, 255), W // 2, 16, 'c')
+            self.bar(cv, W // 2 - 210, 44, 420, 26, a['t'] / a['boss_t'], (100, 180, 255), 'AVANCE')
+        if p['shield'] > 0:
+            self.text(cv, 'ESCUDO %.0f' % p['shield'], self.f_s, (150, 225, 255), W - 20, 90, 'r')
+        self.text(cv, 'WASD mover | ESPACIO/clic disparar | B/clic der. bomba', self.f_s, (210, 225, 255), W - 14, H - 30, 'r')
 
 
 if __name__ == '__main__':
