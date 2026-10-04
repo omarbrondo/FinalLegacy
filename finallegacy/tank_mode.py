@@ -40,15 +40,25 @@ class TankMixin:
         blds, sky = self.tk_make_world(city)
         n = min(5 + 2 * w, 16)
         n_super = min(w // 2, 4)
-        kinds = ['super'] * n_super + ['tank'] * (n - n_super) + ['missile'] * (w // 2 if w >= 3 else 0)
+        n_kami = min(w - 1, 4) if w >= 2 else 0
+        n_arty = min(w - 2, 3) if w >= 3 else 0
+        n_heli = min(w - 3, 3) if w >= 4 else 0
+        kinds = (['super'] * n_super + ['kami'] * n_kami + ['arty'] * n_arty + ['heli'] * n_heli +
+                 ['tank'] * max(2, n - n_super - n_kami - n_arty) + ['missile'] * (w // 2 if w >= 3 else 0))
         random.shuffle(kinds)
         queue = sorted([(random.uniform(1.5, 10 + n * 2.2), kd) for kd in kinds], key=lambda q: q[0])
+        if w % 4 == 0:
+            kinds.append('boss')
+            queue.append((14 + n, 'boss'))
+        wx = ('clear', 'fog', 'night')[(w - 1) % 3]
         self.fx = Particles()
         self.k = dict(city=city, blds=blds, sky=sky, t=0.0, tanks=[], missiles=[], shells=[], pshells=[], debris=[], booms=[],
-                      cracks=[], queue=queue, total=len(kinds), kills=0, phase='play', pt=0.0, fail=False,
+                      cracks=[], helis=[], wx=wx, queue=queue, total=len(kinds), kills=0, phase='play', pt=0.0, fail=False,
                       city0=city['hp'], hurt=0.0, sweep=0.0, inrange=False, msg_t=0.0, msg='',
                       p=dict(x=0.0, z=-112.0, yaw=0.0, v=0.0, hp=TK_HP, cd=0.0, blocked=0.0, dead=False))
         self.go('tank')
+        if wx != 'clear':
+            self.tk_say('CLIMA: ' + ('NIEBLA ESPESA' if wx == 'fog' else 'NOCHE CERRADA'))
         self.banner('¡INVASIÓN BLINDADA!', 'Defendé %s desde tu tanque | W/S: avanzar | A/D: girar | ESPACIO: cañón' % city['name'],
                     (120, 255, 160), 4.2)
 
@@ -114,11 +124,11 @@ class TankMixin:
         self.audio.play('cannon', .8)
         self.shake = max(self.shake, 3)
 
-    def tk_enemy_shell(self, e, ang, tx=None, tz=None):
+    def tk_enemy_shell(self, e, ang, sp=38, dmg=18, life=2.6):
         k = self.k
         a = math.radians(ang)
         k['shells'].append(dict(x=e['x'] + math.sin(a) * 3.4, y=1.9, z=e['z'] + math.cos(a) * 3.4,
-                                vx=math.sin(a) * 38, vz=math.cos(a) * 38, life=2.6))
+                                vx=math.sin(a) * sp, vz=math.cos(a) * sp, life=life, dmg=dmg))
         d = math.hypot(e['x'] - k['p']['x'], e['z'] - k['p']['z'])
         self.audio.play('launch', clamp(1.0 - d / 120, 0.1, 0.7))
 
@@ -160,15 +170,24 @@ class TankMixin:
             k['tanks'].remove(e)
         if e in k['missiles']:
             k['missiles'].remove(e)
+        if e in k['helis']:
+            k['helis'].remove(e)
         k['kills'] += 1
-        pts = {'tank': 300, 'super': 600, 'missile': 150}[kind]
+        pts = {'tank': 300, 'super': 600, 'missile': 150, 'heli': 500}[kind]
+        if e.get('boss'):
+            pts = 3000
+        elif e.get('role') == 'arty':
+            pts = 450
         self.add_score(pts)
         self.pop('+%d' % pts, W // 2, 180, (120, 255, 160))
         self.audio.play('boom_s', .8)
         self.shake = max(self.shake, 6)
         self.tk_debris(e['x'], e['z'], 22)
         self.tk_boom(e['x'], e['z'], 6.5)
-        if kind == 'super':
+        if e.get('boss'):
+            k['p']['hp'] = min(TK_HP, k['p']['hp'] + 60)
+            self.tk_say('¡TANQUE JEFE ELIMINADO! +60 ARMADURA')
+        elif kind == 'super':
             k['p']['hp'] = min(TK_HP, k['p']['hp'] + 20)
             self.tk_say('REPARACION: +20 ARMADURA')
 
@@ -203,10 +222,47 @@ class TankMixin:
         to_h = math.degrees(math.atan2(-e['x'], -e['z'])) % 360
         dh = math.hypot(e['x'], e['z'])
         sieging = dh < 40
-        los = alive and d < 85 and self.tk_los(e['x'], e['z'], p['x'], p['z'])
+        role = e.get('role')
+        los = alive and d < (135 if role == 'arty' else 85) and self.tk_los(e['x'], e['z'], p['x'], p['z'])
         spd = (8.5 if e['kind'] == 'tank' else 12.0) * (1 + 0.03 * w)
         rate = 42 if e['kind'] == 'tank' else 58
         e['cd'] -= dt
+        if role == 'kami':
+            # tanque suicida: embiste al jugador
+            self.tk_steer(e, to_p if alive else to_h, 21 + w, dt, 95)
+            e['tur'] = e['h']
+            if alive and d < 5.2:
+                self.tk_hurt(36)
+                self.tk_boom(e['x'], e['z'], 7.5)
+                self.tk_debris(e['x'], e['z'], 26)
+                self.audio.play('boom_l', .8)
+                if e in k['tanks']:
+                    k['tanks'].remove(e)
+                    k['kills'] += 1
+            elif dh < 9:
+                k['city']['hp'] = max(0.0, k['city']['hp'] - 8)
+                self.tk_boom(e['x'], e['z'], 7.0)
+                if e in k['tanks']:
+                    k['tanks'].remove(e)
+                    k['kills'] += 1
+            return
+        if role == 'arty':
+            e['tur'] = (e['tur'] + clamp(angle_diff(e['tur'], to_p), -70 * dt, 70 * dt)) % 360
+            if d < 70:
+                self.tk_steer(e, (to_p + 180) % 360, spd, dt, rate)
+            elif d > 100:
+                self.tk_steer(e, to_p, spd, dt, rate)
+            else:
+                self.tk_steer(e, (to_p + 90 * e['sd']) % 360, spd * 0.5, dt, rate)
+            if los and e['cd'] <= 0 and abs(angle_diff(e['tur'], to_p)) < 3:
+                e['cd'] = random.uniform(5.0, 7.0)
+                self.tk_enemy_shell(e, e['tur'] + random.uniform(-1.2, 1.2), 62, 28, 3.2)
+                self.tk_say('¡ARTILLERÍA PESADA!')
+            e['sd_t'] -= dt
+            if e['sd_t'] <= 0:
+                e['sd'] *= -1
+                e['sd_t'] = random.uniform(2, 5)
+            return
         if los:
             if d > 55:
                 self.tk_steer(e, to_p, spd, dt, rate)
@@ -218,10 +274,15 @@ class TankMixin:
             if e['cd'] <= 0 and abs(angle_diff(e['tur'], to_p)) < 4:
                 e['cd'] = random.uniform(3.0, 4.6) / (1 + 0.07 * w)
                 err = max(1.5, 5.0 - 0.4 * w)
-                self.tk_enemy_shell(e, e['tur'] + random.uniform(-err, err))
+                if e.get('boss'):
+                    e['cd'] *= 0.7
+                    for off in (-9, 0, 9):
+                        self.tk_enemy_shell(e, e['tur'] + off + random.uniform(-2, 2), 40, 20)
+                else:
+                    self.tk_enemy_shell(e, e['tur'] + random.uniform(-err, err))
         elif sieging:
             e['tur'] = (e['tur'] + clamp(angle_diff(e['tur'], to_h), -95 * dt, 95 * dt)) % 360
-            k['city']['hp'] = max(0.0, k['city']['hp'] - (0.6 if e['kind'] == 'tank' else 0.9) * dt)
+            k['city']['hp'] = max(0.0, k['city']['hp'] - (0.6 if e['kind'] == 'tank' else 0.9) * (2.2 if e.get('boss') else 1) * dt)
             if e['cd'] <= 0 and abs(angle_diff(e['tur'], to_h)) < 6:
                 e['cd'] = random.uniform(2.2, 3.4)
                 self.tk_enemy_shell(e, e['tur'])
@@ -260,7 +321,7 @@ class TankMixin:
         else:
             self.audio.engine_vol(0)
         if k['phase'] == 'play':
-            while k['queue'] and k['queue'][0][0] <= k['t'] and len(k['tanks']) + len(k['missiles']) < 6:
+            while k['queue'] and k['queue'][0][0] <= k['t'] and len(k['tanks']) + len(k['missiles']) + len(k['helis']) < 6:
                 _, kd = k['queue'].pop(0)
                 side = random.choice((0, 1, 2, 3))
                 u = random.uniform(-100, 100)
@@ -269,13 +330,40 @@ class TankMixin:
                     k['missiles'].append(dict(x=ex, z=ez, h=0.0, t=0.0, kind='missile'))
                     self.audio.play('alarm', .5)
                     self.tk_say('¡MISIL GUIADO DETECTADO!')
+                elif kd == 'heli':
+                    k['helis'].append(dict(x=ex, z=ez, h=0.0, hp=2, cd=random.uniform(1.5, 3), ang=random.uniform(0, 6.28),
+                                           kind='heli', rot=0.0))
+                    self.tk_say('¡HELICÓPTERO DE ATAQUE!')
+                    self.audio.play('alarm', .5)
                 else:
                     hall = math.degrees(math.atan2(-ex, -ez)) % 360
-                    k['tanks'].append(dict(x=ex, z=ez, h=hall, tur=hall, kind=kd, hp=1 if kd == 'tank' else 2, cd=random.uniform(1.5, 3.5),
+                    role = kd if kd in ('kami', 'arty') else None
+                    boss = kd == 'boss'
+                    kind = 'super' if kd in ('super', 'boss') else 'tank'
+                    hp = 12 + 2 * self.wave if boss else (2 if kind == 'super' else 1)
+                    k['tanks'].append(dict(x=ex, z=ez, h=hall, tur=hall, kind=kind, hp=hp, cd=random.uniform(1.5, 3.5),
                                            bias=random.choice((-1, 1)), sd=random.choice((-1, 1)), sd_t=random.uniform(1, 4),
-                                           stuck=0.0, tread=0.0))
-        for e in k['tanks']:
+                                           stuck=0.0, tread=0.0, role=role, boss=boss, rad=6.8 if boss else 4.4,
+                                           big=1.5 if boss else 1.0, mhp=hp))
+                    if boss:
+                        self.banner('¡TANQUE JEFE!', 'Blindaje pesado - apuntá a su torreta', (255, 90, 60), 3.0)
+                        self.audio.play('alarm', .7)
+        for e in k['tanks'][:]:
             self.tk_ai(e, dt)
+        for e in k['helis'][:]:
+            e['ang'] += dt * 0.45
+            e['rot'] += dt * 30
+            tx, tz = p['x'] + math.sin(e['ang']) * 46, p['z'] + math.cos(e['ang']) * 46
+            tx, tz = clamp(tx, -110, 110), clamp(tz, -110, 110)
+            dx_, dz_ = tx - e['x'], tz - e['z']
+            dd = math.hypot(dx_, dz_) or 1
+            e['x'] += dx_ / dd * min(dd, 20) * dt * 1.2
+            e['z'] += dz_ / dd * min(dd, 20) * dt * 1.2
+            e['h'] = math.degrees(math.atan2(p['x'] - e['x'], p['z'] - e['z'])) % 360
+            e['cd'] -= dt
+            if e['cd'] <= 0 and not p['dead']:
+                e['cd'] = random.uniform(1.4, 2.4)
+                self.tk_enemy_shell(e, e['h'] + random.uniform(-4, 4), 44, 9)
         for i, a_ in enumerate(k['tanks']):
             for b_ in k['tanks'][i + 1:]:
                 d = math.hypot(a_['x'] - b_['x'], a_['z'] - b_['z'])
@@ -313,7 +401,7 @@ class TankMixin:
                     self.tk_boom(s['x'], s['z'], 2.2, 0.6)
             elif not p['dead'] and math.hypot(s['x'] - p['x'], s['z'] - p['z']) < 2.9:
                 k['shells'].remove(s)
-                self.tk_hurt(18)
+                self.tk_hurt(s.get('dmg', 18))
         for s in k['pshells'][:]:
             s['x'] += s['vx'] * dt
             s['z'] += s['vz'] * dt
@@ -327,8 +415,8 @@ class TankMixin:
                     k['debris'].append(dict(x=s['x'], y=s['y'], z=s['z'], vx=math.cos(a) * 5, vy=random.uniform(2, 8),
                                             vz=math.sin(a) * 5, life=0.6))
             if not gone:
-                for e in k['tanks'] + k['missiles']:
-                    if math.hypot(s['x'] - e['x'], s['z'] - e['z']) < (4.4 if e['kind'] != 'missile' else 2.4):
+                for e in k['tanks'] + k['missiles'] + k['helis']:
+                    if math.hypot(s['x'] - e['x'], s['z'] - e['z']) < (e.get('rad', 4.4) if e['kind'] != 'missile' else 2.4):
                         gone = True
                         if e['kind'] == 'missile':
                             self.tk_kill(e, 'missile')
@@ -338,7 +426,8 @@ class TankMixin:
                                 self.tk_kill(e, e['kind'])
                             else:
                                 self.audio.play('hit', .6)
-                                self.tk_say('IMPACTO EN SUPERTANQUE')
+                                self.tk_say('JEFE: %d%%' % (100 * e['hp'] // e['mhp']) if e.get('boss') else 'IMPACTO EN BLINDADO')
+                                self.tk_boom(e['x'], e['z'], 2.5, 0.5, 2.5)
                         break
             if gone and s in k['pshells']:
                 k['pshells'].remove(s)
@@ -379,7 +468,7 @@ class TankMixin:
             if k['phase'] == 'play':
                 k['phase'], k['fail'], k['pt'] = 'result', True, 0.0
             self.banner('¡CIUDAD CAPTURADA!', city['name'], (255, 70, 60), 3.0)
-        if k['phase'] == 'play' and not k['queue'] and not k['tanks'] and not k['missiles']:
+        if k['phase'] == 'play' and not k['queue'] and not k['tanks'] and not k['missiles'] and not k['helis']:
             k['phase'], k['pt'] = 'result', 0.0
             bonus = 400 + (400 if city['hp'] >= k['city0'] - 0.01 else 0)
             self.add_score(bonus)
@@ -738,7 +827,7 @@ class TankMixin:
             return
         spr = self.tk_spr[e['kind']]
         sx, sy = self.tk_prj(c)
-        scale = (self.TK_F / z) / spr['px']
+        scale = (self.TK_F / z) / spr['px'] * e.get('big', 1.0)
         step = 360.0 / TK_ANG
         hi = int(round(((e['h'] - p['yaw']) % 360) / step)) % TK_ANG
         ti = int(round(((e['tur'] - p['yaw']) % 360) / step)) % TK_ANG
@@ -807,6 +896,8 @@ class TankMixin:
             if fl_[2] > 1:
                 fx_, fy_ = self.tk_prj(fl_)
                 glow(cv, fx_, fy_, min(160, int(220 / fl_[2]) + 8), (255, 150, 50))
+        for e in k['helis']:
+            self.tk_heli(cv, e)
         for e in k['tanks'] + k['missiles']:
             if not self.tk_los(p['x'], p['z'], e['x'], e['z']):
                 continue
@@ -816,6 +907,13 @@ class TankMixin:
                 if vp.x + 6 < sx < vp.right - 6:
                     sz = max(5, int(260 / c[2]))
                     col = (255, 70, 60) if e['kind'] == 'tank' else ((255, 190, 50) if e['kind'] == 'super' else (255, 236, 90))
+                    if e.get('role') == 'kami':
+                        col = (255, 120, 20)
+                    elif e.get('role') == 'arty':
+                        col = (190, 110, 255)
+                    elif e.get('boss'):
+                        col = (255, 40, 40)
+                        sz *= 2
                     pygame.draw.polygon(cv, (20, 8, 8), [(sx - sz - 2, sy - sz - 2), (sx + sz + 2, sy - sz - 2), (sx, sy + 3)])
                     pygame.draw.polygon(cv, col, [(sx - sz, sy - sz), (sx + sz, sy - sz), (sx, sy)])
         for s in k['shells']:
@@ -839,6 +937,51 @@ class TankMixin:
             glow(cv, sx, sy, int(r * 1.5), (255, 150, 60), 1 - age)
             if age < 0.45:
                 glow(cv, sx, sy, int(r), (255, 240, 190), 1 - age * 2)
+        wx = k['wx']
+        if wx != 'clear':
+            ov = pygame.Surface(vp.size, pygame.SRCALPHA)
+            if wx == 'fog':
+                ov.fill((170, 176, 186, 95))
+                for yy in range(0, vp.h, 6):
+                    ov.fill((190, 196, 206, int(95 + 85 * max(0.0, 1 - abs(yy / vp.h - 0.55) * 2.2))), (0, yy, vp.w, 6))
+            else:
+                ov.fill((4, 8, 30, 150))
+            cv.blit(ov, vp.topleft)
+            if wx == 'night':
+                glow(cv, vp.centerx, vp.bottom - 20, 330, (255, 240, 190), 0.38)
+
+    def tk_heli(self, cv, e):
+        c = self.tk_cam(e['x'], 11.0, e['z'])
+        if c[2] < 3 or c[2] > 150:
+            return
+        sx, sy = self.tk_prj(c)
+        vp = self.TK_VP
+        u = self.TK_F / c[2]
+        if not (vp.x - 80 < sx < vp.right + 80):
+            return
+        sh = self.tk_cam(e['x'], 0.1, e['z'])
+        if sh[2] > 1:
+            qx, qy = self.tk_prj(sh)
+            draw_circ(cv, qx, qy, max(3, int(u * 1.8)), (0, 0, 0), 60)
+        a = math.radians(e['h'] - self.k['p']['yaw'])
+        cs, sn = math.cos(a), math.sin(a)
+        L, Hh = u * 2.6, u * 0.95
+        body = (46, 56, 48)
+        # cuerpo, cola y patín (vista aproximada según rumbo relativo)
+        tx, ty = sx - sn * L * 1.5, sy + (-cs * 0.2) * Hh
+        pygame.draw.line(cv, (36, 44, 38), (sx, sy), (tx, ty), max(2, int(u * 0.35)))
+        pygame.draw.ellipse(cv, body, (sx - L * 0.6, sy - Hh * 0.55, L * 1.2, Hh * 1.1))
+        pygame.draw.ellipse(cv, (130, 190, 210), (sx - L * 0.15 - (sn * L * 0.3), sy - Hh * 0.4, L * 0.55, Hh * 0.55))
+        pygame.draw.line(cv, (20, 24, 22), (sx, sy - Hh * 0.6), (sx, sy - Hh * 0.9), 2)
+        rl = L * 2.2
+        for q in (0, 1.5708):
+            ra = e['rot'] + q
+            pygame.draw.line(cv, (200, 205, 200), (sx - math.cos(ra) * rl, sy - Hh * 0.9 - math.sin(ra) * rl * 0.12),
+                             (sx + math.cos(ra) * rl, sy - Hh * 0.9 + math.sin(ra) * rl * 0.12), 2)
+        glow(cv, sx, sy + Hh * 0.2, int(u * 0.9) + 6, (255, 70, 60), 0.5)
+        if abs(sx - vp.centerx) < 200 and c[2] < 120:
+            sz = max(5, int(260 / c[2]))
+            pygame.draw.polygon(cv, (255, 120, 80), [(sx - sz, sy - Hh * 2 - sz), (sx + sz, sy - Hh * 2 - sz), (sx, sy - Hh * 2)])
 
     def tk_shell(self, cv, s, col):
         a = self.tk_cam(s['x'], s['y'], s['z'])
@@ -913,15 +1056,17 @@ class TankMixin:
             blip(b['x'], b['z'], (0, 110, 70), 2)
         blip(0, 0, (90, 255, 255), 4, True)
         for e in k['tanks']:
-            blip(e['x'], e['z'], (255, 90, 60) if e['kind'] == 'tank' else (255, 190, 50), 4)
+            blip(e['x'], e['z'], (255, 90, 60) if e['kind'] == 'tank' else (255, 190, 50), 7 if e.get('boss') else 4)
         for m in k['missiles']:
             blip(m['x'], m['z'], (255, 235, 90), 3)
+        for e in k['helis']:
+            blip(e['x'], e['z'], (120, 200, 255), 4)
         pygame.draw.polygon(cv, (90, 255, 150), [(rx, ry - 5), (rx - 3, ry + 3), (rx + 3, ry + 3)], 1)
         pygame.draw.circle(cv, (70, 120, 90), (rx, ry), rr, 2)
         self.text(cv, 'PUNTOS %07d' % self.score, self.f_m, G1, 40, 20)
         self.text(cv, 'OLEADA %d/%d   REC %d' % (self.wave, WIN_WAVE, self.hiscore), self.f_s, G2, 40, 52)
         self.text(cv, k['city']['name'], self.f_s, G1, 40, 78)
-        left = len(k['queue']) + len(k['tanks']) + len(k['missiles'])
+        left = len(k['queue']) + len(k['tanks']) + len(k['missiles']) + len(k['helis'])
         self.text(cv, 'ENEMIGOS %d' % left, self.f_m, (255, 130, 100), W - 40, 20, 'r')
         city = k['city']
         self.text(cv, 'CIUDAD', self.f_s, G2, W - 270, 56)
