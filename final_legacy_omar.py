@@ -1897,18 +1897,22 @@ class Game:
             self.strike_city = random.choice(alive)
             self.strike_n += 1
             rand = random.random()
-            if self.strike_n == 2 or (self.strike_n > 2 and rand < 0.3):
-                self.strike_kind = 'tank' if random.random() < 0.65 else 'ground'
-            elif rand < 0.35:
-                self.strike_kind = 'aerial'
+            inst = [i for i, v in self.antennas.items() if v]
+            if inst and self.strike_n >= 3 and random.random() < 0.25:
+                self.begin_attack(self.antenna_city(random.choice(inst)), 'antenna')
             else:
-                self.strike_kind = 'missile'
-            if self.strike_kind == 'missile':
-                self.warned = True
-                self.audio.play('alarm')
-                self.banner('¡ALERTA DE MISILES!', 'Objetivo: ' + self.strike_city['name'], (255, 80, 70), 3.8)
-            else:
-                self.begin_attack(self.strike_city, self.strike_kind)
+                if self.strike_n == 2 or (self.strike_n > 2 and rand < 0.3):
+                    self.strike_kind = 'tank' if random.random() < 0.65 else 'ground'
+                elif rand < 0.35:
+                    self.strike_kind = 'aerial'
+                else:
+                    self.strike_kind = 'missile'
+                if self.strike_kind == 'missile':
+                    self.warned = True
+                    self.audio.play('alarm')
+                    self.banner('¡ALERTA DE MISILES!', 'Objetivo: ' + self.strike_city['name'], (255, 80, 70), 3.8)
+                else:
+                    self.begin_attack(self.strike_city, self.strike_kind)
         if self.warned and self.strike_t <= 0:
             self.start_defense(self.strike_city)
             return
@@ -1924,7 +1928,12 @@ class Game:
         if not self.enemies:
             self.wave_clear()
 
-    ATTACK_TXT = {'tank': ('Tanques enemigos entran en', (120, 255, 160)), 'ground': ('Desembarco enemigo en', (255, 150, 60)),
+    def antenna_city(self, i):
+        """Pseudo-ciudad que representa una antena instalada (para el viaje y la defensa)."""
+        x, y, r, sd = EXTRA_ISLANDS[i]
+        return dict(name='ANTENA %s' % self.isl_name(i), x=x, y=y, r=r, hp=100.0, dead=False, seed=sd, dock=(x, y), antenna=i)
+
+    ATTACK_TXT = {'antenna': ('Comandos enemigos asaltan tu antena', (120, 220, 255)), 'tank': ('Tanques enemigos entran en', (120, 255, 160)), 'ground': ('Desembarco enemigo en', (255, 150, 60)),
                   'aerial': ('Cazas enemigos sobre', (150, 100, 255))}
 
     def begin_attack(self, city, kind):
@@ -1940,7 +1949,7 @@ class Game:
     def upd_attack(self, dt):
         at = self.attack
         c = at['city']
-        if c['dead']:
+        if c['dead'] or (at['kind'] == 'antenna' and not self.antennas[c['antenna']]):
             self.attack = None
             self.strike_t = 30.0
             return False
@@ -1948,11 +1957,22 @@ class Game:
         near = dist(self.sx, self.sy, c['x'], c['y']) < c['r'] * 1.25 + 150 or dist(self.sx, self.sy, c['dock'][0], c['dock'][1]) < 130
         if near:
             self.attack = None
-            {'tank': self.start_tank, 'ground': self.start_ground, 'aerial': self.start_aerial}[at['kind']](c)
+            if at['kind'] == 'antenna':
+                self.start_ground(c, antenna=c['antenna'])
+            else:
+                {'tank': self.start_tank, 'ground': self.start_ground, 'aerial': self.start_aerial}[at['kind']](c)
             return True
         step = 0.5 if at['t'] < 5 else 1.0
         if at['t'] < 10 and int(at['t'] / step) != int((at['t'] + dt) / step):
             self.audio.play('blip', .5)
+        if at['t'] <= 0 and at['kind'] == 'antenna':
+            self.attack = None
+            self.antennas[c['antenna']] = False
+            self.audio.play('boom_l')
+            self.shake = 14
+            self.banner('¡ANTENA DESTRUIDA!', '%s cayó en manos enemigas' % c['name'], (255, 90, 70), 3.4)
+            self.strike_t = max(32.0, random.uniform(48, 62) - self.wave * 2)
+            return False
         if at['t'] <= 0:
             self.attack = None
             c['hp'] = max(0.0, c['hp'] - 45)
@@ -1983,7 +2003,7 @@ class Game:
         sec = max(0.0, at['t'])
         self.text(cv, '%02d.%03d' % (int(sec), int((sec % 1) * 1000)), self.f_l, col, W // 2 - 70, 42, 'c')
         d = dist(self.sx, self.sy, c['x'], c['y'])
-        self.text(cv, '%s  |  %d m' % ({'tank': 'TANQUES', 'ground': 'DESEMBARCO', 'aerial': 'CAZAS'}[at['kind']], int(d)),
+        self.text(cv, '%s  |  %d m' % ({'tank': 'TANQUES', 'ground': 'DESEMBARCO', 'aerial': 'CAZAS', 'antenna': 'COMANDOS'}[at['kind']], int(d)),
                   self.f_s, (210, 220, 240), W // 2 + 110, 52, 'c')
         if not (40 < sx < W - 40 and 100 < sy < H - 40):
             ang = math.atan2(c['y'] - self.sy, c['x'] - self.sx)
@@ -3207,11 +3227,25 @@ class Game:
     def isl_name(self, i):
         return 'ISLA %d' % (i + 1)
 
-    def make_ground(self, seed, R, city_seed=None):
+    def make_ground(self, seed, R, city_seed=None, antenna=False):
         ext = int(R * 2.0)
         s = pygame.Surface((ext * 2, ext * 2), pygame.SRCALPHA)
         self.paint_island(s, ext, ext, R, seed, True)
-        if city_seed is not None:
+        if antenna:
+            cx, cy = ext, ext
+            pygame.draw.circle(s, (0, 0, 0, 70), (cx + 5, cy + 7), 64)
+            pygame.draw.circle(s, (150, 152, 150), (cx, cy), 60)
+            pygame.draw.circle(s, (186, 190, 192), (cx, cy), 55)
+            for k in range(8):
+                a = 6.2832 * k / 8 + 0.4
+                pygame.draw.line(s, (96, 100, 104), (cx, cy), (cx + math.cos(a) * 52, cy + math.sin(a) * 52), 3)
+                pygame.draw.circle(s, (70, 74, 78), (int(cx + math.cos(a) * 52), int(cy + math.sin(a) * 52)), 5)
+            pygame.draw.circle(s, (110, 116, 122), (cx, cy), 22)
+            pygame.draw.circle(s, (230, 70, 60), (cx, cy), 9)
+            pygame.draw.circle(s, (255, 190, 170), (cx - 2, cy - 2), 3)
+            for rr in (30, 42):
+                pygame.draw.circle(s, (120, 230, 255), (cx, cy), rr, 1)
+        elif city_seed is not None:
             cs = self.make_city(int(R * 0.7), city_seed, False)
             s.blit(cs, (ext - cs.get_width() // 2, ext - cs.get_height() // 2))
         else:
@@ -3246,8 +3280,8 @@ class Game:
             covers.append(dict(x=x, y=y, r=r, kind=kind, seed=random.randrange(10 ** 6)))
         return covers
 
-    def init_ground(self, mode, seed, city, covers_n, avoid, spawn, kinds, queue=None, island_idx=None, R=ARENA_R):
-        land, off = self.make_ground(seed, R, seed if mode == 'invasion' else None)
+    def init_ground(self, mode, seed, city, covers_n, avoid, spawn, kinds, queue=None, island_idx=None, R=ARENA_R, antenna=None):
+        land, off = self.make_ground(seed, R, seed if mode == 'invasion' else None, antenna is not None)
         covers = self.gen_covers(seed, R, covers_n, avoid + [(spawn[0], spawn[1], 90)])
         for c in covers:
             draw_cover(land, dict(c, x=c['x'] - off[0], y=c['y'] - off[1]))
@@ -3255,7 +3289,7 @@ class Game:
         self.g = dict(mode=mode, city=city, R=R, seed=seed, land=land.convert_alpha(), land_off=off, cam=[0.0, 0.0], covers=covers,
                       angs=[random.uniform(0, 6.28) for _ in range(3)], queue=queue or [], enemies=[], bullets=[],
                       nades=[], corpses=[], decals=[], boats=[], crates=[], t=0.0, total=len(kinds), kills=0,
-                      phase='play', pt=0.0, city0=city['hp'], fail=False, island_idx=island_idx, hurt=0.0,
+                      phase='play', pt=0.0, city0=city['hp'], fail=False, island_idx=island_idx, hurt=0.0, antenna=antenna,
                       ant_t=0.0, spawn=spawn,
                       p=dict(x=float(spawn[0]), y=float(spawn[1]), h=0.0, vx=0.0, vy=0.0, hp=PLAYER_HP, mag=30, reload=0.0,
                              cd=0.0, gren=4, gcd=0.0, ph=0.0, flash=0.0, bloom=0.0, dead=False, dead_t=0.0))
@@ -3324,17 +3358,23 @@ class Game:
                     (100, 180, 255), 4.0)
         self.toast('Hay centinelas patrullando: si te ven, dan la alarma', (255, 220, 120))
 
-    def start_ground(self, city):
+    def start_ground(self, city, antenna=None):
         n = min(8 + 3 * self.wave, 26)
+        if antenna is not None:
+            n = max(7, int(n * 0.8))
         n_mg = min(n // 6, 1 + self.wave // 2)
         n_gr = min(n // 5, 1 + self.wave // 2)
         kinds = ['mg'] * n_mg + ['gren'] * n_gr + ['rifle'] * (n - n_mg - n_gr)
         random.shuffle(kinds)
         queue = sorted([(random.uniform(0.5, 6 + n * 1.1), k, random.randrange(3)) for k in kinds], key=lambda q: q[0])
         spawn = (W / 2, H / 2 + 175)
-        self.init_ground('invasion', city['seed'], city, 7, [(W / 2, H / 2, 150)], spawn, kinds, queue)
-        self.banner('¡INVASIÓN ANFIBIA!', 'Defendé %s | Clic: disparar | ESPACIO: granada | R: recargar' % city['name'],
-                    (255, 150, 60), 3.8)
+        self.init_ground('invasion', city['seed'], city, 7, [(W / 2, H / 2, 150)], spawn, kinds, queue, antenna=antenna)
+        if antenna is not None:
+            self.banner('¡ASALTO A LA ANTENA!', 'Defendé %s | Clic: disparar | ESPACIO: granada | R: recargar' % city['name'],
+                        (120, 220, 255), 3.8)
+        else:
+            self.banner('¡INVASIÓN ANFIBIA!', 'Defendé %s | Clic: disparar | ESPACIO: granada | R: recargar' % city['name'],
+                        (255, 150, 60), 3.8)
 
     def spawn_ground_enemy(self, kind, idx):
         g = self.g
@@ -3779,7 +3819,7 @@ class Game:
             self.shake = 20
             if g['phase'] == 'play':
                 g['phase'], g['fail'], g['pt'] = 'result', True, 0.0
-            self.banner('¡CIUDAD CAPTURADA!', city['name'], (255, 70, 60), 3.0)
+            self.banner('¡ANTENA DESTRUIDA!' if g['antenna'] is not None else '¡CIUDAD CAPTURADA!', city['name'], (255, 70, 60), 3.0)
         self.fx.update(dt)
         if g['phase'] == 'play' and not g['queue'] and not g['enemies']:
             g['phase'], g['pt'] = 'result', 0.0
@@ -3791,7 +3831,7 @@ class Game:
             if g['mode'] == 'landing':
                 self.banner('¡ISLA ASEGURADA!', 'Instalando antena...  Bonus +%d' % bonus, (120, 255, 160), 3.2)
             else:
-                self.banner('¡ISLA ASEGURADA!', 'Bajas enemigas: %d   Bonus +%d' % (g['kills'], bonus), (120, 255, 160), 2.8)
+                self.banner('¡ANTENA DEFENDIDA!' if g['antenna'] is not None else '¡ISLA ASEGURADA!', 'Bajas enemigas: %d   Bonus +%d' % (g['kills'], bonus), (120, 255, 160), 2.8)
         if g['phase'] == 'result':
             g['pt'] += dt
             if not g['fail']:
@@ -3817,6 +3857,14 @@ class Game:
                 self.toast('¡ANTENA INSTALADA en %s!' % self.isl_name(i), (120, 255, 160))
                 self.banner('ANTENA OPERATIVA', '%d/%d antenas  |  El jefe de esta oleada exige %d' % (n, len(self.antennas), self.antennas_needed()),
                             (120, 220, 255), 3.4)
+        elif g['antenna'] is not None:
+            if g['fail']:
+                self.antennas[g['antenna']] = False
+                self.toast('Perdiste la antena de %s: hay que volver a instalarla' % self.isl_name(g['antenna']), (255, 120, 100))
+            else:
+                self.toast('Antena a salvo', (120, 255, 160))
+            self.warned = False
+            self.strike_t = max(32.0, random.uniform(48, 62) - self.wave * 2)
         else:
             if g['fail'] and not city['dead']:
                 city['hp'] = max(0.0, city['hp'] - 30)
@@ -5317,7 +5365,7 @@ class Game:
             self.bar(cv, W // 2 - 210, 44, 420, 26, left / max(1, g['total']), (240, 80, 70), 'ENEMIGOS %d/%d' % (left, g['total']))
         else:
             col = (80, 230, 110) if city['hp'] > 60 else ((255, 200, 70) if city['hp'] > 30 else (240, 80, 70))
-            self.bar(cv, W // 2 - 210, 44, 420, 26, city['hp'] / 100, col, 'CIUDAD %d%%' % city['hp'])
+            self.bar(cv, W // 2 - 210, 44, 420, 26, city['hp'] / 100, col, '%s %d%%' % ('ANTENA' if g['antenna'] is not None else 'CIUDAD', city['hp']))
             self.text(cv, 'ENEMIGOS: %d' % (len(g['queue']) + len(g['enemies'])), self.f_m, (255, 160, 140), W - 20, 90, 'r')
         self.text(cv, 'WASD mover | Clic disparar | R recargar | ESPACIO granada', self.f_s, (200, 220, 255), W - 14, H - 30, 'r')
 
