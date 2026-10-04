@@ -80,6 +80,7 @@ class GroundMixin:
                       nades=[], corpses=[], decals=[], boats=[], crates=[], t=0.0, total=len(kinds), kills=0,
                       phase='play', pt=0.0, city0=city['hp'], fail=False, island_idx=island_idx, hurt=0.0, antenna=antenna,
                       stealth=(mode == 'landing'), last_seen=(W / 2, H / 2), alert_t=0.0, alerts=0, cams=[], inst=0.0, takedowns=0, info_t=0.0,
+                      limit=0.0, tleft=0.0, reinf_t=0.0, reinf_n=0,
                       ant_t=0.0, spawn=spawn,
                       p=dict(x=float(spawn[0]), y=float(spawn[1]), h=0.0, vx=0.0, vy=0.0, hp=PLAYER_HP, mag=30, reload=0.0,
                              cd=0.0, gren=4, gcd=0.0, ph=0.0, flash=0.0, bloom=0.0, dead=False, dead_t=0.0,
@@ -109,6 +110,8 @@ class GroundMixin:
         spawn = (W / 2, sy)
         city = dict(name=self.isl_name(island_idx), x=x, y=y, r=r, hp=100.0, dead=False, seed=s)
         covers = self.init_ground('landing', s, city, 16, [(W / 2, H / 2, 80)], spawn, kinds, island_idx=island_idx, R=LAND_R)
+        self.g['limit'] = self.g['tleft'] = float(max(110, 190 - 12 * (self.wave - 1)))
+        self.g['reinf_t'] = 30.0
         g = self.g
         random.shuffle(kinds)
         order = sorted(range(len(covers)), key=lambda i: -dist(covers[i]['x'], covers[i]['y'], spawn[0], spawn[1]))
@@ -151,7 +154,7 @@ class GroundMixin:
         g['total'] = len(g['enemies'])
         left = MAX_LANDING_ATTEMPTS - self.landing_attempts[island_idx]
         self.banner('¡DESEMBARCO EN %s!' % self.isl_name(island_idx),
-                    'Infiltrate: llegá al punto de la antena (centro) y mantené E  |  O eliminá a los %d soldados  |  Intentos: %d' % (n, left),
+                    'Tenés %d s: llegá a la antena (centro) y mantené E, o eliminá a los %d soldados  |  Intentos: %d' % (self.g['limit'], n, left),
                     (100, 180, 255), 4.6)
         self.toast('SHIFT: sigilo | Q: pistola silenciada | E: noquear por la espalda / instalar antena', (255, 220, 120))
 
@@ -290,6 +293,8 @@ class GroundMixin:
             return False
         e = best[1]
         g['takedowns'] += 1
+        g['tleft'] += 8.0
+        self.gpop('+8 s', p['x'], p['y'] - 44, (140, 255, 200))
         self.audio.play('blip', .6)
         self.gpop('SILENCIOSO', e['x'], e['y'] - 28, (140, 255, 200))
         self.kill_ground_enemy(e)
@@ -682,6 +687,8 @@ class GroundMixin:
                     self.fx.add('spark', b['x'], b['y'], random.uniform(-90, 90), random.uniform(-90, 90), 0.3, col=(120, 230, 255), drag=2)
                     if cm['hp'] <= 0:
                         cm['on'] = False
+                        g['tleft'] += 10.0
+                        self.gpop('+10 s', cm['x'], cm['y'] - 40, (140, 255, 200))
                         self.fx.explode(cm['x'], cm['y'], 0.5)
                         self.audio.play('boom_s', .4)
                         self.gpop('CÁMARA DESTRUIDA', cm['x'], cm['y'] - 20, (140, 255, 200))
@@ -766,6 +773,28 @@ class GroundMixin:
     def upd_stealth(self, dt, alive, keys):
         g = self.g
         p = g['p']
+        # tiempo límite y refuerzos en lancha
+        g['tleft'] -= dt
+        if g['tleft'] < 10 and int(g['tleft']) != int(g['tleft'] + dt):
+            self.audio.play('blip', .45)
+        elif g['tleft'] < 30 and int(g['tleft']) != int(g['tleft'] + dt) and int(g['tleft']) == 29:
+            self.toast('¡Quedan 30 segundos!', (255, 200, 90))
+        g['reinf_t'] -= dt
+        if g['reinf_t'] <= 0 and g['tleft'] > 8:
+            g['reinf_t'] = max(16.0, 30.0 - 3.0 * self.wave)
+            for _ in range(2):
+                self.spawn_ground_enemy('rifle', random.randrange(3))
+                e = g['enemies'][-1]
+                e['state'], e['spot'], e['st'], e['det'] = 'susp', (W / 2, H / 2), 14.0, 0.2
+                e['excl'] = 0.0
+                g['total'] += 1
+            self.toast('¡Refuerzos enemigos llegan en lancha!', (255, 140, 100))
+        if g['tleft'] <= 0:
+            g['tleft'] = 0.0
+            g['phase'], g['fail'], g['pt'] = 'result', True, 0.0
+            self.audio.play('lose', .6)
+            self.banner('¡TIEMPO AGOTADO!', 'No lograste tomar la isla a tiempo', (255, 80, 70), 3.0)
+            return
         # cámaras de seguridad
         for cam in g['cams']:
             if not cam['on']:
@@ -1080,6 +1109,11 @@ class GroundMixin:
             self.text(cv, 'ENEMIGOS: %d' % (len(g['queue']) + len(g['enemies'])), self.f_m, (255, 160, 140), W - 20, 90, 'r')
         if g['stealth']:
             self.text(cv, 'SHIFT sigilo | Q pistola/fusil | E noquear o instalar | clic disparar | ESPACIO granada', self.f_s, (200, 220, 255), W - 14, H - 30, 'r')
+            tl = max(0.0, g['tleft'])
+            tcol = (140, 230, 255) if tl > 60 else ((255, 210, 80) if tl > 30 else (255, 90 + int(100 * (0.5 + 0.5 * math.sin(t * 10))), 70))
+            self.panel(cv, (W // 2 - 110, 130, 220, 44), 190)
+            self.text(cv, 'TIEMPO', self.f_s, (170, 200, 230), W // 2 - 96, 138)
+            self.text(cv, '%d:%04.1f' % (int(tl) // 60, tl % 60), self.f_l, tcol, W // 2 + 100, 134, 'r')
             if g['alert_t'] > 0:
                 pul = 0.5 + 0.5 * math.sin(t * 9)
                 self.panel(cv, (W // 2 - 150, 88, 300, 40), 190)
