@@ -33,6 +33,7 @@ python final_legacy_omar.py
 | `upgrade_mode.py` | Pantalla de mejoras entre oleadas (elegir 1 de 3) |
 | `hazards.py` | Nubes tóxicas, máscara antigás y misil Tomahawk en infantería y puerto |
 | `heli_mode.py` | Helipuerto, Blackhawk (bidón de combustible) y misiones aire-tierra |
+| `render_fx.py` | Post-proceso (bloom, viñeta, color, grano) y sprites suaves de humo/fuego/brillo |
 | `gamepad.py` | Mando Xbox y pantalla completa |
 | `game.py` | Clase `Game` (une los modos) y `main()` |
 
@@ -59,6 +60,11 @@ Una isla del mapa (con una H, también en el radar) tiene un helipuerto con un B
 - Cada **3000 puntos** (y cada vez más) ganás una misión. Acercate al helipuerto y presioná **B**: elegís entre **despejar una isla de antena**, cazar un buque enemigo o destruir una batería costera.
 - Si despejás una isla, al llegar con el barco y presionar **L** instalás la antena **sin combate**.
 - Misión aire-tierra (vista cenital): WASD volar, mouse apuntar, clic ametralladora, ESPACIO o clic derecho cohetes. Esquivá los misiles tierra-aire.
+
+## Gráficos HD
+
+Instalá las dependencias con `pip install -r requirements.txt` (pygame y numpy; numpy es opcional pero da humo, fuego y brillos más suaves).
+La tecla **V** cambia la calidad: BÁSICA, HD (resplandor/bloom, gradación de color y viñeta, por defecto) y ULTRA (más bloom y grano de película). La elección se guarda.
 
 ## Pantalla completa y mando
 

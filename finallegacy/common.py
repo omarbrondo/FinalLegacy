@@ -4,6 +4,8 @@ import random
 
 import pygame
 
+from . import render_fx as fx
+
 pygame.mixer.pre_init(22050, -16, 2, 512)
 pygame.init()
 
@@ -143,18 +145,20 @@ def draw_circ(dst, x, y, r, col, alpha, ring=0):
 
 
 def glow(dst, x, y, r, col, k=1.0):
-    r = max(8, int(r) // 8 * 8)
-    c = tuple(int(v * clamp(k, 0, 1)) // 32 * 32 for v in col)
+    r = max(8, int(r) // 4 * 4)
+    c = tuple(int(v * clamp(k, 0, 1)) // 16 * 16 for v in col)
     if c == (0, 0, 0):
         return
     key = (r, c)
     s = _glow.get(key)
     if s is None:
-        s = pygame.Surface((r * 2, r * 2))
-        s.fill((0, 0, 0))
-        for i in range(r, 0, -2):
-            f = (1 - i / r) ** 2
-            pygame.draw.circle(s, (int(c[0] * f), int(c[1] * f), int(c[2] * f)), (r, r), i)
+        s = fx.smooth_glow(r, c) if fx.np is not None else None
+        if s is None:
+            s = pygame.Surface((r * 2, r * 2))
+            s.fill((0, 0, 0))
+            for i in range(r, 0, -2):
+                f = (1 - i / r) ** 2
+                pygame.draw.circle(s, (int(c[0] * f), int(c[1] * f), int(c[2] * f)), (r, r), i)
         _glow[key] = s
     dst.blit(s, (int(x) - r, int(y) - r), special_flags=pygame.BLEND_RGB_ADD)
 
@@ -190,7 +194,12 @@ class Particles:
             if sx < -160 or sx > W + 160 or sy < -160 or sy > H + 160:
                 continue
             if kind == 'smoke':
-                draw_circ(dst, sx, sy, r, col, 150 * (1 - t) ** 1.3)
+                if fx.np is not None:
+                    draw_puff(dst, sx, sy, r, col, 175 * (1 - t) ** 1.3, int(life * 997) % 6)
+                else:
+                    draw_circ(dst, sx, sy, r, col, 150 * (1 - t) ** 1.3)
+            elif kind == 'fire':
+                draw_fire(dst, sx, sy, r, 1 - t, int(life * 997) % 3)
             elif kind == 'foam':
                 draw_circ(dst, sx, sy, r, col, 110 * (1 - t))
             elif kind == 'glow':
@@ -202,6 +211,7 @@ class Particles:
                 pygame.draw.line(dst, c, (sx, sy), (int(sx - vx * 0.04), int(sy - vy * 0.04)), 2)
 
     def explode(self, x, y, size=1.0, big=False):
+        self.add('fire', x, y, life=0.55, r0=14 * size, r1=58 * size)
         self.add('glow', x, y, life=0.5, r0=24 * size, r1=84 * size, col=(255, 170, 70))
         self.add('glow', x, y, life=0.25, r0=10 * size, r1=40 * size, col=(255, 255, 220))
         self.add('ring', x, y, life=0.55, r0=6, r1=64 * size, col=(255, 220, 150))
@@ -224,6 +234,43 @@ class Particles:
             s = random.uniform(30, 150)
             self.add('foam', x, y, math.cos(a) * s, math.sin(a) * s, random.uniform(0.4, 0.9), r0=3, r1=6,
                      col=(235, 248, 255), drag=2.2)
+
+
+_puffs = {}
+_fires = {}
+
+
+def draw_puff(dst, x, y, r, col, alpha, variant):
+    """Bocanada de humo suave y tintada (sprites generados una vez)."""
+    rb = max(8, int(r) // 4 * 4)
+    ck = (col[0] // 16, col[1] // 16, col[2] // 16)
+    key = (variant, rb, ck)
+    s = _puffs.get(key)
+    if s is None:
+        base = _puffs.get(('base', variant))
+        if base is None:
+            base = _puffs[('base', variant)] = fx.soft_blob_sprite(64, 11 + variant)
+        s = pygame.transform.smoothscale(base, (rb * 2, rb * 2))
+        s.fill((min(255, ck[0] * 16 + 8), min(255, ck[1] * 16 + 8), min(255, ck[2] * 16 + 8), 255), special_flags=pygame.BLEND_RGBA_MULT)
+        _puffs[key] = s
+    s.set_alpha(int(clamp(alpha, 0, 255)))
+    dst.blit(s, (int(x) - rb, int(y) - rb))
+
+
+def draw_fire(dst, x, y, r, k, variant):
+    """Bola de fuego con degradado de calor (suma de color)."""
+    rb = max(8, int(r) // 4 * 4)
+    lv = int(clamp(k, 0, 1) * 7 + 0.5)
+    if lv <= 0:
+        return
+    key = (rb, lv, variant)
+    s = _fires.get(key)
+    if s is None:
+        s = fx.fireball_sprite(rb, lv / 7.0, variant)
+        if s is None:
+            return
+        _fires[key] = s
+    dst.blit(s, (int(x) - rb, int(y) - rb), special_flags=pygame.BLEND_RGB_ADD)
 
 
 # ----------------------------------------------------------------- dibujo base
