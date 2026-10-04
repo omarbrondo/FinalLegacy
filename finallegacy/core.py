@@ -121,6 +121,8 @@ class CoreMixin:
         self.sol = {'p': make_soldier_frames('rifle', 'p')}
         for kd in ENEMY_TYPES:
             self.sol['e_' + kd] = make_soldier_frames(kd, 'e')
+        for f_ in self.sol['e_sniper']:
+            f_.fill((140, 170, 120, 255), special_flags=pygame.BLEND_RGBA_MULT)
         hurt = pygame.Surface((W, H), pygame.SRCALPHA)
         for i in range(70):
             pygame.draw.rect(hurt, (200, 0, 0, int(150 * (1 - i / 70) ** 2)), (i, i, W - 2 * i, H - 2 * i), 1)

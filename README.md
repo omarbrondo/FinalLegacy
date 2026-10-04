@@ -30,9 +30,22 @@ python final_legacy_omar.py
 | `ground_mode.py` | Infantería cenital: invasión, desembarco con sigilo, defensa de antenas |
 | `port_mode.py` | Asalto al puerto enemigo (estilo Metal Slug) |
 | `tank_mode.py` | Combate urbano con tanques en primera persona (estilo Battlezone) |
+| `upgrade_mode.py` | Pantalla de mejoras entre oleadas (elegir 1 de 3) |
 | `game.py` | Clase `Game` (une los modos) y `main()` |
 
 Cada modo es un *mixin*: una clase con los métodos de ese modo que `Game` hereda, de modo que todos comparten el mismo estado (`self`).
+
+## Progresión por oleada
+
+Cada modo suma contenido nuevo a medida que avanzan las oleadas:
+
+- **Aéreo**: un jefe distinto por oleada, cápsulas de ráfaga/misiles guiados, kamikazes, minas, helicópteros y clima.
+- **Defensa**: misiles rápidos, evasivos, señuelos, MIRV, misil nuclear jefe; ráfaga doble y escudo por combos; cielos distintos.
+- **Tanques**: kamikazes, artillería pesada, helicópteros, tanque jefe, niebla y noche.
+- **Infantería**: perros y francotiradores (láser de mira).
+- **Puerto**: jefe tanque u helicóptero según la oleada; noche y tormenta.
+- **Hackeo**: virus que corrompen nodos, cortafuegos y segunda fuente.
+- **Entre oleadas**: elegís 1 de 3 mejoras (casco, recarga, misiles guiados, nano-reparación…).
 
 ## Atajos de prueba en el mapa
 

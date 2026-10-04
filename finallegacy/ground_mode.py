@@ -105,7 +105,8 @@ class GroundMixin:
         self.landing_attempts[island_idx] += 1
         n = LANDING_ENEMIES
         n_mg, n_gr = max(1, n // 5), max(1, n // 5)
-        kinds = ['mg'] * n_mg + ['gren'] * n_gr + ['rifle'] * (n - n_mg - n_gr)
+        n_sn = min(self.wave - 2, 2) if self.wave >= 3 else 0
+        kinds = ['mg'] * n_mg + ['gren'] * n_gr + ['sniper'] * n_sn + ['rifle'] * (n - n_mg - n_gr - n_sn)
         sy = H / 2 + coast_r(LAND_R, s, math.pi / 2, 0.84)
         spawn = (W / 2, sy)
         city = dict(name=self.isl_name(island_idx), x=x, y=y, r=r, hp=100.0, dead=False, seed=s)
@@ -164,7 +165,9 @@ class GroundMixin:
             n = max(7, int(n * 0.8))
         n_mg = min(n // 6, 1 + self.wave // 2)
         n_gr = min(n // 5, 1 + self.wave // 2)
-        kinds = ['mg'] * n_mg + ['gren'] * n_gr + ['rifle'] * (n - n_mg - n_gr)
+        n_sn = min(self.wave - 2, 3) if self.wave >= 3 else 0
+        n_dog = min(self.wave, 5) if self.wave >= 2 else 0
+        kinds = ['mg'] * n_mg + ['gren'] * n_gr + ['sniper'] * n_sn + ['dog'] * n_dog + ['rifle'] * max(2, n - n_mg - n_gr - n_sn - n_dog)
         random.shuffle(kinds)
         queue = sorted([(random.uniform(0.5, 6 + n * 1.1), k, random.randrange(3)) for k in kinds], key=lambda q: q[0])
         spawn = (W / 2, H / 2 + 175)
@@ -430,8 +433,9 @@ class GroundMixin:
         pts = ENEMY_TYPES[e['kind']]['pts']
         self.add_score(pts)
         self.gpop('+%d' % pts, e['x'], e['y'] - 18)
-        g['corpses'].append(dict(x=e['x'], y=e['y'], h=e['h'] + random.uniform(-60, 60), kind=e['kind'], age=0.0))
-        g['corpses'] = g['corpses'][-30:]
+        if e['kind'] != 'dog':
+            g['corpses'].append(dict(x=e['x'], y=e['y'], h=e['h'] + random.uniform(-60, 60), kind=e['kind'], age=0.0))
+            g['corpses'] = g['corpses'][-30:]
         self.fx.add('glow', e['x'], e['y'], life=.25, r0=8, r1=22, col=(255, 160, 90))
         for _ in range(6):
             a = random.uniform(0, 6.28)
@@ -454,6 +458,21 @@ class GroundMixin:
         e['hit'] = max(0.0, e['hit'] - dt)
         dp = dist(e['x'], e['y'], p['x'], p['y']) if alive else 9999.0
         e['excl'] = max(0.0, e['excl'] - dt)
+        if e['kind'] == 'dog':
+            tx, ty = (p['x'], p['y']) if alive else (W / 2, H / 2)
+            hd = bearing(tx - e['x'], ty - e['y'])
+            e['h'] = (e['h'] + clamp(angle_diff(e['h'], hd), -600 * dt, 600 * dt)) % 360
+            if dp > 26 or not alive:
+                if not alive and dist(e['x'], e['y'], tx, ty) < 90:
+                    if g['mode'] == 'invasion' and not g['city']['dead'] and g['phase'] == 'play':
+                        g['city']['hp'] = max(0.0, g['city']['hp'] - 0.4 * dt)
+                else:
+                    self.mv(e, hd + 20 * math.sin(g['t'] * 7 + e['ph0']), T['speed'] * (1 + 0.02 * self.wave), dt)
+            elif e['cd'] <= 0:
+                e['cd'] = random.uniform(*T['rate'])
+                self.hurt_player(T['dmg'])
+                self.audio.play('hit', .4)
+            return
         if e['state'] in ('hold', 'susp'):
             sentry = e['role'] == 'sentry'
             if e['state'] == 'susp':
@@ -536,7 +555,14 @@ class GroundMixin:
             e['strafe'] *= -1
             e['strafe_t'] = random.uniform(1.2, 3.2)
         moving = None
-        if g['mode'] == 'invasion':
+        if e['kind'] == 'sniper':
+            if dp < 340:
+                moving, sp = to_p + 180, sp * 1.4
+            elif dp > 520 or not los:
+                moving = to_p
+            else:
+                sp = 0
+        elif g['mode'] == 'invasion':
             dcx, dcy = W / 2 - e['x'], H / 2 - e['y']
             dc = math.hypot(dcx, dcy)
             if dc > 96:
@@ -587,13 +613,17 @@ class GroundMixin:
                 if e['kind'] == 'mg':
                     self.enemy_shoot(e, e['aimlock'], 5.0, 390, T['dmg'])
                     e['bcd'] = 0.09
+                elif e['kind'] == 'sniper':
+                    self.enemy_shoot(e, e['aimlock'], 0.6, 760, T['dmg'])
+                    self.audio.play('cannon', .35)
+                    e['bcd'] = 0.5
                 else:
                     self.enemy_shoot(e, to_p, max(2.5, 6.5 - 0.5 * wv) + dp * 0.008, 300, T['dmg'])
                     e['bcd'] = 0.17
         elif e['tele'] > 0:
             e['tele'] -= dt
             if e['tele'] <= 0:
-                e['burst'], e['bcd'] = 8, 0.0
+                e['burst'], e['bcd'] = (1 if e['kind'] == 'sniper' else 8), 0.0
         elif e['cd'] <= 0:
             if e['kind'] == 'gren':
                 if 110 < dp < T['range']:
@@ -601,8 +631,8 @@ class GroundMixin:
                     e['cd'] = random.uniform(*T['rate']) * max(0.6, 1 - 0.05 * wv)
             elif los:
                 e['cd'] = random.uniform(*T['rate']) * max(0.6, 1 - 0.05 * wv)
-                if e['kind'] == 'mg':
-                    e['tele'] = 0.7
+                if e['kind'] in ('mg', 'sniper'):
+                    e['tele'] = 0.7 if e['kind'] == 'mg' else 1.25
                     e['aimlock'] = to_p
                     self.audio.play('ping', .25)
                 else:
@@ -912,6 +942,33 @@ class GroundMixin:
                 r.fill((110, 110, 110, 0), special_flags=pygame.BLEND_RGB_ADD)
         dst.blit(r, (int(x) - r.get_width() // 2, int(y) - r.get_height() // 2))
 
+    def draw_dog(self, cv, x, y, s):
+        draw_circ(cv, x + 3, y + 4, 11, (0, 0, 0), 70)
+        fx, fy = vec(s['h'], 1.0)
+        sx_, sy_ = -fy, fx
+        body = (214, 214, 214) if s['hit'] > 0 else (96, 66, 44)
+        dark = (60, 40, 28)
+        sw = math.sin(s['ph'] * 1.8)
+        for i, off in enumerate((-9, 8)):
+            for side in (-1, 1):
+                lx = x + fx * (off + (4 * sw if (i + (side > 0)) % 2 else -4 * sw)) + sx_ * side * 5
+                ly = y + fy * (off + (4 * sw if (i + (side > 0)) % 2 else -4 * sw)) + sy_ * side * 5
+                pygame.draw.circle(cv, dark, (int(lx), int(ly)), 3)
+        pts = []
+        for k in range(14):
+            a = 6.2832 * k / 14
+            u, v = math.cos(a) * 14, math.sin(a) * 6
+            pts.append((x + fx * u + sx_ * v, y + fy * u + sy_ * v))
+        pygame.draw.polygon(cv, body, pts)
+        pygame.draw.polygon(cv, dark, pts, 1)
+        hx, hy = x + fx * 14, y + fy * 14
+        pygame.draw.circle(cv, body, (int(hx), int(hy)), 6)
+        pygame.draw.line(cv, dark, (hx, hy), (hx + fx * 6, hy + fy * 6), 3)
+        pygame.draw.line(cv, dark, (x - fx * 13, y - fy * 13), (x - fx * 20 + sx_ * 3 * sw, y - fy * 20 + sy_ * 3 * sw), 2)
+        if s['hp'] < s['max']:
+            pygame.draw.rect(cv, (8, 12, 24), (x - 10, y - 20, 20, 4))
+            pygame.draw.rect(cv, (240, 80, 70), (x - 9, y - 19, int(18 * s['hp'] / s['max']), 2))
+
     def draw_boat(self, cv, x, y, a):
         h = math.radians(a)
         sn, cs = math.sin(h), math.cos(h)
@@ -991,6 +1048,9 @@ class GroundMixin:
         for _, who, s in sorted(actors, key=lambda a: a[0]):
             sx, sy = s['x'] - cx_, s['y'] - cy_
             if not (-120 < sx < W + 120 and -120 < sy < H + 120):
+                continue
+            if who == 'e' and s['kind'] == 'dog':
+                self.draw_dog(cv, sx, sy, s)
                 continue
             if who == 'e':
                 self.blit_soldier(cv, 'e_' + s['kind'], sx, sy, s['h'], int(s['ph']) % 4, s['hit'])
