@@ -51,13 +51,12 @@ Cada modo suma contenido nuevo a medida que avanzan las oleadas:
 
 ## Helicóptero Blackhawk
 
-Una isla del mapa (marcada con una H, también en el radar) tiene un helipuerto con un Blackhawk.
+Una isla del mapa (con una H, también en el radar) tiene un helipuerto con un Blackhawk negro.
 
-- **C**: llamarlo para que arroje un bidón de combustible (+60%) junto a tu barco. Solo con menos del 60% de combustible; espera de 80 s.
-- Cada **3000 puntos** (y cada vez más) ganás una misión de combate. Acercate al helipuerto y presioná **B** para despegar.
-- Misión aire-tierra (vista cenital): destruí una batería costera (antiaéreas, búnkeres, misiles tierra-aire, depósito de combustible) o un buque enemigo. WASD volar, mouse apuntar, clic ametralladora, ESPACIO o clic derecho cohetes. Esquivá los misiles.
-- Si cumplís: bonus, munición y combustible, y el objetivo desaparece del mapa. Si te derriban, perdés esa misión.
-- Mando: LT llama al helicóptero, B despega (en el mapa).
+- **C** (LT en el mando): el Blackhawk viene volando, se detiene sobre tu barco y baja en paracaídas un barril de combustible (+60%). Espera de 80 s; no sirve con el tanque casi lleno.
+- Cada **3000 puntos** (y cada vez más) ganás una misión. Acercate al helipuerto y presioná **B**: elegís entre **despejar una isla de antena**, cazar un buque enemigo o destruir una batería costera.
+- Si despejás una isla, al llegar con el barco y presionar **L** instalás la antena **sin combate**.
+- Misión aire-tierra (vista cenital): WASD volar, mouse apuntar, clic ametralladora, ESPACIO o clic derecho cohetes. Esquivá los misiles tierra-aire.
 
 ## Pantalla completa y mando
 
