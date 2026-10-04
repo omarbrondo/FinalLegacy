@@ -31,6 +31,7 @@ python final_legacy_omar.py
 | `port_mode.py` | Asalto al puerto enemigo (estilo Metal Slug) |
 | `tank_mode.py` | Combate urbano con tanques en primera persona (estilo Battlezone) |
 | `upgrade_mode.py` | Pantalla de mejoras entre oleadas (elegir 1 de 3) |
+| `hazards.py` | Nubes tóxicas, máscara antigás y misil Tomahawk en infantería y puerto |
 | `heli_mode.py` | Helipuerto, Blackhawk (bidón de combustible) y misiones aire-tierra |
 | `gamepad.py` | Mando Xbox y pantalla completa |
 | `game.py` | Clase `Game` (une los modos) y `main()` |
@@ -42,11 +43,12 @@ Cada modo es un *mixin*: una clase con los métodos de ese modo que `Game` hered
 Cada modo suma contenido nuevo a medida que avanzan las oleadas:
 
 - **Aéreo**: un jefe distinto por oleada, cápsulas de ráfaga/misiles guiados, kamikazes, minas, helicópteros y clima.
-- **Defensa**: misiles rápidos, evasivos, señuelos, MIRV, misil nuclear jefe; ráfaga doble y escudo por combos; cielos distintos.
+- **Defensa**: misiles rápidos, evasivos, señuelos, MIRV; desde la oleada 3, ALERTA NUCLEAR (ojiva con cuenta regresiva, flash y onda expansiva que derrumba edificios); ráfaga doble y escudo por combos; cielos distintos.
 - **Tanques**: kamikazes, artillería pesada, helicópteros, tanque jefe, niebla y noche.
-- **Infantería**: perros y francotiradores (láser de mira).
+- **Infantería**: perros y francotiradores (láser de mira); desde la oleada 3, alertas químicas (nube verde que daña, máscara antigás de 14 s como ítem).
 - **Puerto**: jefe tanque u helicóptero según la oleada; noche y tormenta.
 - **Hackeo**: virus que corrompen nodos, cortafuegos y segunda fuente.
+- **Tomahawk** (mejora): apoyo de fuego en infantería y puerto, tecla T / LB sobre el punto apuntado (1,7 s de demora, radio ~150, hace daño a quien esté cerca incluso a vos).
 - **Entre oleadas**: elegís 1 de 3 mejoras (daño +20%, recarga, explosivos, casco, misiles guiados, nano-reparación…); al completar las oleadas 3 y 5 elegís dos. El daño y la recarga valen en todos los modos.
 
 ## Helicóptero Blackhawk

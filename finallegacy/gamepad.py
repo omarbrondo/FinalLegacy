@@ -172,4 +172,4 @@ class GamepadMixin:
             if 'X' in pressed:
                 key(pygame.K_r)
             if 'LB' in pressed:
-                key(pygame.K_q)
+                key(pygame.K_t if (st == 'port' or (st == 'ground' and not self.g['stealth'])) else pygame.K_q)
