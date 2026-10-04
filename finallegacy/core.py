@@ -11,6 +11,7 @@ from .common import (
     WORLD_W, blob, clamp, coast_r,
     dist, lerp, shade, vec)
 from .audio import Audio
+from .render_fx import PostFX
 from .sprites import (
     ENEMY_TYPES, draw_cover, make_cargo,
     make_cloud, make_f117, make_f16, make_shadow,
@@ -39,6 +40,7 @@ class CoreMixin:
         self.panels = {}
         self.fade_surf = pygame.Surface((W, H))
         self.crt_on = True
+        self.postfx = PostFX(W, H, self.load_gfx())
         self.paused = False
         self.t = 0.0
         self.shake = 0.0
@@ -387,6 +389,25 @@ class CoreMixin:
         except Exception:
             return 0
 
+    def gfx_path(self):
+        return os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'final_legacy_gfx.txt')
+
+    def load_gfx(self):
+        try:
+            with open(self.gfx_path(), 'r') as f:
+                return clamp(int(f.read().strip()), 0, 2)
+        except Exception:
+            return 1
+
+    def cycle_gfx(self):
+        name = self.postfx.cycle()
+        try:
+            with open(self.gfx_path(), 'w') as f:
+                f.write(str(self.postfx.level))
+        except Exception:
+            pass
+        self.toast('GRÁFICOS: %s' % name, (160, 220, 255))
+
     def hi_path(self):
         return os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'final_legacy_hiscore.txt')
 
@@ -524,6 +545,8 @@ class CoreMixin:
                 self.toggle_fullscreen()
             elif e.key == pygame.K_F1:
                 self.crt_on = not self.crt_on
+            elif e.key == pygame.K_v:
+                self.cycle_gfx()
             elif e.key == pygame.K_m:
                 self.audio.toggle_mute()
             elif e.key in (pygame.K_F8, pygame.K_F9, pygame.K_F10, pygame.K_F12) and self.state == 'map' and not self.paused:
@@ -780,6 +803,7 @@ class CoreMixin:
             self.draw_ground(cv)
         elif self.state == 'gameover':
             self.draw_gameover(cv)
+        self.postfx.apply(cv, self.state, self.shake)
         self.draw_overlays(cv)
         ox = oy = 0
         if self.shake > 0.5:
@@ -834,7 +858,7 @@ class CoreMixin:
                  'JEFE   Instalá antenas en las islas (L) y hackeá su escudo con H cerca del buque',
                  'AIRE   WASD mover   ESPACIO disparar   B bomba',
                  'MANDO   Izq. mover  Der. apuntar  RT/A disparar  LT/B granada  X recargar  Y acción',
-                 'P pausa  M sonido  F11 pantalla completa  F1 CRT  F2-F10, F12 modo prueba']
+                 'P pausa  M sonido  V gráficos  F11 pantalla completa  F1 CRT  F2-F10, F12 modo prueba']
         for i, ln in enumerate(lines):
             self.text(cv, ln, self.f_s, (220, 232, 255), W // 2 - 360, 336 + i * 28)
         if int(t * 2) % 2 == 0:
