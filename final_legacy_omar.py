@@ -18,31 +18,42 @@ pygame.mixer.pre_init(22050, -16, 2, 512)
 pygame.init()
 
 W, H = 1100, 800
-WORLD_W, WORLD_H = 2400, 1800
+WORLD_W, WORLD_H = 4800, 3600
 FPS = 60
 SR = 22050
 HZ = 590                      # horizonte en la escena de defensa
 SKY_W = 640                   # ancho del skyline
 WIN_WAVE = 6                  # oleadas para ganar
-VMAX = 170.0                  # velocidad máx. del buque en el mapa (px/s)
+VMAX = 230.0                  # velocidad máx. del buque en el mapa (px/s)
 BOSS_MOUNTS = (88, 52, -84)      # torres del acorazado (distancia al centro, + hacia la proa)
 BOSS_NAMES = ('LEVIATAN', 'TIFON', 'COLOSO', 'ABISMO', 'TITAN', 'APOCALIPSIS')
 SHIELD_R = 230                 # radio del escudo digital del jefe en el mapa
-ANTENNA_ISLANDS = [0, 1, 2, 3, 4]   # islas donde se puede desembarcar e instalar antena (índices de EXTRA_ISLANDS)
-ARENA_R = 330                  # radio de la isla en el combate de infantería
+ANTENNA_ISLANDS = list(range(9))   # islas donde se puede desembarcar e instalar antena (índices de EXTRA_ISLANDS)
+ARENA_R = 330                  # radio de la ciudad en la invasión de infantería
+LAND_R = 560                   # radio de las islas de desembarco (la cámara sigue al soldado)
 PLAYER_HP = 120.0              # vida del soldado
-LANDING_ENEMIES = 10           # enemigos por desembarque
+TK_HP = 140.0                  # armadura del tanque en el combate urbano
+LANDING_ENEMIES = 12           # enemigos por desembarque
 MAX_LANDING_ATTEMPTS = 3       # intentos máximos por isla
 
 # (nombre, x, y, radio, semilla)
 CITY_DEFS = [
-    ("PUERTO BRONDO", 520, 430, 110, 11),
-    ("NUEVA ESPERANZA", 1880, 470, 120, 22),
-    ("BAHIA AZUL", 560, 1330, 115, 33),
-    ("FORT LEGACY", 1800, 1320, 125, 44),
+    ("PUERTO BRONDO", 900, 800, 120, 11),
+    ("NUEVA ESPERANZA", 3900, 900, 130, 22),
+    ("BAHIA AZUL", 1000, 2800, 125, 33),
+    ("FORT LEGACY", 3700, 2700, 135, 44),
 ]
-EXTRA_ISLANDS = [(1200, 900, 95, 5), (230, 900, 70, 6), (2170, 900, 75, 7),
-                 (1200, 320, 85, 8), (1200, 1480, 90, 9)]
+# islas grandes donde se desembarca y se instalan antenas: (x, y, radio, semilla)
+EXTRA_ISLANDS = [(2400, 1800, 150, 5), (420, 1800, 115, 6), (4400, 1800, 120, 7), (2400, 450, 135, 8),
+                 (2400, 3150, 140, 9), (1750, 1250, 105, 12), (3050, 1300, 110, 16), (1700, 2450, 115, 13),
+                 (3100, 2400, 105, 14)]
+# islotes decorativos (sin desembarco)
+DECOR_ISLANDS = [(200, 300, 55, 50), (1500, 250, 45, 51), (3400, 300, 60, 52), (4600, 500, 50, 53), (250, 1200, 48, 54),
+                 (4550, 1150, 52, 55), (1300, 1800, 40, 56), (3600, 1800, 44, 57), (300, 2500, 58, 58), (4500, 2450, 46, 59),
+                 (2000, 3300, 50, 60), (2800, 2900, 42, 61), (1500, 3350, 38, 62), (4200, 3250, 55, 63), (2050, 700, 40, 64),
+                 (2900, 700, 36, 65),
+                 (1250, 1250, 60, 66), (850, 2150, 65, 67), (4000, 2200, 70, 68), (2400, 2550, 75, 69), (700, 3250, 50, 70),
+                 (3750, 3400, 52, 71), (3800, 520, 48, 72), (1700, 3000, 55, 73), (3300, 3000, 60, 74), (2400, 1100, 70, 75)]
 
 
 # ------------------------------------------------------------------ utilidades
@@ -777,6 +788,396 @@ def make_bell():
     return pygame.transform.smoothscale(s, (26, 28))
 
 
+TK_FOG = (96, 64, 92)        # color de la bruma del atardecer
+TK_NL = 10                   # niveles de bruma por distancia
+
+
+def _grain(s, base, var, rnd, step=2):
+    w, h = s.get_size()
+    for y in range(0, h, step):
+        for x in range(0, w, step):
+            d = rnd.randint(-var, var)
+            pygame.draw.rect(s, (clamp(base[0] + d, 0, 255), clamp(base[1] + d, 0, 255), clamp(base[2] + d, 0, 255)),
+                             (x, y, step, step))
+
+
+def _window(s, x, y, w, h, rnd, lit=None, frame=(150, 146, 140), arch=False):
+    pygame.draw.rect(s, shade(frame, -60), (x - 2, y - 2, w + 4, h + 4), border_radius=3 if arch else 1)
+    pygame.draw.rect(s, frame, (x - 1, y - 1, w + 2, h + 2), border_radius=3 if arch else 1)
+    lit = rnd.random() < 0.34 if lit is None else lit
+    for i in range(h):
+        f = i / max(1, h - 1)
+        if lit:
+            c = (int(lerp(255, 214, f)), int(lerp(224, 150, f)), int(lerp(150, 70, f)))
+        else:
+            c = (int(lerp(60, 18, f)), int(lerp(86, 28, f)), int(lerp(124, 52, f)))
+        pygame.draw.line(s, c, (x, y + i), (x + w - 1, y + i))
+    if not lit:
+        pygame.draw.line(s, (130, 160, 200), (x + 2, y + h - 3), (x + w // 2, y + 2), 1)
+    pygame.draw.line(s, shade(frame, -40), (x + w // 2, y), (x + w // 2, y + h - 1), 1)
+    pygame.draw.rect(s, shade(frame, 24), (x - 3, y + h, w + 6, 3))
+
+
+def tex_brick(seed):
+    rnd = random.Random(seed)
+    s = pygame.Surface((128, 128))
+    s.fill((78, 66, 60))
+    base = rnd.choice(((150, 70, 52), (138, 82, 58), (120, 60, 56)))
+    for r in range(0, 128, 8):
+        off = 8 if (r // 8) % 2 else 0
+        for c in range(-16, 128, 16):
+            d = rnd.randint(-16, 16)
+            pygame.draw.rect(s, (clamp(base[0] + d, 0, 255), clamp(base[1] + d // 2, 0, 255), clamp(base[2] + d // 2, 0, 255)),
+                             (c + off, r, 15, 7))
+    for wx in (16, 82):
+        for wy in (12, 70):
+            _window(s, wx, wy, 30, 40, rnd)
+    return s
+
+
+def tex_concrete(seed):
+    rnd = random.Random(seed)
+    s = pygame.Surface((128, 128))
+    _grain(s, rnd.choice(((132, 134, 140), (150, 148, 142), (118, 124, 132))), 9, rnd)
+    for x in (0, 64):
+        pygame.draw.line(s, (80, 82, 88), (x, 0), (x, 127), 2)
+    for y in (0, 64):
+        pygame.draw.line(s, (80, 82, 88), (0, y), (127, y), 2)
+    for by in (14, 78):
+        for bx in range(8, 120, 38):
+            _window(s, bx, by, 26, 30, rnd, frame=(196, 196, 200))
+    return s
+
+
+def tex_glass(seed):
+    rnd = random.Random(seed)
+    s = pygame.Surface((128, 128))
+    for gy in range(0, 128, 32):
+        for gx in range(0, 128, 32):
+            lit = rnd.random() < 0.3
+            for i in range(32):
+                f = (gy + i) / 128
+                if lit:
+                    c = (int(lerp(255, 220, f)), int(lerp(230, 170, f)), int(lerp(160, 90, f)))
+                else:
+                    c = (int(lerp(88, 24, f)), int(lerp(150, 70, f)), int(lerp(180, 110, f)))
+                pygame.draw.line(s, c, (gx, gy + i), (gx + 31, gy + i))
+            if not lit:
+                pygame.draw.line(s, (200, 230, 245), (gx + 4, gy + 28), (gx + 20, gy + 4), 2)
+    for k in range(0, 128, 32):
+        pygame.draw.line(s, (26, 32, 40), (k, 0), (k, 127), 3)
+        pygame.draw.line(s, (26, 32, 40), (0, k), (127, k), 3)
+    return s
+
+
+def tex_sand(seed):
+    rnd = random.Random(seed)
+    s = pygame.Surface((128, 128))
+    base = rnd.choice(((190, 164, 118), (176, 150, 108)))
+    _grain(s, base, 8, rnd)
+    for r in range(0, 128, 16):
+        pygame.draw.line(s, shade(base, -46), (0, r), (127, r), 1)
+        off = 0 if (r // 16) % 2 else 24
+        for c in range(off, 128, 48):
+            pygame.draw.line(s, shade(base, -46), (c, r), (c, r + 15), 1)
+    for wx in (20, 80):
+        for wy in (22, 78):
+            _window(s, wx, wy, 26, 34, rnd, frame=(224, 214, 190), arch=True)
+    return s
+
+
+def tex_hall(seed):
+    rnd = random.Random(seed)
+    s = pygame.Surface((128, 128))
+    _grain(s, (206, 212, 226), 6, rnd)
+    for x in range(0, 128, 32):
+        pygame.draw.rect(s, (236, 240, 248), (x, 0, 8, 128))
+        pygame.draw.rect(s, (150, 156, 172), (x + 8, 0, 2, 128))
+        pygame.draw.rect(s, (252, 220, 140), (x - 2, 0, 12, 6))
+        pygame.draw.rect(s, (252, 220, 140), (x - 2, 122, 12, 6))
+    for x in range(8, 128, 32):
+        for y in (14, 74):
+            for i in range(44):
+                f = i / 43
+                pygame.draw.line(s, (int(lerp(255, 230, f)), int(lerp(236, 170, f)), int(lerp(170, 90, f))),
+                                 (x + 3, y + i), (x + 22, y + i))
+            pygame.draw.rect(s, (252, 220, 140), (x + 2, y - 1, 21, 46), 1)
+    pygame.draw.line(s, (252, 220, 140), (0, 60), (127, 60), 3)
+    return s
+
+
+def tex_missile():
+    s = pygame.Surface((64, 64))
+    for y in range(64):
+        v = int(lerp(236, 120, abs(y - 28) / 40))
+        pygame.draw.line(s, (v, v, min(255, v + 10)), (0, y), (63, y))
+    pygame.draw.rect(s, (214, 50, 40), (0, 20, 64, 8))
+    pygame.draw.rect(s, (40, 40, 46), (0, 38, 64, 4))
+    return s
+
+
+def tk_entry(tile, reps):
+    tw, th = tile.get_size()
+    tall = pygame.Surface((tw, th * reps))
+    for r in range(reps):
+        tall.blit(tile, (0, r * th))
+    tall = tall.convert()
+    var = []
+    for L in range(TK_NL):
+        f = L / (TK_NL - 1) * 0.9
+        row = []
+        for side_shade in (1.0, 0.6):
+            v = tall.copy()
+            m = int(255 * side_shade * (1 - f))
+            v.fill((m, m, m), special_flags=pygame.BLEND_RGB_MULT)
+            v.fill(tuple(int(c * f) for c in TK_FOG), special_flags=pygame.BLEND_RGB_ADD)
+            row.append(v)
+        var.append(row)
+    return dict(tw=tw, th=th, reps=reps, var=var)
+
+
+def make_tk_textures():
+    T = {}
+    T['bld'] = [tk_entry(tex_brick(1), 4), tk_entry(tex_brick(2), 4), tk_entry(tex_concrete(3), 4),
+                tk_entry(tex_concrete(4), 4), tk_entry(tex_glass(5), 4), tk_entry(tex_sand(6), 4)]
+    T['hall'] = tk_entry(tex_hall(7), 4)
+    T['missile'] = tk_entry(tex_missile(), 1)
+    return T
+
+
+TK_PXU = 32.0       # píxeles por unidad de mundo en los sprites pre-renderizados
+TK_ANG = 32         # ángulos de vista pre-renderizados
+TK_PITCH = 12.0     # inclinación de la cámara (grados)
+
+
+def _sub(a, b):
+    return (a[0] - b[0], a[1] - b[1], a[2] - b[2])
+
+
+def _cross(a, b):
+    return (a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0])
+
+
+def _unit(v):
+    n = math.sqrt(v[0] ** 2 + v[1] ** 2 + v[2] ** 2) or 1.0
+    return (v[0] / n, v[1] / n, v[2] / n)
+
+
+class Solid:
+    """Sólido convexo: caras (vértices, color) con normales hacia afuera, más detalles planos."""
+
+    def __init__(self, faces, details=()):
+        pts = [v for f, _ in faces for v in f]
+        self.c = (sum(p[0] for p in pts) / len(pts), sum(p[1] for p in pts) / len(pts), sum(p[2] for p in pts) / len(pts))
+        self.faces = []
+        for verts, col in faces:
+            n = _unit(_cross(_sub(verts[1], verts[0]), _sub(verts[2], verts[0])))
+            fc = (sum(v[0] for v in verts) / len(verts), sum(v[1] for v in verts) / len(verts), sum(v[2] for v in verts) / len(verts))
+            if n[0] * (fc[0] - self.c[0]) + n[1] * (fc[1] - self.c[1]) + n[2] * (fc[2] - self.c[2]) < 0:
+                n = (-n[0], -n[1], -n[2])
+            self.faces.append((verts, col, n))
+        self.details = list(details)
+
+
+def s_box(x0, x1, y0, y1, z0, z1, col):
+    v = lambda x, y, z: (x, y, z)
+    f = [([v(x0, y0, z0), v(x1, y0, z0), v(x1, y1, z0), v(x0, y1, z0)], col), ([v(x0, y0, z1), v(x1, y0, z1), v(x1, y1, z1), v(x0, y1, z1)], col),
+         ([v(x0, y0, z0), v(x0, y0, z1), v(x0, y1, z1), v(x0, y1, z0)], col), ([v(x1, y0, z0), v(x1, y0, z1), v(x1, y1, z1), v(x1, y1, z0)], col),
+         ([v(x0, y0, z0), v(x1, y0, z0), v(x1, y0, z1), v(x0, y0, z1)], col), ([v(x0, y1, z0), v(x1, y1, z0), v(x1, y1, z1), v(x0, y1, z1)], col)]
+    return Solid(f)
+
+
+def s_extrude(profile, x0, x1, col, top_cols=None):
+    """Perfil convexo (z, y) extruido a lo ancho entre x0 y x1."""
+    n = len(profile)
+    f = [([(x1, y, z) for z, y in profile], col), ([(x0, y, z) for z, y in profile], col)]
+    for i in range(n):
+        (za, ya), (zb, yb) = profile[i], profile[(i + 1) % n]
+        c = top_cols[i] if top_cols else col
+        f.append(([(x0, ya, za), (x1, ya, za), (x1, yb, zb), (x0, yb, zb)], c))
+    return Solid(f)
+
+
+def s_frustum(cx, cz, y0, y1, r0, r1, n, cols, rot=0.0, sx=1.0, sz=1.0):
+    """Tronco de cono vertical (n lados); sx/sz lo achatan en elipse."""
+    a = [(cx + math.cos(rot + 2 * math.pi * i / n) * r0 * sx, y0, cz + math.sin(rot + 2 * math.pi * i / n) * r0 * sz) for i in range(n)]
+    b = [(cx + math.cos(rot + 2 * math.pi * i / n) * r1 * sx, y1, cz + math.sin(rot + 2 * math.pi * i / n) * r1 * sz) for i in range(n)]
+    f = [(a, cols[0]), (b, cols[0])]
+    for i in range(n):
+        j = (i + 1) % n
+        f.append(([a[i], a[j], b[j], b[i]], cols[i % len(cols)]))
+    return Solid(f)
+
+
+def s_cyl_z(cx, cy, z0, z1, r0, r1, n, col):
+    """Cilindro/cono a lo largo del eje z (cañones)."""
+    a = [(cx + math.cos(2 * math.pi * i / n) * r0, cy + math.sin(2 * math.pi * i / n) * r0, z0) for i in range(n)]
+    b = [(cx + math.cos(2 * math.pi * i / n) * r1, cy + math.sin(2 * math.pi * i / n) * r1, z1) for i in range(n)]
+    f = [(a, col), (b, col)]
+    for i in range(n):
+        j = (i + 1) % n
+        f.append(([a[i], a[j], b[j], b[i]], col))
+    return Solid(f)
+
+
+def disc_x(x, y, z, r, n, col, nx):
+    return ([(x, y + math.sin(2 * math.pi * i / n) * r, z + math.cos(2 * math.pi * i / n) * r) for i in range(n)], col, (nx, 0.0, 0.0))
+
+
+def quad_x(x, y0, y1, z0, z1, col, nx):
+    return ([(x, y0, z0), (x, y0, z1), (x, y1, z1), (x, y1, z0)], col, (nx, 0.0, 0.0))
+
+
+def quad_y(y, x0, x1, z0, z1, col):
+    return ([(x0, y, z0), (x1, y, z0), (x1, y, z1), (x0, y, z1)], col, (0.0, 1.0, 0.0))
+
+
+def build_tank_model(heavy, seed):
+    rnd = random.Random(seed)
+    if heavy:
+        base, camo = (74, 82, 96), [(74, 82, 96), (58, 64, 78), (90, 98, 112), (66, 72, 86)]
+        trim, barrel_c, S = (232, 140, 36), (52, 56, 66), 1.22
+    else:
+        base, camo = (96, 104, 62), [(96, 104, 62), (74, 82, 48), (128, 112, 70), (84, 70, 50)]
+        trim, barrel_c, S = (200, 190, 120), (58, 62, 50), 1.0
+    track_c, rubber, hub = (34, 34, 36), (20, 20, 22), (110, 112, 104)
+    hull, tur = [], []
+
+    def camo_c():
+        return rnd.choice(camo)
+    # cascos: carrocería inclinada, cada franja de la cubierta con un parche de camuflaje distinto
+    prof = [(-3.2, 0.40), (-3.2, 1.12), (-2.45, 1.40), (1.55, 1.40), (3.3, 0.98), (3.3, 0.50), (2.75, 0.40)]
+    tops = [camo_c() for _ in prof]
+    hull.append(s_extrude(prof, -1.40, 1.40, base, tops))
+    for sd in (-1, 1):
+        xa, xb = (1.38, 2.04) if sd > 0 else (-2.04, -1.38)
+        tprof = [(-3.1, 0.0), (3.0, 0.0), (3.65, 0.42), (3.65, 0.78), (3.05, 1.16), (-3.05, 1.16), (-3.55, 0.82), (-3.55, 0.34)]
+        det = []
+        xo = xb + 0.012 if sd > 0 else xa - 0.012
+        nx = 1.0 if sd > 0 else -1.0
+        for zc in (-2.35, -1.4, -0.45, 0.5, 1.45, 2.4):
+            det.append(disc_x(xo, 0.52, zc, 0.43, 14, rubber, nx))
+            det.append(disc_x(xo + nx * 0.01, 0.52, zc, 0.26, 12, hub, nx))
+            det.append(disc_x(xo + nx * 0.02, 0.52, zc, 0.08, 8, rubber, nx))
+        det.append(disc_x(xo, 0.62, -3.15, 0.46, 14, rubber, nx))
+        det.append(disc_x(xo + nx * 0.01, 0.62, -3.15, 0.3, 12, hub, nx))
+        det.append(disc_x(xo, 0.58, 3.15, 0.40, 14, rubber, nx))
+        det.append(disc_x(xo + nx * 0.01, 0.58, 3.15, 0.24, 12, hub, nx))
+        for k in range(-13, 14):
+            z = k * 0.235
+            det.append(quad_x(xo, 1.0, 1.15, z - 0.04, z + 0.04, (14, 14, 16), nx))
+            det.append(quad_x(xo, 0.0, 0.14, z - 0.04, z + 0.04, (14, 14, 16), nx))
+        tr = s_extrude(tprof, xa, xb, track_c)
+        tr.details = det
+        hull.append(tr)
+        fx0, fx1 = (1.3, 2.12) if sd > 0 else (-2.12, -1.3)
+        hull.append(s_box(fx0, fx1, 1.13, 1.27, -3.0, 3.25, base))
+        if heavy:
+            skx0, skx1 = (2.1, 2.2) if sd > 0 else (-2.2, -2.1)
+            sk = s_box(skx0, skx1, 0.30, 1.12, -2.9, 2.5, camo_c())
+            for k in range(7):
+                z = -2.5 + k * 0.8
+                sk.details.append(quad_x(skx1 + 0.01 if sd > 0 else skx0 - 0.01, 0.35, 0.95, z, z + 0.04, (20, 20, 24), nx))
+            hull.append(sk)
+        bx0, bx1 = (1.55, 1.95) if sd > 0 else (-1.95, -1.55)
+        hull.append(s_box(bx0, bx1, 1.27, 1.52, -2.2, -1.5, (50, 52, 46)))
+        hull.append(s_cyl_z(1.05 * sd, 1.18, -3.28, -3.02, 0.14, 0.12, 8, (28, 28, 30)))
+        hull.append(s_cyl_z(0.95 * sd, 0.92, 3.3, 3.36, 0.14, 0.14, 8, (255, 232, 160)))
+    deck = [quad_y(1.405, -1.1, 1.1, -2.35 + k * 0.38, -2.35 + k * 0.38 + 0.2, (24, 24, 26)) for k in range(5)]
+    hull[0].details += deck
+    hull[0].details.append(quad_y(1.41, -0.5, 0.5, 1.0, 1.4, (60, 60, 56)))
+    hull.append(s_box(-0.32, 0.32, 1.40, 1.58, 1.05, 1.5, base))
+    hull.append(s_box(-0.9, 0.9, 0.62, 1.0, 3.2, 3.32, base))
+    # torreta redonda con cúpula y cañón largo (todo girable aparte)
+    tc = [camo_c() for _ in range(14)]
+    tur.append(s_frustum(0.0, 0.1, 1.40, 1.78, 1.45 * S, 1.52 * S, 14, tc, 0.0, 1.0, 1.1))
+    tur.append(s_frustum(0.0, 0.1, 1.78, 2.22, 1.52 * S, 1.30 * S, 14, tc, 0.0, 1.0, 1.1))
+    tur.append(s_frustum(0.0, 0.1, 2.22, 2.58, 1.30 * S, 0.86 * S, 14, [camo_c() for _ in range(14)], 0.0, 1.0, 1.1))
+    mant = s_box(-0.52 * S, 0.52 * S, 1.80, 2.34, 1.35 * S, 1.80 * S, base)
+    tur.append(mant)
+    tur.append(s_cyl_z(0.0, 2.08, 1.8 * S, 4.2 * S, 0.17 * S, 0.15 * S, 10, barrel_c))
+    tur.append(s_cyl_z(0.0, 2.08, 2.9 * S, 3.2 * S, 0.215 * S, 0.215 * S, 10, (70, 74, 64)))
+    tur.append(s_cyl_z(0.0, 2.08, 4.2 * S, 5.5 * S, 0.15 * S, 0.14 * S, 10, barrel_c))
+    tur.append(s_cyl_z(0.0, 2.08, 5.25 * S, 5.55 * S, 0.22 * S, 0.22 * S, 10, (44, 48, 42)))
+    tur.append(s_frustum(0.55, -0.25, 2.58, 2.86, 0.38, 0.34, 10, [(84, 90, 58)]))
+    tur.append(s_cyl_z(0.55, 2.97, -0.15, 0.6, 0.045, 0.045, 6, (30, 30, 30)))
+    tur.append(s_frustum(-0.5, -0.1, 2.58, 2.66, 0.34, 0.34, 10, [(60, 64, 50)]))
+    tur.append(s_box(-0.95 * S, 0.95 * S, 1.78, 2.34, -2.1 * S, -1.5 * S, base))
+    tur.append(s_box(-0.05, 0.05, 2.56, 4.5, -1.6 * S, -1.5 * S, (30, 30, 30)))
+    for sd in (-1, 1):
+        for k in range(3):
+            tur.append(s_cyl_z(1.28 * S * sd, 2.05 + k * 0.1, 0.35, 0.65, 0.07, 0.07, 6, (40, 40, 40)))
+    if heavy:
+        tur.append(s_box(-0.7, 0.7, 2.58, 2.86, -1.2, -0.3, trim))
+        tur.append(s_box(-1.52 * S, -1.34 * S, 1.6, 2.4, -0.6, 0.8, camo_c()))
+        tur.append(s_box(1.34 * S, 1.52 * S, 1.6, 2.4, -0.6, 0.8, camo_c()))
+    return hull, tur
+
+
+def render_solids(solids, rel_deg, size, px, pitch=TK_PITCH, shadow=False):
+    W_, H_ = size
+    SS = 2
+    surf = pygame.Surface((W_ * SS, H_ * SS), pygame.SRCALPHA)
+    a, p = math.radians(rel_deg), math.radians(pitch)
+    ca, sa, cp, sp_ = math.cos(a), math.sin(a), math.cos(p), math.sin(p)
+    cx0, gy = W_ / 2.0, H_ * 0.80
+    L = _unit((0.50, 0.72, -0.46))
+    if shadow:
+        sw, sh_ = 8.4 * px * SS, 8.4 * px * SS * math.sin(p) * 0.9
+        sx0 = cx0 * SS - sw / 2
+        pygame.draw.ellipse(surf, (0, 0, 0, 105), (sx0, gy * SS - sh_ / 2, sw, sh_))
+
+    def tr(v):
+        x1, z1 = v[0] * ca + v[2] * sa, -v[0] * sa + v[2] * ca
+        return x1, v[1] * cp + z1 * sp_, z1 * cp - v[1] * sp_
+
+    def trn(n):
+        return tr(n)
+
+    order = []
+    for s in solids:
+        order.append((tr(s.c)[2], s))
+    order.sort(key=lambda q: -q[0])
+    for _, s in order:
+        items = [(f[0], f[1], f[2], False) for f in s.faces] + [(d[0], d[1], d[2], True) for d in s.details]
+        for verts, col, n, is_detail in items:
+            nv = trn(n)
+            if nv[2] >= -0.02:
+                continue
+            sh = 0.36 + 0.64 * max(0.0, nv[0] * L[0] + nv[1] * L[1] + nv[2] * L[2])
+            c = (min(255, int(col[0] * sh)), min(255, int(col[1] * sh)), min(255, int(col[2] * sh)))
+            pts = []
+            for v in verts:
+                x, y, z = tr(v)
+                pts.append(((cx0 + x * px) * SS, (gy - y * px) * SS))
+            pygame.draw.polygon(surf, c, pts)
+            if not is_detail:
+                pygame.draw.lines(surf, (int(c[0] * .55), int(c[1] * .55), int(c[2] * .55)), True, pts, 1)
+    out = pygame.transform.smoothscale(surf, (W_, H_))
+    return out, cx0, gy
+
+
+def make_tank_sprites():
+    """Pre-renderiza cada tanque (casco y torreta por separado) desde TK_ANG ángulos."""
+    size = (380, 250)
+    out = {}
+    for kind, heavy in (('tank', False), ('super', True)):
+        hull, tur = build_tank_model(heavy, 11 if not heavy else 23)
+        px = TK_PXU * (0.92 if heavy else 1.0)
+        parts = {'px': px}
+        for name, solids in (('hull', hull), ('tur', tur)):
+            lst = []
+            for i in range(TK_ANG):
+                img, ax, ay = render_solids(solids, i * 360.0 / TK_ANG, size, px, shadow=(name == 'hull'))
+                r = img.get_bounding_rect()
+                if r.w < 2 or r.h < 2:
+                    r = pygame.Rect(0, 0, 2, 2)
+                lst.append((img.subsurface(r).copy().convert_alpha(), ax - r.x, ay - r.y))
+            parts[name] = lst
+        out[kind] = parts
+    return out
+
+
 def make_shadow(surf):
     sh = surf.copy()
     sh.fill((0, 0, 0, 255), special_flags=pygame.BLEND_RGBA_MULT)
@@ -840,7 +1241,8 @@ class Game:
         # ---- islas / ciudades (mundo)
         land = pygame.Surface((WORLD_W, WORLD_H), pygame.SRCALPHA)
         self.islands = []
-        allisl = [(x, y, r, s, True) for (_, x, y, r, s) in CITY_DEFS] + [(x, y, r, s, False) for (x, y, r, s) in EXTRA_ISLANDS]
+        allisl = ([(x, y, r, s, True) for (_, x, y, r, s) in CITY_DEFS] + [(x, y, r, s, False) for (x, y, r, s) in EXTRA_ISLANDS]
+                  + [(x, y, r, s, False) for (x, y, r, s) in DECOR_ISLANDS])
         for (x, y, r, seed, is_city) in allisl:
             self.islands.append((x, y, r, seed))
             self.paint_island(land, x, y, r, seed, is_city)
@@ -851,6 +1253,14 @@ class Game:
                     pygame.draw.rect(land, (70, 48, 30), (px - 11, py + k * 9, 4, 5))
                     pygame.draw.rect(land, (70, 48, 30), (px + 7, py + k * 9, 4, 5))
         self.land = land.convert_alpha()
+        rc = random.Random(77)
+        self.mclouds = [dict(x=rc.uniform(0, WORLD_W), y=rc.uniform(0, WORLD_H), i=k % 4, s=rc.uniform(1.8, 3.0))
+                        for k in range(26)]
+        sh_base = [make_cloud(s_)[1] for s_ in (1, 2, 3, 4)]
+        for mc in self.mclouds:
+            b_ = sh_base[mc['i']]
+            mc['spr'] = pygame.transform.smoothscale(b_, (int(b_.get_width() * mc['s']), int(b_.get_height() * mc['s'])))
+            mc['spr'].set_alpha(38)
         self.city_surf = {}
         for (name, x, y, r, seed) in CITY_DEFS:
             self.city_surf[name] = (self.make_city(r, seed, False), self.make_city(r, seed, True))
@@ -897,6 +1307,10 @@ class Game:
             clouds=[make_cloud(s_) for s_ in (1, 2, 3, 4)])
         self.antenna_gfx = self.make_antenna()
         self.antenna_big = self.make_antenna(1.5)
+        self.cockpit = self.make_cockpit()
+        self.tk_tex = make_tk_textures()
+        self.tk_spr = make_tank_sprites()
+        self.tk_sky_bg, self.tk_floor_bg, self.tk_moon = self.make_tk_backdrops()
 
         # ---- cielo de defensa
         sky = pygame.Surface((W, HZ))
@@ -941,6 +1355,14 @@ class Game:
             pygame.draw.circle(land, (30, 80, 44), (int(tx + 2), int(ty + 3)), tr)
             pygame.draw.circle(land, (52, 112, 58), (int(tx), int(ty)), tr)
             pygame.draw.circle(land, (92, 158, 80), (int(tx - 1), int(ty - 2)), max(2, tr // 2))
+        if not is_city and r >= 100:
+            for _ in range(3):
+                a, d = rnd2.uniform(0, 6.28), rnd2.uniform(0.3, 0.6) * r
+                hx, hy, hr = x + math.cos(a) * d, y + math.sin(a) * d, rnd2.uniform(0.16, 0.26) * r
+                pygame.draw.circle(land, (60, 98, 52), (int(hx + 3), int(hy + 4)), int(hr))
+                pygame.draw.circle(land, (116, 124, 96), (int(hx), int(hy)), int(hr))
+                pygame.draw.circle(land, (150, 156, 126), (int(hx - hr * .25), int(hy - hr * .3)), int(hr * .58))
+                pygame.draw.circle(land, (214, 218, 204), (int(hx - hr * .3), int(hy - hr * .4)), max(2, int(hr * .22)))
 
     def make_city(self, r, seed, ruined):
         size = int(r * 2.6)
@@ -1028,6 +1450,29 @@ class Game:
         pygame.draw.circle(s, (255, 190, 170), (cx - S // 2, 6 * S - S // 2), int(S * 0.9))
         return pygame.transform.smoothscale(s, (int(48 * scale), int(96 * scale)))
 
+    def make_cockpit(self):
+        vp = self.TK_VP
+        s = pygame.Surface((W, H), pygame.SRCALPHA)
+        for y in range(H):
+            f = abs(y - vp.centery) / (H / 2)
+            pygame.draw.line(s, (int(16 + 16 * (1 - f)), int(22 + 18 * (1 - f)), int(19 + 15 * (1 - f)), 255), (0, y), (W, y))
+        for x in range(30, W, 70):
+            for y in (10, H - 10):
+                pygame.draw.circle(s, (8, 10, 9, 255), (x + 1, y + 1), 4)
+                pygame.draw.circle(s, (110, 126, 116, 255), (x, y), 4)
+                pygame.draw.circle(s, (170, 184, 174, 255), (x - 1, y - 1), 1)
+        for rect in ((28, 14, 380, 92), (W - 408, 14, 380, 92), (28, vp.bottom + 16, 330, 118), (W - 358, vp.bottom + 16, 330, 118),
+                     (W // 2 - 185, vp.bottom + 46, 370, 44)):
+            pygame.draw.rect(s, (7, 11, 9, 255), rect, border_radius=8)
+            pygame.draw.rect(s, (46, 96, 68, 255), rect, 2, border_radius=8)
+        pygame.draw.circle(s, (9, 13, 11, 255), (W // 2, 62), 62)
+        pygame.draw.circle(s, (30, 38, 33, 255), (W // 2, 62), 62, 8)
+        pygame.draw.circle(s, (100, 118, 106, 255), (W // 2, 62), 62, 2)
+        pygame.draw.rect(s, (0, 0, 0, 0), vp, border_radius=28)
+        pygame.draw.rect(s, (100, 118, 106, 255), vp.inflate(10, 10), 4, border_radius=32)
+        pygame.draw.rect(s, (28, 36, 31, 255), vp.inflate(26, 26), 10, border_radius=38)
+        return s.convert_alpha()
+
     # ------------------------------------------------------------ util
     def text(self, dst, s, font, col, x, y, anchor='l', shadow=True, alpha=None):
         img = font.render(s, True, col)
@@ -1113,7 +1558,7 @@ class Game:
     def reset(self):
         self.score = 0
         self.wave = 1
-        self.sx, self.sy = 1200.0, 760.0
+        self.sx, self.sy = 2400.0, 1350.0
         self.sh, self.sv = 0.0, 0.0
         self.hull, self.fuel, self.ammo = 100.0, 100.0, 30
         self.antennas = {i: False for i in ANTENNA_ISLANDS}
@@ -1127,7 +1572,7 @@ class Game:
         self.enemies = []
         self.crates = []
         self.crate_t = 18.0
-        self.strike_t = 30.0
+        self.strike_t = 50.0
         self.warned = False
         self.strike_city = None
         self.strike_kind = 'missile'
@@ -1162,7 +1607,7 @@ class Game:
         return [WORLD_W / 2, WORLD_H / 2]
 
     def spawn_wave(self):
-        n = min(2 + self.wave, 7)
+        n = min(3 + self.wave, 9)
         for _ in range(n):
             x = y = 0
             for _ in range(60):
@@ -1185,9 +1630,9 @@ class Game:
     def go(self, state):
         self.state = state
         self.fade = 1.0
-        pygame.mouse.set_visible(state not in ('defense', 'combat', 'aerial', 'ground'))
+        pygame.mouse.set_visible(state not in ('defense', 'combat', 'aerial', 'ground', 'tank'))
         self.audio.music({'title': 'calm', 'map': 'calm', 'defense': 'battle', 'combat': 'battle',
-                          'aerial': 'battle', 'ground': 'battle', 'hack': 'battle', 'gameover': None}[state])
+                          'aerial': 'battle', 'ground': 'battle', 'hack': 'battle', 'tank': 'battle', 'gameover': None}[state])
         if state not in ('map', 'combat'):
             self.audio.engine_vol(0)
 
@@ -1218,7 +1663,13 @@ class Game:
                 self.crt_on = not self.crt_on
             elif e.key == pygame.K_m:
                 self.audio.toggle_mute()
-            elif e.key in (pygame.K_p, pygame.K_ESCAPE) and self.state in ('map', 'defense', 'combat', 'ground', 'aerial', 'hack'):
+            elif e.key in (pygame.K_F2, pygame.K_F3, pygame.K_F4) and self.state == 'map' and not self.paused:
+                alive = [c for c in self.cities if not c['dead']]
+                if alive:
+                    self.strike_city = random.choice(alive)
+                    self.warned = False
+                    {pygame.K_F2: self.start_tank, pygame.K_F3: self.start_aerial, pygame.K_F4: self.start_ground}[e.key](self.strike_city)
+            elif e.key in (pygame.K_p, pygame.K_ESCAPE) and self.state in ('map', 'defense', 'combat', 'ground', 'aerial', 'hack', 'tank'):
                 self.paused = not self.paused
             elif e.key == pygame.K_q and self.paused:
                 pygame.quit()
@@ -1237,12 +1688,19 @@ class Game:
                     self.start_landing(island[0])
             elif self.state == 'aerial' and e.key in (pygame.K_b, pygame.K_x) and not self.paused:
                 self.air_bomb()
+            elif self.state == 'tank' and e.key == pygame.K_SPACE and not self.paused:
+                self.tk_fire()
             elif self.state == 'map' and e.key == pygame.K_h and not self.paused:
                 self.try_hack()
             elif self.state == 'hack' and not self.paused:
                 h = self.h
                 if e.key == pygame.K_TAB and h['phase'] == 'play':
                     self.end_hack(False, abort=True)
+                elif h['phase'] == 'fail':
+                    if h['pt'] > 0.6 and e.key in (pygame.K_SPACE, pygame.K_RETURN):
+                        self.hack_retry()
+                    elif e.key == pygame.K_TAB:
+                        self.end_hack(False)
                 elif e.key in (pygame.K_LEFT, pygame.K_RIGHT, pygame.K_UP, pygame.K_DOWN):
                     dx = (e.key == pygame.K_RIGHT) - (e.key == pygame.K_LEFT)
                     dy = (e.key == pygame.K_DOWN) - (e.key == pygame.K_UP)
@@ -1257,9 +1715,13 @@ class Game:
                 elif e.key == pygame.K_e:
                     self.flee()
         if e.type == pygame.MOUSEBUTTONDOWN and e.button in (1, 3) and self.state == 'hack' and not self.paused:
-            cell = self.hack_cell_at(e.pos)
-            if cell:
-                self.hack_rotate(cell, 1 if e.button == 1 else 3)
+            if self.h['phase'] == 'fail':
+                if self.h['pt'] > 0.6 and e.button == 1:
+                    self.hack_retry()
+            else:
+                cell = self.hack_cell_at(e.pos)
+                if cell:
+                    self.hack_rotate(cell, 1 if e.button == 1 else 3)
         if e.type == pygame.MOUSEBUTTONDOWN and e.button == 3 and self.state == 'ground' and not self.paused:
             self.throw_grenade_p()
         if e.type == pygame.MOUSEBUTTONDOWN and e.button == 3 and self.state == 'aerial' and not self.paused:
@@ -1269,6 +1731,8 @@ class Game:
                 self.start_game()
             elif self.state == 'defense':
                 self.fire_interceptor()
+            elif self.state == 'tank':
+                self.tk_fire()
             elif self.state == 'combat':
                 self.fire_shell()
 
@@ -1306,6 +1770,8 @@ class Game:
             self.upd_aerial(dt)
         elif self.state == 'hack':
             self.upd_hack(dt)
+        elif self.state == 'tank':
+            self.upd_tank(dt)
         elif self.state == 'ground':
             self.upd_ground(dt)
         elif self.state in ('title', 'gameover'):
@@ -1320,7 +1786,7 @@ class Game:
         if self.fuel <= 0:
             thr = 0
         if thr > 0:
-            self.sv = min(VMAX, self.sv + 85 * dt)
+            self.sv = min(VMAX, self.sv + 110 * dt)
         elif thr < 0:
             self.sv = max(-45, self.sv - 130 * dt)
         else:
@@ -1413,8 +1879,8 @@ class Game:
                 return self.start_combat(en)
         # cajas
         self.crate_t -= dt
-        if self.crate_t <= 0 and len(self.crates) < 3:
-            self.crate_t = 22.0
+        if self.crate_t <= 0 and len(self.crates) < 5:
+            self.crate_t = 16.0
             for _ in range(30):
                 x, y = random.uniform(100, WORLD_W - 100), random.uniform(100, WORLD_H - 100)
                 if not self.on_land(x, y, 40):
@@ -1445,20 +1911,24 @@ class Game:
             self.strike_n += 1
             rand = random.random()
             if self.strike_n == 2 or (self.strike_n > 2 and rand < 0.3):
-                self.strike_kind = 'ground'
+                self.strike_kind = 'tank' if random.random() < 0.65 else 'ground'
             elif rand < 0.35:
                 self.strike_kind = 'aerial'
             else:
                 self.strike_kind = 'missile'
             self.audio.play('alarm')
-            if self.strike_kind == 'ground':
+            if self.strike_kind == 'tank':
+                self.banner('¡INVASIÓN BLINDADA!', 'Tanques enemigos entran en ' + self.strike_city['name'], (120, 255, 160), 3.8)
+            elif self.strike_kind == 'ground':
                 self.banner('¡INVASIÓN ANFIBIA!', 'Desembarco en ' + self.strike_city['name'], (255, 150, 60), 3.8)
             elif self.strike_kind == 'aerial':
                 self.banner('¡ATAQUE AÉREO!', 'Cazas enemigos sobre ' + self.strike_city['name'], (150, 100, 255), 3.8)
             else:
                 self.banner('¡ALERTA DE MISILES!', 'Objetivo: ' + self.strike_city['name'], (255, 80, 70), 3.8)
         if self.warned and self.strike_t <= 0:
-            if self.strike_kind == 'ground':
+            if self.strike_kind == 'tank':
+                self.start_tank(self.strike_city)
+            elif self.strike_kind == 'ground':
                 self.start_ground(self.strike_city)
             elif self.strike_kind == 'aerial':
                 self.start_aerial(self.strike_city)
@@ -1713,7 +2183,7 @@ class Game:
 
     def end_defense(self):
         self.warned = False
-        self.strike_t = max(22.0, random.uniform(30, 42) - self.wave * 2)
+        self.strike_t = max(32.0, random.uniform(48, 62) - self.wave * 2)
         if all(c['dead'] for c in self.cities):
             return self.game_over('Todas las ciudades fueron destruidas')
         self.go('map')
@@ -1801,7 +2271,7 @@ class Game:
         total = max(22.0, 40.0 + 5 * n - 2 * (lvl - 1))
         csz = 86
         h = self.h
-        h.update(boss=boss, n=n, nterm=nterm, t=total, total=total, phase='play', pt=0.0, csz=csz,
+        h.update(boss=boss, n=n, nterm=nterm, t=total, total=total, base_total=total, fails=0, lvl=lvl, phase='play', pt=0.0, csz=csz,
                  gx=96, gy=(H - rows * csz) // 2 + 24, cur=root, kb=False, log=[], logt=0.0, done=set())
         h['rain'] = [[random.randrange(0, W, 18), random.uniform(-400, H), random.uniform(60, 160)] for _ in range(40)]
         if not hasattr(self, 'rain_gl'):
@@ -1812,6 +2282,18 @@ class Game:
         self.hack_say('> ENERGIZA %d TERMINALES' % nterm)
         self.aim = [W / 2, H / 2]
         self.go('hack')
+
+    def hack_retry(self):
+        """Nuevo intento tras un fallo: puzzle distinto y un poco menos de tiempo."""
+        old = self.h
+        self.hack_generate(old['cols'], old['rows'], old['nterm'])
+        new = self.h
+        self.h = old
+        old.update(tiles=new['tiles'], root=new['root'], cur=new['root'], done=set(), phase='play', pt=0.0)
+        old['total'] = old['t'] = max(18.0, old['base_total'] - 3.0 * old['fails'])
+        self.hack_say('> NUEVO ENLACE  (INTENTO %d)' % (old['fails'] + 1))
+        self.hack_say('> RUTA REGENERADA')
+        self.audio.play('pickup', .6)
 
     def hack_say(self, s):
         self.h['log'].append(s)
@@ -1848,16 +2330,21 @@ class Game:
                 col[2] = random.uniform(60, 160)
         if h['phase'] == 'play':
             h['t'] -= dt
-            if int(h['t']) != int(h['t'] + dt) and h['t'] < 10:
-                self.audio.play('blip', .4)
+            step = 0.5 if h['t'] < 5 else 1.0
+            if h['t'] < 10 and int(h['t'] / step) != int((h['t'] + dt) / step):
+                self.audio.play('blip', .5)
             if h['t'] <= 0:
+                h['t'] = 0.0
                 h['phase'], h['pt'] = 'fail', 0.0
+                h['fails'] += 1
+                self.hull = max(1.0, self.hull - 5)
+                self.shake = 8
                 self.hack_say('> INTRUSION DETECTADA')
                 self.audio.play('lose', .6)
         else:
             h['pt'] += dt
-            if h['pt'] > 1.8:
-                self.end_hack(h['phase'] == 'win')
+            if h['phase'] == 'win' and h['pt'] > 1.8:
+                self.end_hack(True)
 
     def end_hack(self, ok, abort=False):
         h = self.h
@@ -1877,10 +2364,7 @@ class Game:
             self.toast('Ciberataque abortado', (255, 200, 120))
         else:
             boss['hack_cd'] = 25.0
-            self.hull = max(1.0, self.hull - 10)
-            self.audio.play('hit', .7)
-            self.shake = 8
-            self.toast('Contraataque enemigo: -10 casco. Reintentá en 25 s', (255, 120, 100))
+            self.toast('Ciberataque fallido. Sistemas enemigos reiniciando: 25 s', (255, 120, 100))
 
     def draw_hack_tile(self, cv, x, y, sz, tile, powered, hover, t):
         r = pygame.Rect(x + 3, y + 3, sz - 6, sz - 6)
@@ -1947,7 +2431,8 @@ class Game:
         self.panel(cv, (px - 20, 100, 330, 320), 190)
         frac = clamp(h['t'] / h['total'], 0, 1)
         self.text(cv, 'TIEMPO', self.f_s, (170, 200, 230), px, 112)
-        self.bar(cv, px, 134, 290, 24, frac, (90, 220, 255) if frac > 0.3 else (255, 90, 80), '%.1f s' % max(0, h['t']))
+        tcol = (90, 220, 255) if h['t'] > 10 else ((255, 210, 70) if h['t'] > 5 else (255, 70, 70))
+        self.bar(cv, px, 134, 290, 24, frac, tcol, 'INTENTO %d' % (h['fails'] + 1))
         left = h['nterm'] - len(h['done'])
         self.text(cv, 'FIREWALL', self.f_s, (170, 200, 230), px, 170)
         self.bar(cv, px, 192, 290, 24, left / h['nterm'], (240, 90, 120), '%d%%' % int(100 * left / h['nterm']))
@@ -1957,11 +2442,30 @@ class Game:
             self.text(cv, ln[:30], self.f_s, (90, 220, 150), px, 288 + i * 20, shadow=False)
         if int(t * 2) % 2 == 0:
             self.text(cv, '_', self.f_s, (90, 220, 150), px, 288 + min(6, len(h['log'])) * 20, shadow=False)
+        sec = max(0.0, h['t'])
+        low = h['t'] < 10 and h['phase'] == 'play'
+        pul = 0.5 + 0.5 * math.sin(t * (14 if h['t'] < 5 else 8))
+        big = (255, int(70 + 140 * (1 - pul)), 60) if low else tcol
+        self.text(cv, '%02d.%03d' % (int(sec), int((sec % 1) * 1000)), self.f_xl, big, W - 44, 8, 'r')
+        self.text(cv, 'SEG . MS', self.f_s, (150, 190, 220), W - 44, 86, 'r')
+        if low:
+            vg = pygame.Surface((W, H), pygame.SRCALPHA)
+            a = int((40 + 90 * pul) * (1.4 if h['t'] < 5 else 1.0))
+            for i in range(4):
+                pygame.draw.rect(vg, (255, 30, 30, max(0, a - i * 28)), (i * 6, i * 6, W - i * 12, H - i * 12), 6)
+            cv.blit(vg, (0, 0))
         self.text(cv, 'Clic izq.: girar  |  Clic der.: al revés  |  flechas+ESPACIO  |  TAB: abortar', self.f_s, (180, 205, 235), 96, H - 36)
         if h['phase'] != 'play':
             ok = h['phase'] == 'win'
             self.dim(cv, 90)
-            self.text(cv, 'ACCESO CONCEDIDO' if ok else 'INTRUSION DETECTADA', self.f_xl, (110, 255, 170) if ok else (255, 90, 90), W // 2, H // 2 - 60, 'c')
+            self.text(cv, 'ACCESO CONCEDIDO' if ok else 'INTRUSION DETECTADA', self.f_xl, (110, 255, 170) if ok else (255, 90, 90), W // 2, H // 2 - 80, 'c')
+            if not ok:
+                self.text(cv, 'Contraataque: -5 casco', self.f_m, (255, 160, 140), W // 2, H // 2 + 20, 'c')
+                if h['pt'] > 0.6:
+                    nt = max(18.0, h['base_total'] - 3.0 * h['fails'])
+                    if int(t * 2) % 2 == 0:
+                        self.text(cv, 'ESPACIO / CLIC: REINTENTAR con puzzle nuevo (%.0f s)' % nt, self.f_m, (255, 255, 255), W // 2, H // 2 + 60, 'c')
+                    self.text(cv, 'TAB: abandonar (reinicio de sistemas 25 s)', self.f_s, (190, 200, 220), W // 2, H // 2 + 96, 'c')
 
     # ---------------------------------------------------------- COMBATE
     def start_combat(self, en):
@@ -2657,7 +3161,7 @@ class Game:
             if city['hp'] <= 0:
                 city['dead'] = True
         self.warned = False
-        self.strike_t = max(22.0, random.uniform(30, 42) - self.wave * 2)
+        self.strike_t = max(32.0, random.uniform(48, 62) - self.wave * 2)
         if all(c['dead'] for c in self.cities):
             return self.game_over('Todas las ciudades fueron destruidas')
         self.go('map')
@@ -2667,13 +3171,14 @@ class Game:
         return 'ISLA %d' % (i + 1)
 
     def make_ground(self, seed, R, city_seed=None):
-        s = pygame.Surface((W, H), pygame.SRCALPHA)
-        self.paint_island(s, W / 2, H / 2, R, seed, True)
+        ext = int(R * 2.0)
+        s = pygame.Surface((ext * 2, ext * 2), pygame.SRCALPHA)
+        self.paint_island(s, ext, ext, R, seed, True)
         if city_seed is not None:
             cs = self.make_city(int(R * 0.7), city_seed, False)
-            s.blit(cs, (W // 2 - cs.get_width() // 2, H // 2 - cs.get_height() // 2))
+            s.blit(cs, (ext - cs.get_width() // 2, ext - cs.get_height() // 2))
         else:
-            cx, cy = W // 2, H // 2
+            cx, cy = ext, ext
             pygame.draw.circle(s, (0, 0, 0, 60), (cx + 4, cy + 6), 50)
             pygame.draw.circle(s, (150, 152, 150), (cx, cy), 48)
             pygame.draw.circle(s, (196, 198, 194), (cx, cy), 44)
@@ -2685,7 +3190,7 @@ class Game:
             pygame.draw.circle(s, (92, 96, 98), (cx, cy), 30, 2)
             pygame.draw.line(s, (92, 96, 98), (cx - 24, cy), (cx + 24, cy), 2)
             pygame.draw.line(s, (92, 96, 98), (cx, cy - 24), (cx, cy + 24), 2)
-        return s
+        return s, (W // 2 - ext, H // 2 - ext)
 
     def gen_covers(self, seed, R, n, avoid):
         covers = []
@@ -2704,14 +3209,13 @@ class Game:
             covers.append(dict(x=x, y=y, r=r, kind=kind, seed=random.randrange(10 ** 6)))
         return covers
 
-    def init_ground(self, mode, seed, city, covers_n, avoid, spawn, kinds, queue=None, island_idx=None):
-        R = ARENA_R
-        land = self.make_ground(seed, R, seed if mode == 'invasion' else None)
+    def init_ground(self, mode, seed, city, covers_n, avoid, spawn, kinds, queue=None, island_idx=None, R=ARENA_R):
+        land, off = self.make_ground(seed, R, seed if mode == 'invasion' else None)
         covers = self.gen_covers(seed, R, covers_n, avoid + [(spawn[0], spawn[1], 90)])
         for c in covers:
-            draw_cover(land, c)
+            draw_cover(land, dict(c, x=c['x'] - off[0], y=c['y'] - off[1]))
         self.fx = Particles()
-        self.g = dict(mode=mode, city=city, R=R, seed=seed, land=land.convert_alpha(), covers=covers,
+        self.g = dict(mode=mode, city=city, R=R, seed=seed, land=land.convert_alpha(), land_off=off, cam=[0.0, 0.0], covers=covers,
                       angs=[random.uniform(0, 6.28) for _ in range(3)], queue=queue or [], enemies=[], bullets=[],
                       nades=[], corpses=[], decals=[], boats=[], crates=[], t=0.0, total=len(kinds), kills=0,
                       phase='play', pt=0.0, city0=city['hp'], fail=False, island_idx=island_idx, hurt=0.0,
@@ -2719,6 +3223,7 @@ class Game:
                       p=dict(x=float(spawn[0]), y=float(spawn[1]), h=0.0, vx=0.0, vy=0.0, hp=PLAYER_HP, mag=30, reload=0.0,
                              cd=0.0, gren=4, gcd=0.0, ph=0.0, flash=0.0, bloom=0.0, dead=False, dead_t=0.0))
         self.aim = [W / 2, 200.0]
+        self.g_camera(0.0, True)
         self.go('ground')
         return covers
 
@@ -2737,10 +3242,10 @@ class Game:
         n = LANDING_ENEMIES
         n_mg, n_gr = max(1, n // 5), max(1, n // 5)
         kinds = ['mg'] * n_mg + ['gren'] * n_gr + ['rifle'] * (n - n_mg - n_gr)
-        sy = H / 2 + coast_r(ARENA_R, s, math.pi / 2, 0.84)
+        sy = H / 2 + coast_r(LAND_R, s, math.pi / 2, 0.84)
         spawn = (W / 2, sy)
         city = dict(name=self.isl_name(island_idx), x=x, y=y, r=r, hp=100.0, dead=False, seed=s)
-        covers = self.init_ground('landing', s, city, 10, [(W / 2, H / 2, 80)], spawn, kinds, island_idx=island_idx)
+        covers = self.init_ground('landing', s, city, 16, [(W / 2, H / 2, 80)], spawn, kinds, island_idx=island_idx, R=LAND_R)
         g = self.g
         random.shuffle(kinds)
         order = sorted(range(len(covers)), key=lambda i: -dist(covers[i]['x'], covers[i]['y'], spawn[0], spawn[1]))
@@ -2754,7 +3259,7 @@ class Game:
             else:
                 ex, ey = W / 2, H / 2 - 100
             d = dist(ex, ey, W / 2, H / 2) or 1.0
-            lim = coast_r(ARENA_R, s, math.atan2(ey - H / 2, ex - W / 2), 0.9)
+            lim = coast_r(LAND_R, s, math.atan2(ey - H / 2, ex - W / 2), 0.9)
             if d > lim:
                 ex, ey = W / 2 + (ex - W / 2) / d * lim, H / 2 + (ey - H / 2) / d * lim
             mode = 'pusher' if kd == 'rifle' and random.random() < 0.35 else 'defender'
@@ -2788,13 +3293,28 @@ class Game:
         g['boats'].append([x + math.cos(a) * 55, y + math.sin(a) * 55, bearing(-math.cos(a), -math.sin(a)), 0.0])
         self.fx.splash(x + math.cos(a) * 40, y + math.sin(a) * 40, 0.8)
 
+    def g_camera(self, dt, snap=False):
+        g = self.g
+        p, R = g['p'], g['R']
+        cam = g['cam']
+        for i, (c, lim, size) in enumerate(((p['x'], W / 2, W), (p['y'], H / 2, H))):
+            lo, hi = lim - R * 1.1, lim + R * 1.1 - size
+            tgt = (lo + hi) / 2 if hi < lo else clamp(c - size / 2, lo, hi)
+            cam[i] = tgt if snap else cam[i] + (tgt - cam[i]) * min(1.0, dt * 6)
+
+    def gpop(self, s, x, y, col=(255, 255, 160)):
+        cam = self.g['cam']
+        self.pop(s, x - cam[0], y - cam[1], col)
+
     def ground_aim(self):
-        p = self.g['p']
-        ax, ay = self.aim
+        g = self.g
+        p, cam = g['p'], g['cam']
+        ax, ay = self.aim[0] + cam[0], self.aim[1] + cam[1]
         if not self.mouse_moved:
             fx, fy = vec(p['h'], 320)
             ax, ay = p['x'] + fx, p['y'] + fy
-        return clamp(ax, 10, W - 10), clamp(ay, 10, H - 10)
+        lim = g['R'] * 1.1
+        return clamp(ax, W / 2 - lim, W / 2 + lim), clamp(ay, H / 2 - lim, H / 2 + lim)
 
     def g_step(self, s, dx, dy, is_player=False):
         g = self.g
@@ -2901,8 +3421,9 @@ class Game:
     def enemy_throw(self, e):
         g = self.g
         p = g['p']
-        tx = clamp(p['x'] + p['vx'] * 0.5 + random.uniform(-24, 24), 60, W - 60)
-        ty = clamp(p['y'] + p['vy'] * 0.5 + random.uniform(-24, 24), 60, H - 60)
+        lim_ = g['R'] * 1.0
+        tx = clamp(p['x'] + p['vx'] * 0.5 + random.uniform(-24, 24), W / 2 - lim_, W / 2 + lim_)
+        ty = clamp(p['y'] + p['vy'] * 0.5 + random.uniform(-24, 24), H / 2 - lim_, H / 2 + lim_)
         d = dist(e['x'], e['y'], tx, ty)
         g['nades'].append(dict(x0=e['x'], y0=e['y'], x1=tx, y1=ty, t=0.0, T=clamp(d / 230, 0.8, 1.7), own='e'))
         e['h'] = bearing(tx - e['x'], ty - e['y'])
@@ -2940,7 +3461,7 @@ class Game:
         g['hurt'] = 0.5
         self.shake = max(self.shake, 4 + dmg * 0.5)
         self.audio.play('hit', .5)
-        self.pop('-%d' % dmg, p['x'], p['y'] - 22, (255, 110, 100))
+        self.gpop('-%d' % dmg, p['x'], p['y'] - 22, (255, 110, 100))
 
     def kill_ground_enemy(self, e):
         g = self.g
@@ -2950,7 +3471,7 @@ class Game:
         g['kills'] += 1
         pts = ENEMY_TYPES[e['kind']]['pts']
         self.add_score(pts)
-        self.pop('+%d' % pts, e['x'], e['y'] - 18)
+        self.gpop('+%d' % pts, e['x'], e['y'] - 18)
         g['corpses'].append(dict(x=e['x'], y=e['y'], h=e['h'] + random.uniform(-60, 60), kind=e['kind'], age=0.0))
         g['corpses'] = g['corpses'][-30:]
         self.fx.add('glow', e['x'], e['y'], life=.25, r0=8, r1=22, col=(255, 160, 90))
@@ -3089,6 +3610,7 @@ class Game:
                 self.start_reload()
             if (pygame.mouse.get_pressed()[0] or keys[pygame.K_f]) and g['phase'] == 'play':
                 self.player_shoot()
+        self.g_camera(dt)
         if g['phase'] == 'play':
             while g['queue'] and g['queue'][0][0] <= g['t']:
                 _, kind, idx = g['queue'].pop(0)
@@ -3102,7 +3624,7 @@ class Game:
             b['x'] += b['vx'] * dt
             b['y'] += b['vy'] * dt
             b['life'] -= dt
-            if b['life'] <= 0 or not (-40 < b['x'] < W + 40 and -40 < b['y'] < H + 40):
+            if b['life'] <= 0 or dist(b['x'], b['y'], W / 2, H / 2) > g['R'] * 1.25:
                 g['bullets'].remove(b)
                 continue
             blocked = False
@@ -3146,10 +3668,10 @@ class Game:
                 self.audio.play('pickup', .8)
                 if q['kind'] == 'med':
                     p['hp'] = min(PLAYER_HP, p['hp'] + 40)
-                    self.pop('+40 SALUD', q['x'], q['y'] - 16, (120, 255, 150))
+                    self.gpop('+40 SALUD', q['x'], q['y'] - 16, (120, 255, 150))
                 else:
                     p['gren'] = min(6, p['gren'] + 2)
-                    self.pop('+2 GRANADAS', q['x'], q['y'] - 16, (255, 230, 90))
+                    self.gpop('+2 GRANADAS', q['x'], q['y'] - 16, (255, 230, 90))
             elif q['t'] > 30:
                 g['crates'].remove(q)
         for c in g['corpses']:
@@ -3216,10 +3738,958 @@ class Game:
                 if city['hp'] <= 0:
                     city['dead'] = True
             self.warned = False
-            self.strike_t = max(22.0, random.uniform(30, 42) - self.wave * 2)
+            self.strike_t = max(32.0, random.uniform(48, 62) - self.wave * 2)
             if all(c['dead'] for c in self.cities):
                 return self.game_over('Todas las ciudades fueron destruidas')
         self.go('map')
+
+    # ---------------------------------------------------------- COMBATE URBANO CON TANQUES (estilo Battlezone)
+    TK_EYE, TK_F, TK_NEAR, TK_A = 2.3, 560.0, 0.5, 125.0
+    TK_VP = pygame.Rect(40, 118, 1020, 520)
+
+    def tk_make_world(self, city):
+        rnd = random.Random(city['seed'] * 31 + self.wave)
+        blds = [dict(x=0.0, z=0.0, hw=15.0, hd=15.0, h=42.0, hall=True, tx=0, uo=0.0)]
+        for i in range(-2, 3):
+            for j in range(-2, 3):
+                if i == 0 and j == 0 or rnd.random() < 0.1:
+                    continue
+                cx, cz = i * 46.0, j * 46.0
+                if rnd.random() < 0.4:
+                    for ox, oz in ((-9.5, -9.5), (9.5, 9.5)):
+                        blds.append(dict(x=cx + ox + rnd.uniform(-1.5, 1.5), z=cz + oz + rnd.uniform(-1.5, 1.5),
+                                         hw=rnd.uniform(5, 7.5), hd=rnd.uniform(5, 7.5), h=rnd.uniform(6, 24), hall=False,
+                                         tx=rnd.randrange(6), uo=rnd.random()))
+                else:
+                    blds.append(dict(x=cx + rnd.uniform(-4, 4), z=cz + rnd.uniform(-4, 4), hw=rnd.uniform(8, 13),
+                                     hd=rnd.uniform(8, 13), h=rnd.uniform(8, 30), hall=False, tx=rnd.randrange(6), uo=rnd.random()))
+        mount = [rnd.uniform(14, 46) for _ in range(120)]
+        for i in range(1, 119):
+            mount[i] = (mount[i - 1] + mount[i] + mount[(i + 1) % 120]) / 3
+        sky = dict(mount=mount, city=[(rnd.uniform(0, 360), rnd.uniform(1.2, 3.2), rnd.uniform(10, 70)) for _ in range(90)],
+                   stars=[(rnd.uniform(0, 360), rnd.uniform(0.04, 0.9), rnd.randint(1, 2)) for _ in range(110)])
+        return blds, sky
+
+    def start_tank(self, city):
+        w = self.wave
+        blds, sky = self.tk_make_world(city)
+        n = min(5 + 2 * w, 16)
+        n_super = min(w // 2, 4)
+        kinds = ['super'] * n_super + ['tank'] * (n - n_super) + ['missile'] * (w // 2 if w >= 3 else 0)
+        random.shuffle(kinds)
+        queue = sorted([(random.uniform(1.5, 10 + n * 2.2), kd) for kd in kinds], key=lambda q: q[0])
+        self.fx = Particles()
+        self.k = dict(city=city, blds=blds, sky=sky, t=0.0, tanks=[], missiles=[], shells=[], pshells=[], debris=[], booms=[],
+                      cracks=[], queue=queue, total=len(kinds), kills=0, phase='play', pt=0.0, fail=False,
+                      city0=city['hp'], hurt=0.0, sweep=0.0, inrange=False, msg_t=0.0, msg='',
+                      p=dict(x=0.0, z=-112.0, yaw=0.0, v=0.0, hp=TK_HP, cd=0.0, blocked=0.0, dead=False))
+        self.go('tank')
+        self.banner('¡INVASIÓN BLINDADA!', 'Defendé %s desde tu tanque | W/S: avanzar | A/D: girar | ESPACIO: cañón' % city['name'],
+                    (120, 255, 160), 4.2)
+
+    def tk_free(self, x, z, r):
+        for b in self.k['blds']:
+            nx, nz = clamp(x, b['x'] - b['hw'], b['x'] + b['hw']), clamp(z, b['z'] - b['hd'], b['z'] + b['hd'])
+            if (x - nx) ** 2 + (z - nz) ** 2 < r * r:
+                return False
+        return abs(x) < self.TK_A - 3 and abs(z) < self.TK_A - 3
+
+    def tk_move(self, x, z, r):
+        lim = self.TK_A - 3
+        x, z = clamp(x, -lim, lim), clamp(z, -lim, lim)
+        blocked = False
+        for b in self.k['blds']:
+            nx, nz = clamp(x, b['x'] - b['hw'], b['x'] + b['hw']), clamp(z, b['z'] - b['hd'], b['z'] + b['hd'])
+            dx, dz = x - nx, z - nz
+            d2 = dx * dx + dz * dz
+            if d2 < r * r:
+                blocked = True
+                if d2 > 1e-9:
+                    d = math.sqrt(d2)
+                    x, z = nx + dx / d * r, nz + dz / d * r
+                else:
+                    ox, oz = b['hw'] - abs(x - b['x']), b['hd'] - abs(z - b['z'])
+                    if ox < oz:
+                        x = b['x'] + math.copysign(b['hw'] + r, x - b['x'])
+                    else:
+                        z = b['z'] + math.copysign(b['hd'] + r, z - b['z'])
+        return x, z, blocked
+
+    def tk_los(self, x0, z0, x1, z1):
+        dx, dz = x1 - x0, z1 - z0
+        for b in self.k['blds']:
+            tmin, tmax = 0.0, 1.0
+            for o, d, lo, hi in ((x0, dx, b['x'] - b['hw'], b['x'] + b['hw']), (z0, dz, b['z'] - b['hd'], b['z'] + b['hd'])):
+                if abs(d) < 1e-9:
+                    if o < lo or o > hi:
+                        tmax = -1.0
+                        break
+                else:
+                    t1, t2 = (lo - o) / d, (hi - o) / d
+                    if t1 > t2:
+                        t1, t2 = t2, t1
+                    tmin, tmax = max(tmin, t1), min(tmax, t2)
+                    if tmin > tmax:
+                        break
+            if tmin <= tmax:
+                return False
+        return True
+
+    def tk_say(self, s):
+        self.k['msg'], self.k['msg_t'] = s, 1.4
+
+    def tk_fire(self):
+        k = self.k
+        p = k['p']
+        if self.state != 'tank' or p['dead'] or p['cd'] > 0 or k['phase'] != 'play':
+            return
+        p['cd'] = 0.7
+        sx, sz = math.sin(math.radians(p['yaw'])), math.cos(math.radians(p['yaw']))
+        k['pshells'].append(dict(x=p['x'] + sx * 3, y=1.9, z=p['z'] + sz * 3, vx=sx * 95, vz=sz * 95, life=1.5))
+        self.audio.play('cannon', .8)
+        self.shake = max(self.shake, 3)
+
+    def tk_enemy_shell(self, e, ang, tx=None, tz=None):
+        k = self.k
+        a = math.radians(ang)
+        k['shells'].append(dict(x=e['x'] + math.sin(a) * 3.4, y=1.9, z=e['z'] + math.cos(a) * 3.4,
+                                vx=math.sin(a) * 38, vz=math.cos(a) * 38, life=2.6))
+        d = math.hypot(e['x'] - k['p']['x'], e['z'] - k['p']['z'])
+        self.audio.play('launch', clamp(1.0 - d / 120, 0.1, 0.7))
+
+    def tk_hurt(self, dmg):
+        k = self.k
+        p = k['p']
+        if p['dead'] or k['phase'] != 'play':
+            return
+        p['hp'] -= dmg
+        k['hurt'] = 0.7
+        self.shake = max(self.shake, 10)
+        self.audio.play('hit', .8)
+        vp = self.TK_VP
+        cx, cy = random.uniform(vp.x + 120, vp.right - 120), random.uniform(vp.y + 80, vp.bottom - 80)
+        pts = []
+        for _ in range(random.randint(5, 7)):
+            a = random.uniform(0, 6.283)
+            ln = random.uniform(40, 150)
+            seg = [(cx, cy)]
+            for s_ in range(1, 5):
+                seg.append((cx + math.cos(a + random.uniform(-.25, .25)) * ln * s_ / 4, cy + math.sin(a + random.uniform(-.25, .25)) * ln * s_ / 4))
+            pts.append(seg)
+        k['cracks'] += pts
+        self.tk_say('¡IMPACTO!  ARMADURA %d' % max(0, p['hp']))
+
+    def tk_boom(self, x, z, size, life=1.1, y=1.4):
+        self.k['booms'].append(dict(x=x, y=y, z=z, size=size, life=life, age=0.0))
+
+    def tk_debris(self, x, z, n):
+        for _ in range(n):
+            a = random.uniform(0, 6.283)
+            sp = random.uniform(4, 15)
+            self.k['debris'].append(dict(x=x, y=random.uniform(0.6, 2.2), z=z, vx=math.cos(a) * sp, vy=random.uniform(5, 16),
+                                         vz=math.sin(a) * sp, life=random.uniform(0.9, 1.6)))
+
+    def tk_kill(self, e, kind):
+        k = self.k
+        if e in k['tanks']:
+            k['tanks'].remove(e)
+        if e in k['missiles']:
+            k['missiles'].remove(e)
+        k['kills'] += 1
+        pts = {'tank': 300, 'super': 600, 'missile': 150}[kind]
+        self.add_score(pts)
+        self.pop('+%d' % pts, W // 2, 180, (120, 255, 160))
+        self.audio.play('boom_s', .8)
+        self.shake = max(self.shake, 6)
+        self.tk_debris(e['x'], e['z'], 22)
+        self.tk_boom(e['x'], e['z'], 6.5)
+        if kind == 'super':
+            k['p']['hp'] = min(TK_HP, k['p']['hp'] + 20)
+            self.tk_say('REPARACION: +20 ARMADURA')
+
+    def tk_steer(self, e, want, speed, dt, rate):
+        chosen = want
+        if not self.tk_free(e['x'] + math.sin(math.radians(want)) * 8, e['z'] + math.cos(math.radians(want)) * 8, 3.2):
+            for off in (30, 60, 95, 135, 180):
+                h = (want + off * e['bias']) % 360
+                if self.tk_free(e['x'] + math.sin(math.radians(h)) * 8, e['z'] + math.cos(math.radians(h)) * 8, 3.2):
+                    chosen = h
+                    break
+        diff = angle_diff(e['h'], chosen)
+        e['h'] = (e['h'] + clamp(diff, -rate * dt, rate * dt)) % 360
+        if abs(diff) < 70:
+            a = math.radians(e['h'])
+            nx, nz, blk = self.tk_move(e['x'] + math.sin(a) * speed * dt, e['z'] + math.cos(a) * speed * dt, 3.4)
+            e['stuck'] = e['stuck'] + dt if blk else max(0.0, e['stuck'] - dt)
+            if e['stuck'] > 1.0:
+                e['bias'] *= -1
+                e['stuck'] = 0.0
+            e['x'], e['z'] = nx, nz
+            e['tread'] += speed * dt
+
+    def tk_ai(self, e, dt):
+        k = self.k
+        p = k['p']
+        w = self.wave
+        alive = not p['dead']
+        dx, dz = p['x'] - e['x'], p['z'] - e['z']
+        d = math.hypot(dx, dz)
+        to_p = math.degrees(math.atan2(dx, dz)) % 360
+        to_h = math.degrees(math.atan2(-e['x'], -e['z'])) % 360
+        dh = math.hypot(e['x'], e['z'])
+        sieging = dh < 40
+        los = alive and d < 85 and self.tk_los(e['x'], e['z'], p['x'], p['z'])
+        spd = (8.5 if e['kind'] == 'tank' else 12.0) * (1 + 0.03 * w)
+        rate = 42 if e['kind'] == 'tank' else 58
+        e['cd'] -= dt
+        if los:
+            if d > 55:
+                self.tk_steer(e, to_p, spd, dt, rate)
+            elif d < 26:
+                self.tk_steer(e, (to_p + 180) % 360, spd * 0.8, dt, rate)
+            else:
+                self.tk_steer(e, (to_p + 90 * e['sd']) % 360, spd * 0.55, dt, rate)
+            e['tur'] = (e['tur'] + clamp(angle_diff(e['tur'], to_p), -95 * dt, 95 * dt)) % 360
+            if e['cd'] <= 0 and abs(angle_diff(e['tur'], to_p)) < 4:
+                e['cd'] = random.uniform(3.0, 4.6) / (1 + 0.07 * w)
+                err = max(1.5, 5.0 - 0.4 * w)
+                self.tk_enemy_shell(e, e['tur'] + random.uniform(-err, err))
+        elif sieging:
+            e['tur'] = (e['tur'] + clamp(angle_diff(e['tur'], to_h), -95 * dt, 95 * dt)) % 360
+            k['city']['hp'] = max(0.0, k['city']['hp'] - (0.6 if e['kind'] == 'tank' else 0.9) * dt)
+            if e['cd'] <= 0 and abs(angle_diff(e['tur'], to_h)) < 6:
+                e['cd'] = random.uniform(2.2, 3.4)
+                self.tk_enemy_shell(e, e['tur'])
+        else:
+            self.tk_steer(e, to_h, spd, dt, rate)
+            e['tur'] = (e['tur'] + clamp(angle_diff(e['tur'], e['h']), -95 * dt, 95 * dt)) % 360
+        e['sd_t'] -= dt
+        if e['sd_t'] <= 0:
+            e['sd'] *= -1
+            e['sd_t'] = random.uniform(2, 5)
+
+    def upd_tank(self, dt):
+        k = self.k
+        p = k['p']
+        keys = pygame.key.get_pressed()
+        k['t'] += dt
+        k['hurt'] = max(0.0, k['hurt'] - dt)
+        k['msg_t'] = max(0.0, k['msg_t'] - dt)
+        k['sweep'] = (k['sweep'] + dt * 0.8) % 1.0
+        p['cd'] = max(0.0, p['cd'] - dt)
+        if not p['dead']:
+            turn = (1 if (keys[pygame.K_d] or keys[pygame.K_RIGHT]) else 0) - (1 if (keys[pygame.K_a] or keys[pygame.K_LEFT]) else 0)
+            thr = (1 if (keys[pygame.K_w] or keys[pygame.K_UP]) else 0) - (1 if (keys[pygame.K_s] or keys[pygame.K_DOWN]) else 0)
+            p['yaw'] = (p['yaw'] + turn * 68 * dt) % 360
+            tgt = 15.0 if thr > 0 else (-8.0 if thr < 0 else 0.0)
+            p['v'] += (tgt - p['v']) * min(1.0, dt * 4)
+            a = math.radians(p['yaw'])
+            nx, nz, blk = self.tk_move(p['x'] + math.sin(a) * p['v'] * dt, p['z'] + math.cos(a) * p['v'] * dt, 2.6)
+            p['blocked'] = 0.3 if (blk and thr) else max(0.0, p['blocked'] - dt)
+            if blk and thr:
+                p['v'] *= 0.5
+            p['x'], p['z'] = nx, nz
+            self.audio.engine_vol(0.12 + abs(p['v']) / 15 * 0.6 + abs(turn) * 0.1)
+            if p['blocked'] > 0:
+                self.tk_say('MOVIMIENTO BLOQUEADO POR OBJETO')
+        else:
+            self.audio.engine_vol(0)
+        if k['phase'] == 'play':
+            while k['queue'] and k['queue'][0][0] <= k['t'] and len(k['tanks']) + len(k['missiles']) < 6:
+                _, kd = k['queue'].pop(0)
+                side = random.choice((0, 1, 2, 3))
+                u = random.uniform(-100, 100)
+                ex, ez = ((u, 118), (u, -118), (118, u), (-118, u))[side]
+                if kd == 'missile':
+                    k['missiles'].append(dict(x=ex, z=ez, h=0.0, t=0.0, kind='missile'))
+                    self.audio.play('alarm', .5)
+                    self.tk_say('¡MISIL GUIADO DETECTADO!')
+                else:
+                    hall = math.degrees(math.atan2(-ex, -ez)) % 360
+                    k['tanks'].append(dict(x=ex, z=ez, h=hall, tur=hall, kind=kd, hp=1 if kd == 'tank' else 2, cd=random.uniform(1.5, 3.5),
+                                           bias=random.choice((-1, 1)), sd=random.choice((-1, 1)), sd_t=random.uniform(1, 4),
+                                           stuck=0.0, tread=0.0))
+        for e in k['tanks']:
+            self.tk_ai(e, dt)
+        for i, a_ in enumerate(k['tanks']):
+            for b_ in k['tanks'][i + 1:]:
+                d = math.hypot(a_['x'] - b_['x'], a_['z'] - b_['z'])
+                if 0 < d < 7.5:
+                    push = (7.5 - d) / 2
+                    ux, uz = (a_['x'] - b_['x']) / d, (a_['z'] - b_['z']) / d
+                    a_['x'], a_['z'] = a_['x'] + ux * push, a_['z'] + uz * push
+                    b_['x'], b_['z'] = b_['x'] - ux * push, b_['z'] - uz * push
+        for m in k['missiles'][:]:
+            m['t'] += dt
+            dx, dz = p['x'] - m['x'], p['z'] - m['z']
+            want = math.degrees(math.atan2(dx, dz)) + 28 * math.sin(m['t'] * 5)
+            m['h'] = (m['h'] + clamp(angle_diff(m['h'], want), -150 * dt, 150 * dt)) % 360
+            a = math.radians(m['h'])
+            m['x'] += math.sin(a) * 23 * dt
+            m['z'] += math.cos(a) * 23 * dt
+            if any(abs(m['x'] - b['x']) < b['hw'] and abs(m['z'] - b['z']) < b['hd'] for b in k['blds']):
+                k['missiles'].remove(m)
+                self.tk_debris(m['x'], m['z'], 12)
+                self.tk_boom(m['x'], m['z'], 3.5, 0.9)
+                self.audio.play('boom_s', .5)
+                continue
+            if not p['dead'] and math.hypot(dx, dz) < 3.2:
+                k['missiles'].remove(m)
+                self.tk_hurt(30)
+                self.audio.play('boom_s', .8)
+        for s in k['shells'][:]:
+            s['x'] += s['vx'] * dt
+            s['z'] += s['vz'] * dt
+            s['life'] -= dt
+            hit_b = any(abs(s['x'] - b['x']) < b['hw'] and abs(s['z'] - b['z']) < b['hd'] for b in k['blds'])
+            if s['life'] <= 0 or abs(s['x']) > 140 or abs(s['z']) > 140 or hit_b:
+                k['shells'].remove(s)
+                if hit_b:
+                    self.tk_boom(s['x'], s['z'], 2.2, 0.6)
+            elif not p['dead'] and math.hypot(s['x'] - p['x'], s['z'] - p['z']) < 2.9:
+                k['shells'].remove(s)
+                self.tk_hurt(18)
+        for s in k['pshells'][:]:
+            s['x'] += s['vx'] * dt
+            s['z'] += s['vz'] * dt
+            s['life'] -= dt
+            gone = s['life'] <= 0 or abs(s['x']) > 140 or abs(s['z']) > 140
+            if not gone and any(abs(s['x'] - b['x']) < b['hw'] and abs(s['z'] - b['z']) < b['hd'] for b in k['blds']):
+                gone = True
+                self.tk_boom(s['x'], s['z'], 2.2, 0.6, s['y'])
+                for _ in range(8):
+                    a = random.uniform(0, 6.283)
+                    k['debris'].append(dict(x=s['x'], y=s['y'], z=s['z'], vx=math.cos(a) * 5, vy=random.uniform(2, 8),
+                                            vz=math.sin(a) * 5, life=0.6))
+            if not gone:
+                for e in k['tanks'] + k['missiles']:
+                    if math.hypot(s['x'] - e['x'], s['z'] - e['z']) < (4.4 if e['kind'] != 'missile' else 2.4):
+                        gone = True
+                        if e['kind'] == 'missile':
+                            self.tk_kill(e, 'missile')
+                        else:
+                            e['hp'] -= 1
+                            if e['hp'] <= 0:
+                                self.tk_kill(e, e['kind'])
+                            else:
+                                self.audio.play('hit', .6)
+                                self.tk_say('IMPACTO EN SUPERTANQUE')
+                        break
+            if gone and s in k['pshells']:
+                k['pshells'].remove(s)
+        for bm in k['booms'][:]:
+            bm['age'] += dt
+            if bm['age'] >= bm['life']:
+                k['booms'].remove(bm)
+        for d_ in k['debris'][:]:
+            d_['life'] -= dt
+            d_['x'] += d_['vx'] * dt
+            d_['z'] += d_['vz'] * dt
+            d_['vy'] -= 24 * dt
+            d_['y'] = max(0.0, d_['y'] + d_['vy'] * dt)
+            if d_['life'] <= 0:
+                k['debris'].remove(d_)
+        if len(k['debris']) > 260:
+            del k['debris'][:60]
+        near = [e for e in k['tanks'] if not p['dead'] and math.hypot(e['x'] - p['x'], e['z'] - p['z']) < 75]
+        aligned = False
+        for e in near:
+            if abs(angle_diff(p['yaw'], math.degrees(math.atan2(e['x'] - p['x'], e['z'] - p['z'])))) < 10:
+                aligned = True
+        if aligned and not k['inrange']:
+            self.audio.play('ping', .5)
+        k['inrange'] = aligned
+        city = k['city']
+        if not p['dead'] and p['hp'] <= 0:
+            p['dead'] = True
+            self.audio.play('boom_l')
+            self.shake = 18
+            if k['phase'] == 'play':
+                k['phase'], k['fail'], k['pt'] = 'result', True, -0.8
+                self.banner('¡TANQUE DESTRUIDO!', 'La ciudad queda sin defensa', (255, 80, 70), 3.0)
+        if city['hp'] <= 0 and not city['dead']:
+            city['dead'] = True
+            self.audio.play('boom_l')
+            self.shake = 22
+            if k['phase'] == 'play':
+                k['phase'], k['fail'], k['pt'] = 'result', True, 0.0
+            self.banner('¡CIUDAD CAPTURADA!', city['name'], (255, 70, 60), 3.0)
+        if k['phase'] == 'play' and not k['queue'] and not k['tanks'] and not k['missiles']:
+            k['phase'], k['pt'] = 'result', 0.0
+            bonus = 400 + (400 if city['hp'] >= k['city0'] - 0.01 else 0)
+            self.add_score(bonus)
+            self.audio.play('win', .7)
+            self.banner('¡CIUDAD DEFENDIDA!', 'Bajas: %d   Bonus +%d' % (k['kills'], bonus), (120, 255, 160), 3.0)
+        if k['phase'] == 'result':
+            k['pt'] += dt
+            if k['pt'] > 3.0:
+                self.end_tank()
+
+    def end_tank(self):
+        k = self.k
+        city = k['city']
+        if k['fail'] and not city['dead']:
+            city['hp'] = max(0.0, city['hp'] - 30)
+            if city['hp'] <= 0:
+                city['dead'] = True
+        self.warned = False
+        self.strike_t = max(32.0, random.uniform(48, 62) - self.wave * 2)
+        if all(c['dead'] for c in self.cities):
+            return self.game_over('Todas las ciudades fueron destruidas')
+        self.go('map')
+
+    # ---- dibujo en primera persona (texturizado)
+    TK_CW = 3
+
+    def make_tk_backdrops(self):
+        vp = self.TK_VP
+        hor = vp.y + int(vp.h * 0.55)
+        sh = hor - vp.y
+        sky = pygame.Surface((vp.w, sh))
+        for y in range(sh):
+            f = y / sh
+            if f < 0.55:
+                g = f / 0.55
+                c = (int(lerp(8, 52, g)), int(lerp(10, 28, g)), int(lerp(32, 78, g)))
+            else:
+                g = (f - 0.55) / 0.45
+                c = (int(lerp(52, 236, g ** 1.4)), int(lerp(28, 124, g ** 1.4)), int(lerp(78, 92, g)))
+            pygame.draw.line(sky, c, (0, y), (vp.w, y))
+        fh = vp.bottom - hor
+        floor = pygame.Surface((vp.w, fh))
+        for y in range(fh):
+            f = y / fh
+            pygame.draw.line(floor, (int(lerp(122, 30, f ** 0.6)), int(lerp(80, 32, f ** 0.6)), int(lerp(104, 40, f ** 0.6))), (0, y), (vp.w, y))
+        moon = pygame.Surface((120, 120), pygame.SRCALPHA)
+        for r in range(58, 0, -2):
+            pygame.draw.circle(moon, (255, 244, 210, int(46 * (1 - r / 58) ** 1.5)), (60, 60), r)
+        pygame.draw.circle(moon, (236, 232, 210), (60, 60), 30)
+        pygame.draw.circle(moon, (252, 250, 236), (54, 54), 26)
+        for ox, oy, rr in ((-9, -6, 7), (10, 8, 9), (4, -14, 4), (-12, 12, 5)):
+            pygame.draw.circle(moon, (200, 196, 176), (60 + ox, 60 + oy), rr)
+            pygame.draw.circle(moon, (222, 218, 198), (60 + ox - 1, 60 + oy - 1), max(1, rr - 2))
+        return sky.convert(), floor.convert(), moon.convert_alpha()
+
+    def tk_prep(self):
+        a = math.radians(self.k['p']['yaw'])
+        self._ks, self._kc = math.sin(a), math.cos(a)
+
+    def tk_cam(self, x, y, z):
+        p = self.k['p']
+        dx, dz = x - p['x'], z - p['z']
+        return dx * self._kc - dz * self._ks, y - self.TK_EYE, dx * self._ks + dz * self._kc
+
+    def tk_prj(self, c):
+        vp = self.TK_VP
+        return vp.centerx + self.TK_F * c[0] / c[2], vp.y + int(vp.h * 0.55) - self.TK_F * c[1] / c[2]
+
+    def tk_clip(self, pts):
+        near, out = self.TK_NEAR, []
+        for i in range(len(pts)):
+            a, b = pts[i], pts[(i + 1) % len(pts)]
+            ain, bin_ = a[2] >= near, b[2] >= near
+            if ain:
+                out.append(a)
+            if ain != bin_:
+                t = (near - a[2]) / (b[2] - a[2])
+                out.append((a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, near))
+        return out
+
+    def tk_clip_seg(self, a, b):
+        near = self.TK_NEAR
+        if a[2] < near and b[2] < near:
+            return None
+        if a[2] < near:
+            t = (near - a[2]) / (b[2] - a[2])
+            a = (a[0] + (b[0] - a[0]) * t, a[1] + (b[1] - a[1]) * t, near)
+        elif b[2] < near:
+            t = (near - b[2]) / (a[2] - b[2])
+            b = (b[0] + (a[0] - b[0]) * t, b[1] + (a[1] - b[1]) * t, near)
+        return a, b
+
+    def tk_line(self, cv, a, b, col, w=1):
+        seg = self.tk_clip_seg(a, b)
+        if seg:
+            pygame.draw.line(cv, col, self.tk_prj(seg[0]), self.tk_prj(seg[1]), w)
+
+    def tk_ground_poly(self, cv, pts, col, edge=None):
+        q = self.tk_clip([self.tk_cam(x, 0, z) for x, z in pts])
+        if len(q) < 3:
+            return
+        sp = [self.tk_prj(v) for v in q]
+        pygame.draw.polygon(cv, col, sp)
+        if edge:
+            pygame.draw.lines(cv, edge, True, sp, 1)
+
+    def tk_face(self, strips, x0, z0, x1, z1, y0, y1, tex, u_scale, uoff, vs, vo, side, ground):
+        vp = self.TK_VP
+        F, NEAR = self.TK_F, self.TK_NEAR
+        p = self.k['p']
+        s_, c_ = self._ks, self._kc
+        dx0, dz0, dx1, dz1 = x0 - p['x'], z0 - p['z'], x1 - p['x'], z1 - p['z']
+        cx0, cz0 = dx0 * c_ - dz0 * s_, dx0 * s_ + dz0 * c_
+        cx1, cz1 = dx1 * c_ - dz1 * s_, dx1 * s_ + dz1 * c_
+        u0, u1 = 0.0, 1.0
+        if cz0 < NEAR and cz1 < NEAR:
+            return
+        if cz0 < NEAR:
+            t = (NEAR - cz0) / (cz1 - cz0)
+            cx0, cz0, u0 = cx0 + (cx1 - cx0) * t, NEAR, t
+        elif cz1 < NEAR:
+            t = (NEAR - cz1) / (cz0 - cz1)
+            cx1, cz1, u1 = cx1 + (cx0 - cx1) * t, NEAR, 1 - t
+        xa, xb = vp.centerx + F * cx0 / cz0, vp.centerx + F * cx1 / cz1
+        ia, ib = 1.0 / cz0, 1.0 / cz1
+        if xa > xb:
+            xa, xb, ia, ib, u0, u1 = xb, xa, ib, ia, u1, u0
+        if xb <= vp.x or xa >= vp.right or xb - xa < 0.5:
+            return
+        CW = self.TK_CW
+        hor = vp.y + int(vp.h * 0.55)
+        EYE = self.TK_EYE
+        c0 = max(0, int((xa - vp.x) // CW))
+        c1 = min((vp.w - 1) // CW, int((xb - vp.x) // CW))
+        uz0, uz1 = u0 * ia, u1 * ib
+        tw = tex['tw']
+        inv_w = 1.0 / (xb - xa)
+        fy1, fy0 = F * (y1 - EYE), F * (y0 - EYE)
+        for ci in range(c0, c1 + 1):
+            s = (vp.x + ci * CW + CW * 0.5 - xa) * inv_w
+            s = 0.0 if s < 0 else (1.0 if s > 1 else s)
+            invz = ia + (ib - ia) * s
+            z = 1.0 / invz
+            u = (uz0 + (uz1 - uz0) * s) * z
+            strips.append((z, ci, hor - fy1 * invz, hor - fy0 * invz, tex, side, int((u * u_scale + uoff) * tw) % tw, vs, vo, ground))
+
+    def tk_add_box(self, strips, cx, cz, hw, hd, y0, y1, rot, tex, tile_w, tile_h=None, uoff=0.0):
+        p = self.k['p']
+        a = math.radians(rot)
+        s, c = math.sin(a), math.cos(a)
+        wc = [(cx + lx * c + lz * s, cz - lx * s + lz * c) for lx, lz in ((-hw, -hd), (hw, -hd), (hw, hd), (-hw, hd))]
+        nrm = ((0, -1), (1, 0), (0, 1), (-1, 0))
+        if tile_h:
+            vs, vo = 1.0 / tile_h, 0.0
+        else:
+            vs = 1.0 / (y1 - y0)
+            vo = -y0 * vs
+        for i in range(4):
+            (x0, z0), (x1, z1) = wc[i], wc[(i + 1) % 4]
+            nx, nz = nrm[i][0] * c + nrm[i][1] * s, -nrm[i][0] * s + nrm[i][1] * c
+            if nx * (p['x'] - (x0 + x1) / 2) + nz * (p['z'] - (z0 + z1) / 2) <= 0:
+                continue
+            side = 0 if (nx * 0.55 + nz * 0.83) > -0.1 else 1
+            self.tk_face(strips, x0, z0, x1, z1, y0, y1, tex, math.hypot(x1 - x0, z1 - z0) / tile_w, uoff + i * 0.37, vs, vo, side,
+                         y0 <= 0.01)
+
+    def tk_flush(self, cv, strips):
+        vp = self.TK_VP
+        CW, F, EYE, NL = self.TK_CW, self.TK_F, self.TK_EYE, TK_NL
+        hor = vp.y + int(vp.h * 0.55)
+        cover = [vp.bottom] * ((vp.w - 1) // CW + 1)
+        strips.sort(key=lambda st: st[0])
+        vy = vp.y
+        vis = []
+        ncol = len(cover)
+        for st in strips:
+            if st[1] is None:
+                img, ix, iy = st[2:5]
+                iw, ih = img.get_size()
+                c0 = max(0, (ix - vp.x) // CW)
+                c1 = min(ncol - 1, (ix + iw - 1 - vp.x) // CW)
+                ci = c0
+                while ci <= c1:
+                    ct = cover[ci]
+                    cj = ci
+                    while cj < c1 and cover[cj + 1] == ct:
+                        cj += 1
+                    hc = ct - iy
+                    if hc > 0:
+                        bx0 = max(ix, vp.x + ci * CW)
+                        bx1 = min(ix + iw, vp.x + (cj + 1) * CW)
+                        if bx1 > bx0:
+                            vis.append((st[0], -1, img, (bx0 - ix, 0, bx1 - bx0, min(ih, hc)), bx0, iy))
+                    ci = cj + 1
+                continue
+            z, ci, top, bot, tex, side, tc, vs, vo, ground = st
+            ct = cover[ci]
+            if top >= ct:
+                continue
+            yt = top if top > vy else vy
+            yb = bot if bot < ct else ct
+            if yb - yt < 1:
+                continue
+            if ground:
+                cover[ci] = yt
+            vis.append((z, ci, yt, yb, tex, side, tc, vs, vo))
+        scale = pygame.transform.scale
+        blit = cv.blit
+        old_clip = cv.get_clip()
+        cv.set_clip(vp)
+        for v in reversed(vis):
+            if v[1] == -1:
+                blit(v[2], (v[4], v[5]), v[3])
+                continue
+            z, ci, yt, yb, tex, side, tc, vs, vo = v
+            th = tex['th']
+            R = tex['reps'] * th
+            r0 = R - ((EYE + (hor - yt) * z / F) * vs + vo) * th
+            r1 = R - ((EYE + (hor - yb) * z / F) * vs + vo) * th
+            i0 = int(r0) if r0 > 0 else 0
+            if i0 >= R:
+                i0 = R - 1
+            n = int(r1) - i0
+            if n < 1:
+                n = 1
+            if i0 + n > R:
+                n = R - i0
+            lvl = int(z * 0.0625)
+            src = tex['var'][lvl if lvl < NL else NL - 1][side]
+            blit(scale(src.subsurface((tc, i0, 1, n)), (CW, int(yb - yt) + 1)), (vp.x + ci * CW, int(yt)))
+        cv.set_clip(old_clip)
+        return len(vis)
+
+    def tk_ground(self, cv):
+        k = self.k
+        p = k['p']
+        vp = self.TK_VP
+        hor = vp.y + int(vp.h * 0.55)
+        cv.blit(self.tk_floor_bg, (vp.x, hor))
+        s_, c_ = self._ks, self._kc
+        T = 8.0
+        ix0, iz0 = int(p['x'] // T), int(p['z'] // T)
+        lim = self.TK_A + 8
+        cells = []
+        for di in range(-10, 11):
+            for dj in range(-10, 11):
+                cxw, czw = (ix0 + di + 0.5) * T, (iz0 + dj + 0.5) * T
+                if abs(cxw) > lim or abs(czw) > lim:
+                    continue
+                dx, dz = cxw - p['x'], czw - p['z']
+                ccz, ccx = dx * s_ + dz * c_, dx * c_ - dz * s_
+                if ccz < -6 or ccz > 84 or abs(ccx) > ccz * 1.6 + 14:
+                    continue
+                cells.append((ccz, ix0 + di, iz0 + dj))
+        cells.sort(reverse=True)
+        fog = (110, 74, 100)
+        for ccz, i, j in cells:
+            h = ((i * 73856093) ^ (j * 19349663)) & 255
+            b = 44 + h % 9 - 4
+            f = clamp(ccz / 95.0, 0, 0.9)
+            col = (int(lerp(b, fog[0], f)), int(lerp(b + 2, fog[1], f)), int(lerp(b + 9, fog[2], f)))
+            edge = (int(lerp(b - 12, fog[0], f)), int(lerp(b - 10, fog[1], f)), int(lerp(b - 3, fog[2], f))) if ccz < 45 else None
+            x0, z0 = i * T, j * T
+            self.tk_ground_poly(cv, ((x0, z0), (x0 + T, z0), (x0 + T, z0 + T), (x0, z0 + T)), col, edge)
+        for b in k['blds']:
+            dx, dz = b['x'] - p['x'], b['z'] - p['z']
+            if dx * s_ + dz * c_ < -30 or dx * dx + dz * dz > 100 ** 2:
+                continue
+            m = 2.6
+            f = clamp(math.hypot(dx, dz) / 100.0, 0, 0.9)
+            col = (int(lerp(112, fog[0], f)), int(lerp(112, fog[1], f)), int(lerp(120, fog[2], f)))
+            self.tk_ground_poly(cv, ((b['x'] - b['hw'] - m, b['z'] - b['hd'] - m), (b['x'] + b['hw'] + m, b['z'] - b['hd'] - m),
+                                     (b['x'] + b['hw'] + m, b['z'] + b['hd'] + m), (b['x'] - b['hw'] - m, b['z'] + b['hd'] + m)),
+                                col, (int(col[0] * .75), int(col[1] * .75), int(col[2] * .78)))
+        for sc in (-115, -69, -23, 23, 69, 115):
+            for zz in range(-120, 121, 8):
+                for horiz in (False, True):
+                    a0, a1 = (sc, zz) if not horiz else (zz, sc), (sc, zz + 3.6) if not horiz else (zz + 3.6, sc)
+                    dx, dz = a0[0] - p['x'], a0[1] - p['z']
+                    ccz = dx * s_ + dz * c_
+                    if ccz < -4 or ccz > 80 or dx * dx + dz * dz > 80 ** 2:
+                        continue
+                    w = 0.28
+                    if horiz:
+                        quad = ((a0[0], a0[1] - w), (a1[0], a1[1] - w), (a1[0], a1[1] + w), (a0[0], a0[1] + w))
+                    else:
+                        quad = ((a0[0] - w, a0[1]), (a1[0] - w, a1[1]), (a1[0] + w, a1[1]), (a0[0] + w, a0[1]))
+                    f = clamp(ccz / 80.0, 0, 0.9)
+                    self.tk_ground_poly(cv, quad, (int(lerp(214, fog[0], f)), int(lerp(184, fog[1], f)), int(lerp(70, fog[2], f))))
+
+    def tk_sky(self, cv):
+        k = self.k
+        p = k['p']
+        vp = self.TK_VP
+        hor = vp.y + int(vp.h * 0.55)
+        sky = k['sky']
+        yaw = p['yaw']
+        t = self.t
+        cv.blit(self.tk_sky_bg, (vp.x, vp.y))
+        for az, alt, sz in sky['stars']:
+            rel = angle_diff(yaw, az)
+            if abs(rel) < 60:
+                sx = vp.centerx + self.TK_F * math.tan(math.radians(rel))
+                sy = hor - 12 - alt * (hor - vp.y - 20)
+                if vp.x < sx < vp.right and sy > vp.y and alt > 0.25:
+                    v = 150 + int(90 * math.sin(t * 2 + az))
+                    cv.fill((v, v, min(255, v + 20)), (int(sx), int(sy), sz, sz))
+        rel = angle_diff(yaw, 42)
+        if abs(rel) < 70:
+            cv.blit(self.tk_moon, (int(vp.centerx + self.TK_F * math.tan(math.radians(rel)) - 60), hor - 210))
+        pts = []
+        for i in range(120):
+            rel = angle_diff(yaw, i * 3.0)
+            if abs(rel) < 75:
+                pts.append((vp.centerx + self.TK_F * math.tan(math.radians(rel)), hor - sky['mount'][i] * 1.4))
+        if len(pts) > 1:
+            pts.sort()
+            poly = pts + [(pts[-1][0], hor), (pts[0][0], hor)]
+            pygame.draw.polygon(cv, (44, 30, 62), poly)
+            pygame.draw.lines(cv, (120, 84, 126), False, pts, 2)
+        for n, (az, wd, hh) in enumerate(sky['city']):
+            rel = angle_diff(yaw, az)
+            if abs(rel) < 75:
+                sx = vp.centerx + self.TK_F * math.tan(math.radians(rel))
+                ww = self.TK_F * math.radians(wd)
+                r = pygame.Rect(int(sx - ww / 2), int(hor - hh), int(ww), int(hh))
+                pygame.draw.rect(cv, (30, 22, 48), r)
+                pygame.draw.line(cv, (84, 60, 100), r.topleft, r.topright, 1)
+                for j in range(5):
+                    if (n * 7 + j * 3) % 4 == 0 and r.w > 6:
+                        cv.fill((255, 214, 120), (r.x + 2 + (j * 5) % max(1, r.w - 4), r.y + 4 + (j * 9) % max(1, r.h - 6), 2, 2))
+        cv.fill((96, 64, 92), (vp.x, hor - 1, vp.w, 3))
+
+    def tk_add_prism(self, strips, cx, cz, r, y0, y1, n, rot, tex, tile_w, uoff=0.0):
+        p = self.k['p']
+        a0 = math.radians(rot)
+        pts = [(cx + math.sin(a0 - 2 * math.pi * i / n) * r, cz + math.cos(a0 - 2 * math.pi * i / n) * r) for i in range(n)]
+        vs, vo = 1.0 / (y1 - y0), -y0 / (y1 - y0)
+        for i in range(n):
+            (x0, z0), (x1, z1) = pts[i], pts[(i + 1) % n]
+            mx, mz = (x0 + x1) / 2, (z0 + z1) / 2
+            nx, nz = mx - cx, mz - cz
+            if nx * (p['x'] - mx) + nz * (p['z'] - mz) <= 0:
+                continue
+            nl = math.hypot(nx, nz) or 1.0
+            side = 0 if (nx / nl * 0.55 + nz / nl * 0.83) > -0.1 else 1
+            self.tk_face(strips, x0, z0, x1, z1, y0, y1, tex, math.hypot(x1 - x0, z1 - z0) / tile_w, uoff + i * 0.21, vs, vo, side,
+                         y0 <= 0.01)
+
+    def tk_add_tank(self, strips, e):
+        """Agrega el sprite pre-renderizado del tanque (casco + torreta) como entrada ordenable por profundidad."""
+        p = self.k['p']
+        c = self.tk_cam(e['x'], 0, e['z'])
+        z = c[2]
+        if z < 2.5 or z > 190:
+            return
+        spr = self.tk_spr[e['kind']]
+        sx, sy = self.tk_prj(c)
+        scale = (self.TK_F / z) / spr['px']
+        step = 360.0 / TK_ANG
+        hi = int(round(((e['h'] - p['yaw']) % 360) / step)) % TK_ANG
+        ti = int(round(((e['tur'] - p['yaw']) % 360) / step)) % TK_ANG
+        parts = (spr['hull'][hi], spr['tur'][ti])
+        x0 = min(-a for _, a, _ in parts)
+        x1 = max(im.get_width() - a for im, a, _ in parts)
+        y0 = min(-b for _, _, b in parts)
+        y1 = max(im.get_height() - b for im, _, b in parts)
+        cvs = pygame.Surface((int(x1 - x0) + 1, int(y1 - y0) + 1), pygame.SRCALPHA)
+        for im, a, b in parts:
+            cvs.blit(im, (int(-x0 - a), int(-y0 - b)))
+        # se escala solo la parte visible dentro del visor (de cerca el sprite sería enorme)
+        vp = self.TK_VP
+        dx, dy = sx + x0 * scale, sy + y0 * scale
+        dw, dh = cvs.get_width() * scale, cvs.get_height() * scale
+        vx0, vx1 = max(dx, vp.x), min(dx + dw, vp.right)
+        vy0, vy1 = max(dy, vp.y), min(dy + dh, vp.bottom)
+        if vx1 - vx0 < 1 or vy1 - vy0 < 1:
+            return
+        sw, sh = cvs.get_size()
+        r = pygame.Rect(int((vx0 - dx) / scale), int((vy0 - dy) / scale), 0, 0)
+        r.w = min(sw - r.x, int((vx1 - dx) / scale) - r.x + 2)
+        r.h = min(sh - r.y, int((vy1 - dy) / scale) - r.y + 2)
+        img = pygame.transform.scale(cvs.subsurface(r), (max(1, int(r.w * scale)), max(1, int(r.h * scale))))
+        f = min(0.8, z / 170.0)
+        img.fill((int(255 * (1 - f)),) * 3 + (255,), special_flags=pygame.BLEND_RGBA_MULT)
+        img.fill(tuple(int(q * f) for q in TK_FOG) + (0,), special_flags=pygame.BLEND_RGB_ADD)
+        strips.append((z - 0.6, None, img, int(dx + r.x * scale), int(dy + r.y * scale)))
+
+    def tk_scene(self, cv):
+        k = self.k
+        p = k['p']
+        vp = self.TK_VP
+        t = self.t
+        self.tk_prep()
+        cv.fill((0, 0, 0), vp)
+        self.tk_sky(cv)
+        self.tk_ground(cv)
+        T = self.tk_tex
+        strips = []
+        for b in k['blds']:
+            dx, dz = b['x'] - p['x'], b['z'] - p['z']
+            if dx * dx + dz * dz > 170 ** 2:
+                continue
+            if b['hall']:
+                self.tk_add_box(strips, b['x'], b['z'], b['hw'], b['hd'], 0, b['h'], 0, T['hall'], 8.0, 11.0)
+            else:
+                self.tk_add_box(strips, b['x'], b['z'], b['hw'], b['hd'], 0, b['h'], 0, T['bld'][b['tx']], 8.0, 8.0, b['uo'])
+        for e in k['tanks']:
+            self.tk_add_tank(strips, e)
+        for m in k['missiles']:
+            self.tk_add_box(strips, m['x'], m['z'], .35, 1.5, .6, 1.5, m['h'], T['missile'], 3.0)
+        self.tk_flush(cv, strips)
+        for b in k['blds']:
+            if b['hall']:
+                top = self.tk_cam(b['x'], b['h'] + 8, b['z'])
+                base = self.tk_cam(b['x'], b['h'], b['z'])
+                self.tk_line(cv, base, top, (210, 216, 230), 2)
+                if top[2] > 1 and int(t * 2) % 2 == 0:
+                    sx, sy = self.tk_prj(top)
+                    glow(cv, sx, sy, min(120, max(8, int(220 / top[2]))), (255, 60, 50))
+                    pygame.draw.circle(cv, (255, 120, 100), (int(sx), int(sy)), max(2, int(100 / top[2])))
+        for m in k['missiles']:
+            a = math.radians(m['h'])
+            fl_ = self.tk_cam(m['x'] - math.sin(a) * 2.2, 1.0, m['z'] - math.cos(a) * 2.2)
+            if fl_[2] > 1:
+                fx_, fy_ = self.tk_prj(fl_)
+                glow(cv, fx_, fy_, min(160, int(220 / fl_[2]) + 8), (255, 150, 50))
+        for e in k['tanks'] + k['missiles']:
+            if not self.tk_los(p['x'], p['z'], e['x'], e['z']):
+                continue
+            c = self.tk_cam(e['x'], (6.4 if e['kind'] == 'super' else 5.2) if e['kind'] != 'missile' else 3.0, e['z'])
+            if 6 < c[2] < 110:
+                sx, sy = self.tk_prj(c)
+                if vp.x + 6 < sx < vp.right - 6:
+                    sz = max(5, int(260 / c[2]))
+                    col = (255, 70, 60) if e['kind'] == 'tank' else ((255, 190, 50) if e['kind'] == 'super' else (255, 236, 90))
+                    pygame.draw.polygon(cv, (20, 8, 8), [(sx - sz - 2, sy - sz - 2), (sx + sz + 2, sy - sz - 2), (sx, sy + 3)])
+                    pygame.draw.polygon(cv, col, [(sx - sz, sy - sz), (sx + sz, sy - sz), (sx, sy)])
+        for s in k['shells']:
+            self.tk_shell(cv, s, (255, 140, 80))
+        for s in k['pshells']:
+            self.tk_shell(cv, s, (255, 236, 160))
+        for d_ in k['debris']:
+            a = self.tk_cam(d_['x'], d_['y'], d_['z'])
+            b = self.tk_cam(d_['x'] - d_['vx'] * .07, d_['y'] - d_['vy'] * .07, d_['z'] - d_['vz'] * .07)
+            self.tk_line(cv, a, b, (255, int(150 + 100 * clamp(d_['life'], 0, 1)), 60), 2)
+        for bm in k['booms']:
+            c = self.tk_cam(bm['x'], bm['y'], bm['z'])
+            if c[2] < 1.5:
+                continue
+            sx, sy = self.tk_prj(c)
+            age = bm['age'] / bm['life']
+            r = min(170, int(self.TK_F * bm['size'] * (0.35 + age * 0.9) / c[2]))
+            if r < 2:
+                continue
+            draw_circ(cv, sx, sy - r * 0.3, r, (40, 36, 40), 150 * (1 - age))
+            glow(cv, sx, sy, int(r * 1.5), (255, 150, 60), 1 - age)
+            if age < 0.45:
+                glow(cv, sx, sy, int(r), (255, 240, 190), 1 - age * 2)
+
+    def tk_shell(self, cv, s, col):
+        a = self.tk_cam(s['x'], s['y'], s['z'])
+        if a[2] < 0.6:
+            return
+        sx, sy = self.tk_prj(a)
+        r = min(40, max(2, int(70 / a[2])))
+        glow(cv, sx, sy, r * 3 + 8, col, 0.8)
+        b = self.tk_cam(s['x'] - s['vx'] * 0.05, s['y'], s['z'] - s['vz'] * 0.05)
+        self.tk_line(cv, a, b, (255, 255, 255), 2)
+        pygame.draw.circle(cv, col, (int(sx), int(sy)), r)
+
+    def tk_overlay(self, cv):
+        k = self.k
+        p = k['p']
+        vp = self.TK_VP
+        hor = vp.y + int(vp.h * 0.55)
+        cx = vp.centerx
+        rec = clamp((p['cd'] - 0.5) / 0.2, 0, 1)
+        if rec > 0.05:
+            glow(cv, cx, vp.bottom - 6, 150, (255, 190, 90), rec * 0.9)
+        rc = (255, 236, 160)
+        pygame.draw.line(cv, rc, (cx - 26, hor), (cx - 8, hor), 1)
+        pygame.draw.line(cv, rc, (cx + 8, hor), (cx + 26, hor), 1)
+        pygame.draw.line(cv, rc, (cx, hor - 26), (cx, hor - 8), 1)
+        pygame.draw.line(cv, rc, (cx, hor + 8), (cx, hor + 26), 1)
+        pygame.draw.circle(cv, rc, (cx, hor), 2)
+
+    def draw_tank(self, cv):
+        k = self.k
+        p = k['p']
+        vp = self.TK_VP
+        t = self.t
+        cv.fill((8, 12, 10))
+        cv.set_clip(vp)
+        self.tk_scene(cv)
+        self.tk_overlay(cv)
+        for seg in k['cracks']:
+            pygame.draw.lines(cv, (150, 220, 190), False, seg, 1)
+            pygame.draw.lines(cv, (40, 70, 60), False, [(x + 2, y + 2) for x, y in seg], 1)
+        if k['hurt'] > 0:
+            ov = pygame.Surface(vp.size, pygame.SRCALPHA)
+            ov.fill((255, 30, 20, int(120 * clamp(k['hurt'] * 1.6, 0, 1))))
+            cv.blit(ov, vp.topleft)
+        if p['blocked'] > 0:
+            pygame.draw.rect(cv, (255, 200, 60), vp, 4)
+        cv.set_clip(None)
+        cv.blit(self.cockpit, (0, 0))
+        G1, G2 = (90, 255, 150), (40, 150, 90)
+        rx, ry, rr = W // 2, 62, 50
+        pygame.draw.circle(cv, (0, 12, 6), (rx, ry), rr)
+        for q in (rr, rr * 2 // 3, rr // 3):
+            pygame.draw.circle(cv, (0, 90, 50), (rx, ry), q, 1)
+        pygame.draw.line(cv, (0, 90, 50), (rx - rr, ry), (rx + rr, ry), 1)
+        pygame.draw.line(cv, (0, 90, 50), (rx, ry - rr), (rx, ry + rr), 1)
+        sw = k['sweep'] * 6.283
+        pygame.draw.line(cv, (60, 255, 140), (rx, ry), (rx + math.sin(sw) * rr, ry - math.cos(sw) * rr), 2)
+        rng = 95.0
+        ya = math.radians(p['yaw'])
+        sy_, cy_ = math.sin(ya), math.cos(ya)
+
+        def blip(x, z, col, size, clampit=False):
+            dx, dz = x - p['x'], z - p['z']
+            cx_, cz_ = dx * cy_ - dz * sy_, dx * sy_ + dz * cy_
+            d = math.hypot(cx_, cz_)
+            if d > rng:
+                if not clampit:
+                    return
+                cx_, cz_ = cx_ / d * rng, cz_ / d * rng
+            pygame.draw.rect(cv, col, (rx + cx_ / rng * (rr - 3) - size // 2, ry - cz_ / rng * (rr - 3) - size // 2, size, size))
+        for b in k['blds']:
+            blip(b['x'], b['z'], (0, 110, 70), 2)
+        blip(0, 0, (90, 255, 255), 4, True)
+        for e in k['tanks']:
+            blip(e['x'], e['z'], (255, 90, 60) if e['kind'] == 'tank' else (255, 190, 50), 4)
+        for m in k['missiles']:
+            blip(m['x'], m['z'], (255, 235, 90), 3)
+        pygame.draw.polygon(cv, (90, 255, 150), [(rx, ry - 5), (rx - 3, ry + 3), (rx + 3, ry + 3)], 1)
+        pygame.draw.circle(cv, (70, 120, 90), (rx, ry), rr, 2)
+        self.text(cv, 'PUNTOS %07d' % self.score, self.f_m, G1, 40, 20)
+        self.text(cv, 'OLEADA %d/%d   REC %d' % (self.wave, WIN_WAVE, self.hiscore), self.f_s, G2, 40, 52)
+        self.text(cv, k['city']['name'], self.f_s, G1, 40, 78)
+        left = len(k['queue']) + len(k['tanks']) + len(k['missiles'])
+        self.text(cv, 'ENEMIGOS %d' % left, self.f_m, (255, 130, 100), W - 40, 20, 'r')
+        city = k['city']
+        self.text(cv, 'CIUDAD', self.f_s, G2, W - 270, 56)
+        self.bar(cv, W - 200, 52, 160, 18, city['hp'] / 100, (80, 230, 110) if city['hp'] > 50 else (240, 90, 70), '%d%%' % city['hp'])
+        by = vp.bottom + 24
+        self.text(cv, 'ARMADURA', self.f_s, G1, 40, by)
+        self.bar(cv, 40, by + 22, 280, 24, p['hp'] / TK_HP, (80, 230, 110) if p['hp'] > TK_HP * 0.35 else (240, 80, 70), '%d' % max(0, p['hp']))
+        self.text(cv, 'CAÑON', self.f_s, G1, 40, by + 56)
+        rl = 1 - clamp(p['cd'] / 0.7, 0, 1)
+        self.bar(cv, 40, by + 78, 280, 18, rl, (90, 255, 150) if rl >= 1 else (255, 190, 70), 'LISTO' if rl >= 1 else 'CARGANDO')
+        hd = int(p['yaw']) % 360
+        self.text(cv, 'RUMBO %03d' % hd, self.f_m, G1, W - 40, by, 'r')
+        card = 'N NE E SE S SO O NO'.split()[int(((hd + 22.5) % 360) // 45)]
+        self.text(cv, card, self.f_l, G1, W - 40, by + 28, 'r')
+        self.text(cv, 'VELOCIDAD %2d' % abs(p['v']), self.f_s, G2, W - 40, by + 74, 'r')
+        msg, mcol = '', (255, 200, 80)
+        nearest = None
+        for e in k['tanks']:
+            d = math.hypot(e['x'] - p['x'], e['z'] - p['z'])
+            if nearest is None or d < nearest[0]:
+                nearest = (d, e)
+        if k['inrange']:
+            msg, mcol = 'ENEMIGO EN RANGO', (255, 90, 70)
+        elif k['msg_t'] > 0:
+            msg = k['msg']
+        elif nearest and nearest[0] < 120:
+            rel = angle_diff(p['yaw'], math.degrees(math.atan2(nearest[1]['x'] - p['x'], nearest[1]['z'] - p['z'])))
+            if abs(rel) > 45:
+                msg = 'ENEMIGO A LA %s' % ('DERECHA >>' if 0 < rel < 135 else ('<< IZQUIERDA' if -135 < rel < 0 else 'ESPALDA'))
+                mcol = (255, 150, 70)
+        if msg and (k['inrange'] or int(t * 4) % 2 == 0 or k['msg_t'] > 0):
+            self.text(cv, msg, self.f_m, mcol, W // 2, vp.bottom + 56, 'c')
+        self.text(cv, 'W/S avanzar | A/D girar | ESPACIO o clic: cañón', self.f_s, G2, W // 2, H - 28, 'c')
 
     # ------------------------------------------------------------ DIBUJO
     def blit_ship(self, dst, key, x, y, heading, cx=0, cy=0, alpha=255):
@@ -3266,6 +4736,8 @@ class Game:
             self.draw_aerial(cv)
         elif self.state == 'hack':
             self.draw_hack(cv)
+        elif self.state == 'tank':
+            self.draw_tank(cv)
         elif self.state == 'ground':
             self.draw_ground(cv)
         elif self.state == 'gameover':
@@ -3318,12 +4790,12 @@ class Game:
         self.panel(cv, (W // 2 - 380, 325, 760, 240), 170)
         lines = ['MAPA   W/S acelerar-frenar   A/D girar   R (en puerto) reabastecer   L desembarcar',
                  'DEFENSA   Mouse o flechas apuntan   Clic/ESPACIO lanzan interceptor',
-                 'COMBATE   Mouse apunta, clic lanza un misil que vuela recto (¡adelantate!)',
-                 '          Maniobrá para esquivar los misiles enemigos   E: huir',
+                 'COMBATE   Mouse apunta, clic lanza un misil recto (¡adelantate!)   E: huir',
                  'TIERRA   WASD soldado   Clic disparar   R recargar   ESPACIO granada',
+                 'TANQUE   W/S avanzar   A/D girar   ESPACIO o clic: cañón',
                  'JEFE   Instalá antenas en las islas (L) y hackeá su escudo con H cerca del buque',
                  'AIRE   WASD mover   ESPACIO disparar   B bomba',
-                 'P pausa   M sonido   F1 efecto CRT']
+                 'P pausa   M sonido   F1 efecto CRT   F2 tanques   F3 aéreo   F4 desembarco (modo prueba)']
         for i, ln in enumerate(lines):
             self.text(cv, ln, self.f_s, (220, 232, 255), W // 2 - 360, 336 + i * 28)
         if int(t * 2) % 2 == 0:
@@ -3393,6 +4865,12 @@ class Game:
             pygame.draw.rect(cv, (120, 84, 50), (sx - 11, sy - 11, 22, 22), border_radius=3)
             pygame.draw.rect(cv, col, (sx - 11, sy - 11, 22, 22), 2, border_radius=3)
             self.text(cv, {'ammo': 'M', 'fuel': 'C', 'repair': '+'}[q['kind']], self.f_s, (255, 255, 255), sx, sy - 9, 'c', shadow=False)
+        for mc in self.mclouds:
+            mx_ = (mc['x'] + self.t * 14) % (WORLD_W + 800) - 400
+            my_ = (mc['y'] + self.t * 6) % (WORLD_H + 500) - 250
+            w_, h_ = mc['spr'].get_size()
+            if -w_ < mx_ - cx < W and -h_ < my_ - cy < H:
+                cv.blit(mc['spr'], (mx_ - cx, my_ - cy))
         for i in ANTENNA_ISLANDS:
             ix, iy, ir, _sd = EXTRA_ISLANDS[i]
             sx, sy = ix - cx, iy - cy
@@ -3431,7 +4909,7 @@ class Game:
         self.draw_hud(cv)
         self.draw_cities_hud(cv)
         self.draw_minimap(cv)
-        thr = 1 - clamp(self.strike_t / 30.0, 0, 1)
+        thr = 1 - clamp(self.strike_t / 60.0, 0, 1)
         self.text(cv, 'AMENAZA ENEMIGA', self.f_s, (255, 190, 170), W - 296 + 8, 76)
         self.bar(cv, W - 296, 96, 282, 14, thr, (255, 90 + int(100 * (1 - thr)), 60), '')
         n_ant = sum(self.antennas.values())
@@ -3467,7 +4945,7 @@ class Game:
             pygame.draw.rect(cv, (255, 40, 40), (0, 0, W, H), 8)
 
     def draw_minimap(self, cv):
-        mw, mh = 190, 143
+        mw, mh = 240, 180
         x0, y0 = W - mw - 14, H - mh - 14
         self.panel(cv, (x0 - 4, y0 - 4, mw + 8, mh + 8), 190)
         sc = mw / WORLD_W
@@ -3599,81 +5077,90 @@ class Game:
         g = self.g
         p, city = g['p'], g['city']
         t = self.t
-        self.draw_ocean(cv, 0, 0, t)
-        cv.blit(g['land'], (0, 0))
+        cam = g['cam']
+        cx_, cy_ = int(cam[0]), int(cam[1])
+        self.draw_ocean(cv, cx_, cy_, t)
+        lo = g['land_off']
+        cv.blit(g['land'], (lo[0] - cx_, lo[1] - cy_))
         for x, y, r in g['decals']:
-            draw_circ(cv, x, y, r, (28, 24, 20), 140)
+            draw_circ(cv, x - cx_, y - cy_, r, (28, 24, 20), 140)
         if g['mode'] == 'landing':
             if g['phase'] == 'result' and not g['fail']:
                 k = clamp(g['ant_t'] / 1.8, 0, 1)
                 bw, bh = self.antenna_big.get_size()
                 hh = int(bh * k)
                 if hh > 0:
-                    cv.blit(self.antenna_big, (W // 2 - bw // 2, H // 2 + 20 - hh), area=pygame.Rect(0, bh - hh, bw, hh))
+                    cv.blit(self.antenna_big, (W // 2 - cx_ - bw // 2, H // 2 - cy_ + 20 - hh), area=pygame.Rect(0, bh - hh, bw, hh))
                 if k >= 1:
                     for j in range(3):
                         ph = (t * 0.8 + j / 3) % 1
-                        draw_circ(cv, W // 2, H // 2 - bh + 30, 14 + ph * 80, (120, 240, 255), 170 * (1 - ph), 2)
-            self.draw_boat(cv, g['spawn'][0], g['spawn'][1] + 58, 0)
+                        draw_circ(cv, W // 2 - cx_, H // 2 - cy_ - bh + 30, 14 + ph * 80, (120, 240, 255), 170 * (1 - ph), 2)
+            self.draw_boat(cv, g['spawn'][0] - cx_, g['spawn'][1] + 58 - cy_, 0)
         for x, y, a, _t in g['boats']:
-            self.draw_boat(cv, x, y, a)
+            self.draw_boat(cv, x - cx_, y - cy_, a)
         for c in g['corpses']:
             if c['age'] < 14:
-                self.blit_soldier(cv, 'e_' + c['kind'], c['x'], c['y'], c['h'], 0, dead=True)
+                self.blit_soldier(cv, 'e_' + c['kind'], c['x'] - cx_, c['y'] - cy_, c['h'], 0, dead=True)
         for q in g['crates']:
-            glow(cv, q['x'], q['y'], 28, (120, 255, 150) if q['kind'] == 'med' else (255, 210, 70), 0.6)
-            pygame.draw.rect(cv, (236, 240, 236) if q['kind'] == 'med' else (96, 110, 70), (q['x'] - 9, q['y'] - 9, 18, 18), border_radius=3)
+            qx, qy = q['x'] - cx_, q['y'] - cy_
+            glow(cv, qx, qy, 28, (120, 255, 150) if q['kind'] == 'med' else (255, 210, 70), 0.6)
+            pygame.draw.rect(cv, (236, 240, 236) if q['kind'] == 'med' else (96, 110, 70), (qx - 9, qy - 9, 18, 18), border_radius=3)
             if q['kind'] == 'med':
-                pygame.draw.rect(cv, (220, 50, 50), (q['x'] - 6, q['y'] - 2, 12, 4))
-                pygame.draw.rect(cv, (220, 50, 50), (q['x'] - 2, q['y'] - 6, 4, 12))
+                pygame.draw.rect(cv, (220, 50, 50), (qx - 6, qy - 2, 12, 4))
+                pygame.draw.rect(cv, (220, 50, 50), (qx - 2, qy - 6, 4, 12))
             else:
-                pygame.draw.circle(cv, (60, 76, 50), (int(q['x']), int(q['y'])), 5)
-                pygame.draw.circle(cv, (255, 210, 70), (int(q['x']), int(q['y'])), 8, 2)
+                pygame.draw.circle(cv, (60, 76, 50), (int(qx), int(qy)), 5)
+                pygame.draw.circle(cv, (255, 210, 70), (int(qx), int(qy)), 8, 2)
         actors = [(e['y'], 'e', e) for e in g['enemies']] + [(p['y'], 'p', p)]
         for _, who, s in sorted(actors, key=lambda a: a[0]):
+            sx, sy = s['x'] - cx_, s['y'] - cy_
+            if not (-120 < sx < W + 120 and -120 < sy < H + 120):
+                continue
             if who == 'e':
-                self.blit_soldier(cv, 'e_' + s['kind'], s['x'], s['y'], s['h'], int(s['ph']) % 4, s['hit'])
+                self.blit_soldier(cv, 'e_' + s['kind'], sx, sy, s['h'], int(s['ph']) % 4, s['hit'])
                 if s['state'] == 'hold':
-                    self.text(cv, 'z', self.f_s, (200, 210, 230), s['x'] + 12, s['y'] - 40, shadow=False, alpha=150)
+                    self.text(cv, 'z', self.f_s, (200, 210, 230), sx + 12, sy - 40, shadow=False, alpha=150)
                 if s['hp'] < s['max']:
-                    pygame.draw.rect(cv, (8, 12, 24), (s['x'] - 14, s['y'] - 34, 28, 5))
-                    pygame.draw.rect(cv, (240, 80, 70), (s['x'] - 13, s['y'] - 33, int(26 * s['hp'] / s['max']), 3))
+                    pygame.draw.rect(cv, (8, 12, 24), (sx - 14, sy - 34, 28, 5))
+                    pygame.draw.rect(cv, (240, 80, 70), (sx - 13, sy - 33, int(26 * s['hp'] / s['max']), 3))
                 if s['tele'] > 0:
                     mx, my = vec(s['aimlock'], 44)
                     ex, ey = vec(s['aimlock'], 430)
                     if int(t * 24) % 2 == 0:
-                        pygame.draw.line(cv, (255, 50, 50), (s['x'] + mx, s['y'] + my), (s['x'] + ex, s['y'] + ey), 1)
-                    self.text(cv, '!', self.f_m, (255, 70, 60), s['x'], s['y'] - 58, 'c')
+                        pygame.draw.line(cv, (255, 50, 50), (sx + mx, sy + my), (sx + ex, sy + ey), 1)
+                    self.text(cv, '!', self.f_m, (255, 70, 60), sx, sy - 58, 'c')
                 if s['flash'] > 0:
                     fx_, fy_ = vec(s['h'], 46)
-                    glow(cv, s['x'] + fx_, s['y'] + fy_, 20, (255, 200, 120))
+                    glow(cv, sx + fx_, sy + fy_, 20, (255, 200, 120))
             elif s['dead']:
-                self.blit_soldier(cv, 'p', s['x'], s['y'], s['h'], 0, dead=True)
+                self.blit_soldier(cv, 'p', sx, sy, s['h'], 0, dead=True)
             else:
-                self.blit_soldier(cv, 'p', s['x'], s['y'], s['h'], int(s['ph']) % 4)
+                self.blit_soldier(cv, 'p', sx, sy, s['h'], int(s['ph']) % 4)
                 if s['flash'] > 0:
                     fx_, fy_ = vec(s['h'], 46)
-                    glow(cv, s['x'] + fx_, s['y'] + fy_, 22, (255, 230, 150))
+                    glow(cv, sx + fx_, sy + fy_, 22, (255, 230, 150))
         for b in g['bullets']:
             col = (255, 240, 150) if b['own'] == 'p' else (255, 150, 110)
-            pygame.draw.line(cv, col, (b['x'], b['y']), (b['x'] - b['vx'] * 0.035, b['y'] - b['vy'] * 0.035), 2)
-            glow(cv, b['x'], b['y'], 7, col, 0.7)
+            bx, by = b['x'] - cx_, b['y'] - cy_
+            pygame.draw.line(cv, col, (bx, by), (bx - b['vx'] * 0.035, by - b['vy'] * 0.035), 2)
+            glow(cv, bx, by, 7, col, 0.7)
         for n in g['nades']:
             k = n['t'] / n['T']
-            x, y = lerp(n['x0'], n['x1'], k), lerp(n['y0'], n['y1'], k)
+            x, y = lerp(n['x0'], n['x1'], k) - cx_, lerp(n['y0'], n['y1'], k) - cy_
             hh = math.sin(math.pi * k) * 34
             pulse = 0.5 + 0.5 * math.sin(t * 14)
+            tx_, ty_ = n['x1'] - cx_, n['y1'] - cy_
             if n['own'] == 'e':
-                draw_circ(cv, n['x1'], n['y1'], 62, (255, 60, 50), 28 + 30 * pulse)
-                draw_circ(cv, n['x1'], n['y1'], 62, (255, 90, 70), 150 + 80 * pulse, 2)
+                draw_circ(cv, tx_, ty_, 62, (255, 60, 50), 28 + 30 * pulse)
+                draw_circ(cv, tx_, ty_, 62, (255, 90, 70), 150 + 80 * pulse, 2)
             else:
-                draw_circ(cv, n['x1'], n['y1'], 62, (255, 255, 255), 60, 1)
+                draw_circ(cv, tx_, ty_, 62, (255, 255, 255), 60, 1)
             draw_circ(cv, x + 2, y + 3, 5, (0, 0, 0), 80)
             pygame.draw.circle(cv, (58, 74, 48), (int(x), int(y - hh)), 5)
             pygame.draw.circle(cv, (110, 128, 92), (int(x - 1), int(y - hh - 1)), 2)
-        self.fx.draw(cv)
+        self.fx.draw(cv, cx_, cy_)
         ax, ay = self.ground_aim()
-        ax, ay = int(ax), int(ay)
+        ax, ay = int(ax - cx_), int(ay - cy_)
         pygame.draw.circle(cv, (255, 230, 120), (ax, ay), 14, 2)
         pygame.draw.circle(cv, (255, 230, 120), (ax, ay), 2)
         for dx, dy in ((-24, 0), (24, 0), (0, -24), (0, 24)):
@@ -3681,6 +5168,22 @@ class Game:
         if g['hurt'] > 0:
             self.hurt_surf.set_alpha(int(255 * clamp(g['hurt'] * 2, 0, 1)))
             cv.blit(self.hurt_surf, (0, 0))
+        if g['mode'] == 'landing':
+            mr = 64
+            mcx, mcy = W - 14 - mr, 104 + mr
+            sc = mr / (g['R'] * 1.08)
+            pygame.draw.circle(cv, (6, 12, 26), (mcx, mcy), mr + 3)
+            pygame.draw.circle(cv, (24, 70, 96), (mcx, mcy), mr)
+            pygame.draw.circle(cv, (86, 140, 80), (mcx, mcy), int(g['R'] * 0.96 * sc))
+            for c in g['covers']:
+                pygame.draw.circle(cv, (150, 140, 110), (int(mcx + (c['x'] - W / 2) * sc), int(mcy + (c['y'] - H / 2) * sc)), 2)
+            pygame.draw.circle(cv, (196, 198, 194), (mcx, mcy), 4, 1)
+            for e in g['enemies']:
+                pygame.draw.circle(cv, (255, 70, 60) if e['state'] == 'combat' else (170, 70, 60),
+                                   (int(mcx + (e['x'] - W / 2) * sc), int(mcy + (e['y'] - H / 2) * sc)), 3)
+            pygame.draw.rect(cv, (220, 230, 240), (mcx + (cam[0] - W / 2) * sc, mcy + (cam[1] - H / 2) * sc, W * sc, H * sc), 1)
+            pygame.draw.circle(cv, (90, 255, 255), (int(mcx + (p['x'] - W / 2) * sc), int(mcy + (p['y'] - H / 2) * sc)), 3)
+            pygame.draw.circle(cv, (110, 150, 190), (mcx, mcy), mr + 3, 2)
         self.panel(cv, (14, H - 126, 330, 112), 160)
         self.bar(cv, 26, H - 116, 306, 24, p['hp'] / PLAYER_HP, (80, 220, 110) if p['hp'] > 40 else (240, 80, 70), 'SOLDADO %d' % max(0, p['hp']))
         if p['reload'] > 0:
