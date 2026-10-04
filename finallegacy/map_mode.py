@@ -74,10 +74,9 @@ class MapMixin:
         thr = (1 if (keys[pygame.K_w] or keys[pygame.K_UP]) else 0) - (1 if (keys[pygame.K_s] or keys[pygame.K_DOWN]) else 0)
         turn = (1 if (keys[pygame.K_d] or keys[pygame.K_RIGHT]) else 0) - (1 if (keys[pygame.K_a] or keys[pygame.K_LEFT]) else 0)
         docking = self.nearest_dock()
-        if self.fuel <= 0:
-            thr = 0
+        vmax = VMAX if self.fuel > 0 else 45.0          # sin combustible: motor auxiliar lento
         if thr > 0:
-            self.sv = min(VMAX, self.sv + 110 * dt)
+            self.sv = min(vmax, self.sv + 110 * dt)
         elif thr < 0:
             self.sv = max(-45, self.sv - 130 * dt)
         else:
@@ -85,6 +84,8 @@ class MapMixin:
             self.sv -= math.copysign(min(abs(self.sv), 8 * dt), self.sv)
         if docking and keys[pygame.K_r]:
             self.sv -= self.sv * 3 * dt
+        if self.fuel <= 0:
+            self.sv = clamp(self.sv, -20.0, vmax)
         steer = 58 * clamp(abs(self.sv) / 70, 0.2, 1.0) * (1 if self.sv >= 0 else -1)
         self.sh = (self.sh + turn * steer * dt) % 360
         dx, dy = vec(self.sh, self.sv * dt)
@@ -109,11 +110,11 @@ class MapMixin:
                 self.sv *= 0.3
         self.fuel = max(0.0, self.fuel - abs(self.sv) / VMAX * 0.9 * dt)
         self.audio.engine_vol(abs(self.sv) / VMAX * 0.9 + 0.1)
-        if self.fuel <= 0 and not self.empty_fuel_aid and abs(self.sv) < 5:
+        if self.fuel <= 0 and not self.empty_fuel_aid:
             self.empty_fuel_aid = True
             a = random.uniform(0, 6.28)
-            self.crates.append(dict(x=self.sx + math.cos(a) * 140, y=self.sy + math.sin(a) * 140, kind='fuel', t=0))
-            self.toast('Sin combustible: lanzaron un bidón de emergencia', (255, 200, 90))
+            self.crates.append(dict(x=self.sx + math.cos(a) * 170, y=self.sy + math.sin(a) * 170, kind='fuel', t=0))
+            self.toast('Sin combustible: motor auxiliar lento. Recogé el bidón de emergencia', (255, 200, 90))
         if self.fuel > 15:
             self.empty_fuel_aid = False
         # estela
@@ -227,17 +228,11 @@ class MapMixin:
         if self.attack is None and alive and self.strike_t <= 4.0 and not self.warned:
             self.strike_city = random.choice(alive)
             self.strike_n += 1
-            rand = random.random()
             inst = [i for i, v in self.antennas.items() if v]
             if inst and self.strike_n >= 3 and random.random() < 0.25:
                 self.begin_attack(self.antenna_city(random.choice(inst)), 'antenna')
             else:
-                if self.strike_n == 2 or (self.strike_n > 2 and rand < 0.3):
-                    self.strike_kind = 'tank' if random.random() < 0.65 else 'ground'
-                elif rand < 0.35:
-                    self.strike_kind = 'aerial'
-                else:
-                    self.strike_kind = 'missile'
+                self.strike_kind = self.next_strike_kind()
                 if self.strike_kind == 'missile':
                     self.warned = True
                     self.audio.play('alarm')
@@ -258,6 +253,18 @@ class MapMixin:
         # oleada completada
         if not self.enemies:
             self.wave_clear()
+
+    def next_strike_kind(self):
+        """Baraja de ataques: sale cada tipo con frecuencia pareja y nunca repite el anterior."""
+        if self.strike_n <= 1:
+            return 'missile'
+        if not self.strike_deck:
+            self.strike_deck = ['missile', 'aerial', 'tank', 'aerial', 'ground', 'missile']
+            random.shuffle(self.strike_deck)
+        for i, k in enumerate(self.strike_deck):
+            if k != self.strike_kind:
+                return self.strike_deck.pop(i)
+        return self.strike_deck.pop()
 
     def begin_convoy(self):
         """Convoy aliado entre dos ciudades: cazadores enemigos lo atacan; hay que escoltarlo."""
@@ -763,7 +770,7 @@ class MapMixin:
                               (self.isl_name(island_idx), attempts, MAX_LANDING_ATTEMPTS),
                               self.f_m, (100, 180, 255), W // 2, H - 148, 'c')
             elif self.fuel <= 0:
-                self.text(cv, 'SIN COMBUSTIBLE', self.f_m, (255, 90, 80), W // 2, H - 148, 'c')
+                self.text(cv, 'SIN COMBUSTIBLE - MOTOR AUXILIAR (lento)', self.f_m, (255, 90, 80), W // 2, H - 148, 'c')
         if self.warned and int(self.t * 4) % 2 == 0:
             pygame.draw.rect(cv, (255, 40, 40), (0, 0, W, H), 8)
 

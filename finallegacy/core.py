@@ -421,6 +421,7 @@ class CoreMixin:
         self.strike_city = None
         self.strike_kind = 'missile'
         self.strike_n = 0
+        self.strike_deck = []
         self.attack = None
         self.radar_t = 0.0
         self.nests = []
