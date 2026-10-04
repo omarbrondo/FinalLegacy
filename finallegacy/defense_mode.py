@@ -67,7 +67,7 @@ class DefenseMixin:
             self.toast('¡Sin munición!', (255, 90, 80))
             return
         self.ammo -= 1
-        d['cool'] = 0.16
+        d['cool'] = 0.16 * self.up_reload()
         gx, gy = d['shipx'] + 82, d['shipy'] - 6
         d['inter'].append(dict(x=float(gx), y=float(gy), tx=self.aim[0], ty=min(self.aim[1], HZ + 20), trail=[]))
         if d['dbl'] > 0:
@@ -144,7 +144,7 @@ class DefenseMixin:
             it['trail'] = it['trail'][-14:]
             if dist(it['x'], it['y'], it['tx'], it['ty']) < 12:
                 d['inter'].remove(it)
-                d['blasts'].append(dict(x=it['tx'], y=it['ty'], age=0.0, R=64, chain=False))
+                d['blasts'].append(dict(x=it['tx'], y=it['ty'], age=0.0, R=64 * (1 + 0.2 * self.up_n('blast')), chain=False))
                 self.audio.play('boom_s', .55)
         for b in d['blasts'][:]:
             b['age'] += dt

@@ -124,6 +124,8 @@ class MapMixin:
             self.fxm.add('foam', self.sx + bx + random.uniform(-4, 4), self.sy + by + random.uniform(-4, 4), life=1.6,
                          r0=4, r1=13, col=(230, 245, 255))
         # humo si está dañado
+        if self.up_n('nano') and 0 < self.hull < self.hull_max:
+            self.hull = min(self.hull_max, self.hull + 0.6 * self.up_n('nano') * dt)
         if self.hull < 45 and random.random() < dt * 8:
             self.fxm.add('smoke', self.sx, self.sy, 0, -20, 1.8, 5, 18, (60, 60, 60))
         # cámara
@@ -140,8 +142,8 @@ class MapMixin:
                 if self.fuel < 100:
                     self.fuel = min(100, self.fuel + 25 * dt)
                     changed = True
-                if self.hull < 100:
-                    self.hull = min(100, self.hull + 8 * dt)
+                if self.hull < self.hull_max:
+                    self.hull = min(self.hull_max, self.hull + 8 * dt)
                     changed = True
                 self.ammo_acc += 6 * dt
                 if self.ammo < 40 and self.ammo_acc >= 1:
@@ -215,7 +217,7 @@ class MapMixin:
                     self.fuel = min(100, self.fuel + 35)
                     self.toast('+35% combustible', (120, 255, 140))
                 else:
-                    self.hull = min(100, self.hull + 30)
+                    self.hull = min(self.hull_max, self.hull + 30)
                     self.toast('+30 casco', (255, 255, 255))
             elif c['t'] > 130:
                 self.crates.remove(c)
@@ -394,7 +396,7 @@ class MapMixin:
             self.add_score(pts)
             self.audio.play('win', .7)
             if reward == 'hull':
-                self.hull = min(100, self.hull + 25)
+                self.hull = min(self.hull_max, self.hull + 25)
                 gift = '+25 casco (los náufragos ayudan con las reparaciones)'
             elif reward == 'fuel':
                 self.fuel = min(100, self.fuel + 40)
@@ -561,8 +563,8 @@ class MapMixin:
         self.port_tries = 0
         self.port_done = False
         self.audio.play('win', .7)
-        self.banner('OLEADA %d' % self.wave, 'Bonus +%d  |  Ciudades reparadas  |  +12 munición' % bonus, (120, 255, 160), 3.6)
-        self.spawn_wave()
+        self.toast('Bonus +%d  |  Ciudades reparadas  |  +12 munición' % bonus, (120, 255, 160))
+        self.start_upgrade()
 
     def ai_map(self, en, dt):
         en['cool'] = max(0.0, en['cool'] - dt)

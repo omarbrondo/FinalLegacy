@@ -210,6 +210,8 @@ class AerialMixin:
             p['y'] = clamp(p['y'] + my / n * 300 * dt, 150, H - 70)
             p['rapid'] = max(0.0, p['rapid'] - dt)
             p['homing'] = max(0.0, p['homing'] - dt)
+            if self.up_n('homing'):
+                p['homing'] = max(p['homing'], 5.0)
             p['mcd'] = max(0.0, p['mcd'] - dt)
             if (keys[pygame.K_SPACE] or keys[pygame.K_f] or mouse[0]) and p['cd'] <= 0 and a['phase'] == 'play':
                 p['cd'] = 0.07 if p['rapid'] > 0 else 0.11
@@ -616,6 +618,6 @@ class AerialMixin:
         if p['rapid'] > 0:
             self.text(cv, 'RÁFAGA %.0f' % p['rapid'], self.f_s, (255, 235, 110), W - 20, yy_, 'r')
             yy_ += 20
-        if p['homing'] > 0:
+        if p['homing'] > 0 and not self.up_n('homing'):
             self.text(cv, 'MISILES GUÍA %.0f' % p['homing'], self.f_s, (200, 150, 255), W - 20, yy_, 'r')
         self.text(cv, 'WASD mover | ESPACIO/clic disparar | B/clic der. bomba', self.f_s, (210, 225, 255), W - 14, H - 30, 'r')

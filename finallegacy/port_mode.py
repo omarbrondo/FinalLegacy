@@ -715,7 +715,7 @@ class PortMixin:
                 return self.game_over('Tu barco se hundió')
         else:
             self.port_done = True
-            self.hull = min(100, self.hull + 30)
+            self.hull = min(self.hull_max, self.hull + 30)
             self.fuel = 100.0
             self.ammo = 40
             for en in self.enemies:

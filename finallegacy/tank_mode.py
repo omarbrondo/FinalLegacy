@@ -118,7 +118,7 @@ class TankMixin:
         p = k['p']
         if self.state != 'tank' or p['dead'] or p['cd'] > 0 or k['phase'] != 'play':
             return
-        p['cd'] = 0.7
+        p['cd'] = 0.7 * self.up_reload()
         sx, sz = math.sin(math.radians(p['yaw'])), math.cos(math.radians(p['yaw']))
         k['pshells'].append(dict(x=p['x'] + sx * 3, y=1.9, z=p['z'] + sz * 3, vx=sx * 95, vz=sz * 95, life=1.5))
         self.audio.play('cannon', .8)

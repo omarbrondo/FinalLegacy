@@ -9,9 +9,10 @@ from .air_boss import AirBossMixin
 from .ground_mode import GroundMixin
 from .port_mode import PortMixin
 from .tank_mode import TankMixin
+from .upgrade_mode import UpgradeMixin
 
 
-class Game(CoreMixin, MapMixin, DefenseMixin, HackMixin, NavalMixin, AerialMixin, AirBossMixin, GroundMixin, PortMixin, TankMixin):
+class Game(CoreMixin, MapMixin, DefenseMixin, HackMixin, NavalMixin, AerialMixin, AirBossMixin, GroundMixin, PortMixin, TankMixin, UpgradeMixin):
     """Juego completo. El estado vive en 'self'; cada mixin aporta los métodos de un modo."""
 
 

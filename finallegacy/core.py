@@ -400,6 +400,8 @@ class CoreMixin:
         self.sx, self.sy = 2400.0, 1350.0
         self.sh, self.sv = 0.0, 0.0
         self.hull, self.fuel, self.ammo = 100.0, 100.0, 30
+        self.hull_max = 100.0
+        self.up = {}
         self.antennas = {i: False for i in ANTENNA_ISLANDS}
         self.landing_attempts = {i: 0 for i in range(len(EXTRA_ISLANDS))}
         self.cities = []
@@ -439,9 +441,9 @@ class CoreMixin:
     def go(self, state):
         self.state = state
         self.fade = 1.0
-        pygame.mouse.set_visible(state not in ('defense', 'combat', 'aerial', 'ground', 'tank', 'port'))
+        pygame.mouse.set_visible(state in ('upgrade',) or state not in ('defense', 'combat', 'aerial', 'ground', 'tank', 'port'))
         self.audio.music({'title': 'calm', 'map': 'calm', 'defense': 'battle', 'combat': 'battle',
-                          'aerial': 'battle', 'ground': 'battle', 'hack': 'battle', 'tank': 'battle', 'port': 'battle', 'gameover': None}[state])
+                          'aerial': 'battle', 'ground': 'battle', 'hack': 'battle', 'tank': 'battle', 'port': 'battle', 'upgrade': 'calm', 'gameover': None}[state])
         if state not in ('map', 'combat'):
             self.audio.engine_vol(0)
 
@@ -495,6 +497,8 @@ class CoreMixin:
                 sys.exit()
             elif self.state in ('title', 'gameover') and e.key in (pygame.K_RETURN, pygame.K_SPACE):
                 self.start_game()
+            elif self.state == 'upgrade' and e.key in (pygame.K_1, pygame.K_2, pygame.K_3):
+                self.pick_upgrade(e.key - pygame.K_1)
             elif self.state == 'defense' and e.key == pygame.K_SPACE and not self.paused:
                 self.fire_interceptor()
             elif self.state == 'ground' and e.key in (pygame.K_SPACE, pygame.K_g) and not self.paused:
@@ -568,6 +572,10 @@ class CoreMixin:
                 self.fire_interceptor()
             elif self.state == 'tank':
                 self.tk_fire()
+            elif self.state == 'upgrade':
+                for i in range(len(self.up_cards)):
+                    if self.up_card_rect(i).collidepoint(e.pos):
+                        self.pick_upgrade(i)
             elif self.state == 'combat':
                 self.fire_shell()
 
@@ -607,6 +615,8 @@ class CoreMixin:
             self.upd_hack(dt)
         elif self.state == 'tank':
             self.upd_tank(dt)
+        elif self.state == 'upgrade':
+            self.upd_upgrade(dt)
         elif self.state == 'port':
             self.upd_port(dt)
         elif self.state == 'ground':
@@ -683,6 +693,8 @@ class CoreMixin:
             self.draw_hack(cv)
         elif self.state == 'tank':
             self.draw_tank(cv)
+        elif self.state == 'upgrade':
+            self.draw_upgrade(cv)
         elif self.state == 'port':
             self.draw_port(cv)
         elif self.state == 'ground':
@@ -767,7 +779,7 @@ class CoreMixin:
     # ---- HUD común
     def draw_hud(self, cv, show_fuel=True):
         self.panel(cv, (14, H - 126, 330, 112), 160)
-        self.bar(cv, 26, H - 116, 306, 24, self.hull / 100, (80, 220, 110) if self.hull > 35 else (240, 80, 70), 'CASCO %d%%' % self.hull)
+        self.bar(cv, 26, H - 116, 306, 24, self.hull / self.hull_max, (80, 220, 110) if self.hull > 35 else (240, 80, 70), 'CASCO %d%%' % self.hull)
         if show_fuel:
             self.bar(cv, 26, H - 86, 306, 24, self.fuel / 100, (80, 180, 255) if self.fuel > 20 else (240, 80, 70), 'COMBUSTIBLE %d%%' % self.fuel)
         self.bar(cv, 26, H - 56, 306, 24, self.ammo / 40, (255, 210, 70) if self.ammo > 6 else (240, 80, 70), 'MUNICION %d' % self.ammo)
