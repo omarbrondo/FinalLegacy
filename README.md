@@ -47,6 +47,14 @@ Cada modo suma contenido nuevo a medida que avanzan las oleadas:
 - **Hackeo**: virus que corrompen nodos, cortafuegos y segunda fuente.
 - **Entre oleadas**: elegís 1 de 3 mejoras (casco, recarga, misiles guiados, nano-reparación…).
 
+## Pantalla completa y mando
+
+- **F11** o **Alt+Enter**: pantalla completa (se escala conservando la proporción). También `python final_legacy_omar.py --fullscreen`.
+- **Mando Xbox 360 / One** (y compatibles SDL): se detecta solo, también si lo conectás con el juego abierto.
+  Palanca izq./cruceta: mover · palanca der.: apuntar · RT o A: disparar · LT, B o RB: granada/bomba ·
+  X: recargar/reabastecer · Y: acción · LB: sigilo (mapa: desembarcar) · RB en el mapa: hackear · Start: pausa/empezar · Back: sonido.
+  En mejoras: X/A/B eligen la 1.ª/2.ª/3.ª; en hackeo: cruceta + A girar, X al revés, B abortar.
+
 ## Atajos de prueba en el mapa
 
 F2 tanques · F3 aéreo · F4 desembarco · F5 náufragos · F6 convoy · F7 asalto al puerto
