@@ -99,6 +99,16 @@ class GroundMixin:
 
     def start_landing(self, island_idx):
         x, y, r, s = EXTRA_ISLANDS[island_idx]
+        if island_idx in self.cleared_isl and not self.antennas.get(island_idx, True):
+            self.cleared_isl.discard(island_idx)
+            self.antennas[island_idx] = True
+            self.add_score(300)
+            n = sum(self.antennas.values())
+            self.audio.play('win', .7)
+            self.toast('¡ANTENA INSTALADA en %s sin resistencia!' % self.isl_name(island_idx), (120, 255, 160))
+            self.banner('ANTENA OPERATIVA', '%d/%d antenas  |  El Blackhawk despejó la isla  |  El jefe exige %d' % (n, len(self.antennas), self.antennas_needed()),
+                        (120, 220, 255), 3.6)
+            return
         if self.landing_attempts[island_idx] >= MAX_LANDING_ATTEMPTS:
             self.toast('Sin intentos de desembarco en esta isla', (255, 140, 90))
             return

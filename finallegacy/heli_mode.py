@@ -2,7 +2,7 @@
 import math
 import pygame
 import random
-from .common import H, HELIPAD, W, Particles, angle_diff, bearing, clamp, dist, draw_circ, glow, vec
+from .common import EXTRA_ISLANDS, H, HELIPAD, W, Particles, angle_diff, bearing, clamp, dist, draw_circ, glow, vec
 
 HELI_SORTIE_PTS = 3000          # puntaje para ganar una misión de combate
 HELI_FUEL_CD = 80.0             # espera entre bidones
@@ -10,34 +10,56 @@ TURN = 260.0
 
 
 def make_blackhawk():
-    """Blackhawk visto desde arriba, mirando al norte (sin rotor: se dibuja aparte)."""
+    """UH-60 Blackhawk negro visto desde arriba, mirando al norte (sin rotor: se dibuja aparte)."""
     s = pygame.Surface((170, 210), pygame.SRCALPHA)
     cx = 85
-    dark, mid, lite = (44, 52, 42), (64, 76, 58), (84, 98, 74)
-    pygame.draw.polygon(s, dark, [(cx - 7, 120), (cx + 7, 120), (cx + 4, 190), (cx - 4, 190)])
-    pygame.draw.polygon(s, mid, [(cx - 3, 160), (cx + 3, 160), (cx + 11, 198), (cx - 11, 198)])
-    pygame.draw.rect(s, mid, (cx - 24, 176, 48, 10), border_radius=4)
-    pygame.draw.rect(s, dark, (cx - 24, 176, 48, 10), 1, border_radius=4)
-    pygame.draw.rect(s, mid, (cx - 56, 98, 112, 13), border_radius=5)          # alas cortas
-    pygame.draw.rect(s, dark, (cx - 56, 98, 112, 13), 1, border_radius=5)
+    black, dk, md, hi = (14, 15, 18), (26, 28, 33), (42, 45, 52), (74, 80, 90)
+    # tren de aterrizaje
     for sd in (-1, 1):
-        px = cx + sd * 54
-        pygame.draw.rect(s, (36, 40, 36), (px - 7, 88, 14, 36), border_radius=4)   # cohetes
-        pygame.draw.circle(s, (210, 150, 60), (px, 88), 4)
-        pygame.draw.circle(s, (210, 150, 60), (px, 124), 4)
-    pygame.draw.ellipse(s, mid, (cx - 24, 40, 48, 108))                         # fuselaje
-    pygame.draw.ellipse(s, dark, (cx - 24, 40, 48, 108), 2)
-    pygame.draw.ellipse(s, lite, (cx - 15, 72, 30, 58))
-    pygame.draw.ellipse(s, (96, 150, 172), (cx - 16, 44, 32, 34))               # cabina
-    pygame.draw.ellipse(s, (170, 215, 232), (cx - 11, 48, 12, 14))
-    pygame.draw.line(s, dark, (cx, 46), (cx, 76), 2)
-    for sd in (-1, 1):                                                          # motores
-        pygame.draw.ellipse(s, dark, (cx + sd * 11 - 6, 94, 12, 34))
-        pygame.draw.ellipse(s, (30, 32, 30), (cx + sd * 11 - 3, 120, 6, 10))
-        pygame.draw.line(s, (20, 20, 22), (cx + sd * 22, 104), (cx + sd * 38, 100), 3)   # ametralladoras de puerta
-    pygame.draw.circle(s, (230, 230, 220), (cx, 148), 5)
-    pygame.draw.circle(s, (180, 40, 40), (cx, 148), 2)
-    pygame.draw.circle(s, (20, 22, 20), (cx, 103), 7)
+        pygame.draw.circle(s, (8, 8, 10), (cx + sd * 25, 76), 5)
+        pygame.draw.circle(s, (8, 8, 10), (cx + sd * 20, 150), 4)
+    pygame.draw.circle(s, (8, 8, 10), (cx, 178), 3)
+    # cola con deriva inclinada y estabilizador
+    pygame.draw.polygon(s, dk, [(cx - 9, 120), (cx + 9, 120), (cx + 5, 186), (cx - 5, 186)])
+    pygame.draw.polygon(s, md, [(cx - 3, 150), (cx + 3, 150), (cx + 9, 196), (cx - 3, 196)])
+    pygame.draw.rect(s, dk, (cx - 26, 170, 52, 11), border_radius=4)
+    pygame.draw.rect(s, black, (cx - 26, 170, 52, 11), 1, border_radius=4)
+    pygame.draw.line(s, hi, (cx - 22, 172), (cx + 22, 172), 1)
+    pygame.draw.circle(s, black, (cx - 11, 192), 3)
+    # alas cortas con soportes de armamento
+    pygame.draw.rect(s, dk, (cx - 58, 96, 116, 14), border_radius=5)
+    pygame.draw.rect(s, black, (cx - 58, 96, 116, 14), 1, border_radius=5)
+    for sd in (-1, 1):
+        px = cx + sd * 52
+        pygame.draw.rect(s, black, (px - 6, 86, 12, 40), border_radius=5)
+        pygame.draw.rect(s, md, (px - 4, 88, 4, 34), border_radius=2)
+        pygame.draw.circle(s, (120, 70, 40), (px, 86), 4)
+        pygame.draw.circle(s, (120, 70, 40), (px, 126), 4)
+    # fuselaje: morro, cabina y compartimiento de carga
+    pygame.draw.ellipse(s, dk, (cx - 21, 36, 42, 54))
+    pygame.draw.ellipse(s, dk, (cx - 27, 66, 54, 78))
+    pygame.draw.ellipse(s, black, (cx - 27, 66, 54, 78), 2)
+    pygame.draw.ellipse(s, md, (cx - 17, 76, 34, 58))
+    pygame.draw.line(s, black, (cx - 27, 100), (cx - 27, 126), 3)
+    pygame.draw.line(s, black, (cx + 27, 100), (cx + 27, 126), 3)
+    pygame.draw.line(s, hi, (cx - 14, 84), (cx - 14, 128), 1)
+    # parabrisas
+    pygame.draw.polygon(s, (20, 36, 48), [(cx - 14, 46), (cx + 14, 46), (cx + 20, 72), (cx - 20, 72)])
+    pygame.draw.polygon(s, (60, 100, 124), [(cx - 12, 48), (cx - 1, 48), (cx - 4, 70), (cx - 17, 70)])
+    pygame.draw.line(s, black, (cx, 46), (cx, 72), 2)
+    pygame.draw.line(s, hi, (cx - 20, 72), (cx + 20, 72), 1)
+    # motores y escapes
+    for sd in (-1, 1):
+        pygame.draw.ellipse(s, black, (cx + sd * 12 - 6, 92, 12, 40))
+        pygame.draw.ellipse(s, hi, (cx + sd * 12 - 2, 96, 3, 24))
+        pygame.draw.ellipse(s, (6, 6, 8), (cx + sd * 12 - 4, 128, 8, 10))
+        pygame.draw.line(s, (4, 4, 6), (cx + sd * 27, 106), (cx + sd * 43, 102), 3)   # ametralladoras de puerta
+    # antena y luces
+    pygame.draw.line(s, md, (cx, 140), (cx, 156), 2)
+    pygame.draw.circle(s, (170, 40, 40), (cx - 58, 103), 2)
+    pygame.draw.circle(s, (40, 160, 80), (cx + 58, 103), 2)
+    pygame.draw.circle(s, black, (cx, 104), 7)
+    pygame.draw.circle(s, md, (cx, 104), 4)
     return s
 
 
@@ -48,6 +70,8 @@ class HeliMixin:
         self.heli_next = HELI_SORTIE_PTS
         self.heli_cd = 0.0
         self.heli_fl = None
+        self.heli_cands = []
+        self.cleared_isl = set()
         if not hasattr(self, 'bh_img'):
             self.bh_img = make_blackhawk()
             self.bh_small = pygame.transform.smoothscale(self.bh_img, (68, 84))
@@ -61,42 +85,74 @@ class HeliMixin:
             self.heli_sorties += 1
             self.heli_next += HELI_SORTIE_PTS + 1000 * self.heli_sorties
             self.audio.play('win', .6)
-            self.banner('¡BLACKHAWK LISTO PARA COMBATE!', 'Acercate al helipuerto y presioná B para despegar', (130, 255, 190), 3.6)
+            self.banner('¡BLACKHAWK LISTO PARA COMBATE!', 'Acercate al helipuerto y presioná B para elegir la misión', (130, 255, 190), 3.6)
         f = self.heli_fl
         if f is None:
             return
         f['rot'] += dt * 30
-        tx, ty = (self.sx, self.sy) if f['ph'] == 'go' else (HELIPAD[0], HELIPAD[1])
+        if f['ph'] == 'go':
+            tx, ty = self.sx, self.sy
+        elif f['ph'] == 'drop':
+            tx, ty = f['dx'], f['dy']
+        else:
+            tx, ty = HELIPAD[0], HELIPAD[1]
         d = dist(f['x'], f['y'], tx, ty) or 1.0
-        sp = 360.0
+        sp = 300.0 if f['ph'] != 'drop' else 180.0
         f['x'] += (tx - f['x']) / d * min(d, sp * dt)
         f['y'] += (ty - f['y']) / d * min(d, sp * dt)
-        f['h'] = bearing(tx - f['x'], ty - f['y'])
-        if f['ph'] == 'go' and d < 70:
-            a = random.uniform(0, 6.28)
-            self.crates.append(dict(x=self.sx + math.cos(a) * 90, y=self.sy + math.sin(a) * 90, kind='fuel', t=0, big=True))
-            self.audio.play('pickup', .8)
-            self.toast('Bidón de combustible lanzado desde el Blackhawk', (120, 255, 150))
-            f['ph'] = 'back'
+        if d > 6:
+            f['h'] = bearing(tx - f['x'], ty - f['y'])
+        if f['ph'] == 'go' and d < 160:
+            for _ in range(12):
+                a = random.uniform(0, 6.28)
+                px, py = self.sx + math.cos(a) * 150, self.sy + math.sin(a) * 150
+                if not self.on_land(px, py, 40):
+                    break
+            f['dx'], f['dy'], f['ph'], f['bt'] = px, py, 'drop', None
+            self.toast('¡El Blackhawk está sobre tu posición!', (130, 255, 190))
+        elif f['ph'] == 'drop':
+            if f['bt'] is None and d < 14:
+                f['bt'] = 0.0
+                self.audio.play('ping', .6)
+            if f['bt'] is not None:
+                f['bt'] += dt
+                if f['bt'] >= 2.0:
+                    self.crates.append(dict(x=f['dx'], y=f['dy'], kind='fuel', t=0, big=True))
+                    self.audio.play('pickup', .8)
+                    self.toast('Bidón de combustible en el agua: ¡recogelo!', (120, 255, 150))
+                    f['ph'] = 'back'
         elif f['ph'] == 'back' and d < 30:
             self.heli_fl = None
 
     def heli_call(self):
-        """C: llamar al Blackhawk para que arroje un bidón de combustible."""
+        """C: llamar al Blackhawk para que venga volando y arroje un bidón de combustible."""
         if self.heli_fl is not None:
             self.toast('El Blackhawk ya está en camino', (255, 220, 130))
         elif self.heli_cd > 0:
             self.toast('Blackhawk reabasteciéndose: %d s' % math.ceil(self.heli_cd), (255, 200, 120))
-        elif self.fuel > 60:
-            self.toast('Tenés combustible de sobra (llamalo con menos del 60%)', (255, 220, 130))
+        elif self.fuel > 90:
+            self.toast('Tu tanque está casi lleno: llamalo cuando necesites combustible', (255, 220, 130))
         else:
-            self.heli_fl = dict(x=float(HELIPAD[0]), y=float(HELIPAD[1]), h=0.0, rot=0.0, ph='go')
+            self.heli_fl = dict(x=float(HELIPAD[0]), y=float(HELIPAD[1]), h=0.0, rot=0.0, ph='go', dx=0.0, dy=0.0, bt=None)
             self.heli_cd = HELI_FUEL_CD
-            self.audio.play('ping', .7)
-            self.toast('Blackhawk despegando con un bidón hacia tu posición', (130, 255, 190))
+            self.audio.play('alarm', .5)
+            self.banner('BLACKHAWK EN CAMINO', 'Va a lanzarte un bidón de combustible', (130, 255, 190), 2.6)
+
+    def heli_candidates(self):
+        """Objetivos que el Blackhawk puede atacar, de a lo sumo cuatro."""
+        from .common import ANTENNA_ISLANDS
+        ref = (self.sx, self.sy)
+        isl = [dict(kind='island', idx=i, x=EXTRA_ISLANDS[i][0], y=EXTRA_ISLANDS[i][1], name=self.isl_name(i))
+               for i in ANTENNA_ISLANDS if not self.antennas[i] and i not in self.cleared_isl]
+        isl.sort(key=lambda c: dist(c['x'], c['y'], *ref))
+        ships = sorted([dict(kind='ship', tg=en, x=en['x'], y=en['y'], name='Buque enemigo') for en in self.enemies if not en.get('is_boss')],
+                       key=lambda c: dist(c['x'], c['y'], *ref))
+        nests = sorted([dict(kind='nest', tg=n, x=n['x'], y=n['y'], name='Batería costera') for n in self.nests if n['alive']],
+                       key=lambda c: dist(c['x'], c['y'], *ref))
+        return (isl[:2] + ships[:1] + nests[:1] + isl[2:] + ships[1:] + nests[1:])[:4]
 
     def heli_launch(self):
-        """B junto al helipuerto: despegar en misión de combate."""
+        """B junto al helipuerto: elegir misión y despegar."""
         if not self.near_helipad():
             self.toast('Acercate al helipuerto (isla con la H) para despegar', (255, 220, 130))
             return
@@ -106,14 +162,46 @@ class HeliMixin:
         if self.attack is not None or self.warned:
             self.toast('Hay un ataque en curso: no es momento de despegar', (255, 150, 110))
             return
-        cands = [('ship', en) for en in self.enemies if not en.get('is_boss')]
-        cands += [('nest', n) for n in self.nests if n['alive']]
-        if not cands:
+        self.heli_cands = self.heli_candidates()
+        if not self.heli_cands:
             self.toast('No hay objetivos enemigos para el Blackhawk', (255, 200, 120))
             return
-        kind, tg = min(cands, key=lambda c: dist(c[1]['x'], c[1]['y'], HELIPAD[0], HELIPAD[1]))
+        self.go('helisel')
+
+    def heli_pick(self, i):
+        if self.state != 'helisel' or not 0 <= i < len(self.heli_cands):
+            return
+        c = self.heli_cands[i]
         self.heli_sorties -= 1
-        self.start_heli(kind, tg)
+        self.start_heli(c['kind'], c.get('tg', c))
+
+    def heli_sel_rect(self, i):
+        return pygame.Rect(W // 2 - 500, 190 + i * 118, 1000, 104)
+
+    def draw_helisel(self, cv):
+        t = self.t
+        self.draw_ocean(cv, t * 20, t * 6, t)
+        self.dim(cv, 45)
+        self.text(cv, 'ELEGÍ LA MISIÓN DEL BLACKHAWK', self.f_l, (130, 255, 190), W // 2, 70, 'c')
+        self.text(cv, 'Misiones disponibles: %d   |   1-4 o clic para despegar   |   ESC volver' % self.heli_sorties, self.f_s,
+                  (200, 225, 255), W // 2, 130, 'c')
+        mx, my = pygame.mouse.get_pos()
+        for i, c in enumerate(self.heli_cands):
+            r = self.heli_sel_rect(i)
+            hov = r.collidepoint(mx, my)
+            self.panel(cv, r.move(0, -4 if hov else 0), 215 if hov else 175)
+            if c['kind'] == 'island':
+                title, desc, col = 'DESPEJAR %s' % c['name'].upper(), 'Elimina la guarnición: después instalás la antena sin resistencia (L)', (120, 220, 255)
+            elif c['kind'] == 'ship':
+                title, desc, col = 'CAZAR BUQUE ENEMIGO', 'Hundilo desde el aire: cuenta para terminar la oleada', (255, 150, 120)
+            else:
+                title, desc, col = 'DESTRUIR BATERÍA COSTERA', 'Antiaéreas, búnkeres y depósito de combustible', (255, 210, 110)
+            d = dist(c['x'], c['y'], HELIPAD[0], HELIPAD[1])
+            self.text(cv, str(i + 1), self.f_l, col, r.x + 22, r.y + 28)
+            self.text(cv, title, self.f_m, (255, 255, 255), r.x + 80, r.y + 18)
+            self.text(cv, desc, self.f_s, (210, 225, 245), r.x + 80, r.y + 52)
+            self.text(cv, '%d m' % d, self.f_s, col, r.right - 24, r.y + 18, 'r')
+            pygame.draw.rect(cv, col, r.move(0, -4 if hov else 0), 2, border_radius=6)
 
     def draw_heli_map(self, cv, cx, cy):
         hx, hy, hr, _s = HELIPAD
@@ -136,8 +224,27 @@ class HeliMixin:
         f = self.heli_fl
         if f is not None:
             fx_, fy_ = f['x'] - cx, f['y'] - cy
-            if -120 < fx_ < W + 120 and -120 < fy_ < H + 120:
-                self.draw_blackhawk(cv, fx_, fy_, f['h'], f['rot'], 0.5, True)
+            if f['ph'] == 'drop' and f['bt'] is not None:
+                k = clamp(f['bt'] / 2.0, 0, 1)
+                bx_, by_ = f['dx'] - cx, f['dy'] - cy
+                draw_circ(cv, bx_, by_ + 4, 10 + 8 * k, (0, 0, 0), 70)
+                hgt = (1 - k) * 150
+                by2 = by_ - hgt
+                pygame.draw.circle(cv, (240, 130, 50), (int(bx_), int(by2 - 36)), 26, draw_top_left=True, draw_top_right=True)
+                pygame.draw.circle(cv, (250, 240, 230), (int(bx_), int(by2 - 36)), 26, 2, draw_top_left=True, draw_top_right=True)
+                pygame.draw.line(cv, (230, 230, 230), (bx_ - 24, by2 - 34), (bx_, by2), 1)
+                pygame.draw.line(cv, (230, 230, 230), (bx_ + 24, by2 - 34), (bx_, by2), 1)
+                pygame.draw.rect(cv, (60, 130, 70), (bx_ - 9, by2 - 8, 18, 22), border_radius=3)
+                pygame.draw.rect(cv, (230, 220, 90), (bx_ - 9, by2 - 2, 18, 4))
+            if -140 < fx_ < W + 140 and -140 < fy_ < H + 140:
+                self.draw_blackhawk(cv, fx_, fy_, f['h'], f['rot'], 0.8, True)
+            else:
+                ang = math.atan2(fy_ - H / 2, fx_ - W / 2)
+                ax_, ay_ = W / 2 + math.cos(ang) * 340, H / 2 + math.sin(ang) * 270
+                pygame.draw.polygon(cv, (130, 255, 190), [(ax_ + math.cos(ang) * 18, ay_ + math.sin(ang) * 18),
+                                                          (ax_ + math.cos(ang + 2.5) * 14, ay_ + math.sin(ang + 2.5) * 14),
+                                                          (ax_ + math.cos(ang - 2.5) * 14, ay_ + math.sin(ang - 2.5) * 14)])
+                self.text(cv, 'BLACKHAWK %d m' % dist(f['x'], f['y'], self.sx, self.sy), self.f_s, (130, 255, 190), ax_, ay_ - 26, 'c')
 
     def draw_blackhawk(self, cv, x, y, h, rot, scale, shadow=True):
         img = self.bh_img
@@ -152,7 +259,7 @@ class HeliMixin:
         draw_circ(cv, x, y, rl, (200, 205, 200), 26)
         for k in range(3):
             a = rot + k * 2.094
-            pygame.draw.line(cv, (36, 40, 36), (x - math.cos(a) * rl, y - math.sin(a) * rl), (x + math.cos(a) * rl, y + math.sin(a) * rl),
+            pygame.draw.line(cv, (18, 18, 20), (x - math.cos(a) * rl, y - math.sin(a) * rl), (x + math.cos(a) * rl, y + math.sin(a) * rl),
                              max(1, int(3 * scale)))
         tx, ty = vec(h + 180, 96 * scale)
         tr = 16 * scale
@@ -167,9 +274,10 @@ class HeliMixin:
         self.fx = Particles()
         T = []
         land = off = None
-        if kind == 'nest':
+        if kind in ('nest', 'island'):
             R = 250
-            land, off = self.make_ground(int(tg['x']) % 997 + 11, R)
+            seed = EXTRA_ISLANDS[tg['idx']][3] if kind == 'island' else int(tg['x']) % 997 + 11
+            land, off = self.make_ground(seed, R)
             land = land.convert_alpha()
             rnd = random.Random(int(tg['x'] * 7 + tg['y']))
 
@@ -183,17 +291,17 @@ class HeliMixin:
             for _ in range(min(2 + w // 2, 5)):
                 x, y = spot(60, 190)
                 T.append(self.heli_target('aa', x, y))
-            for _ in range(2):
+            for _ in range(3 if kind == 'island' else 2):
                 x, y = spot(40, 170)
                 T.append(self.heli_target('bunker', x, y))
             for _ in range(min(w // 3, 2) if w >= 3 else 0):
                 x, y = spot(70, 190)
                 T.append(self.heli_target('sam', x, y))
             x, y = spot(0, 90)
-            T.append(self.heli_target('depot', x, y))
+            T.append(self.heli_target('depot' if kind == 'nest' else 'radar', x, y))
             x, y = spot(40, 170)
             T.append(self.heli_target('radar', x, y))
-            title = 'ASALTO A BATERÍA COSTERA'
+            title = 'ASALTO A BATERÍA COSTERA' if kind == 'nest' else 'DESPEJAR ' + tg['name'].upper()
             ship = None
         else:
             title = 'CAZA DE BUQUE ENEMIGO'
@@ -513,6 +621,9 @@ class HeliMixin:
             if m['kind'] == 'ship':
                 if tg in self.enemies:
                     self.enemies.remove(tg)
+            elif m['kind'] == 'island':
+                self.cleared_isl.add(tg['idx'])
+                self.banner('¡ISLA DESPEJADA!', 'Acercate con el barco y presioná L: instalás la antena sin resistencia', (120, 220, 255), 4.0)
             else:
                 tg['alive'] = False
             self.ammo = min(40, self.ammo + 8)

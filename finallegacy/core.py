@@ -448,7 +448,7 @@ class CoreMixin:
         self.fade = 1.0
         pygame.mouse.set_visible(state in ('upgrade',) or state not in ('defense', 'combat', 'aerial', 'ground', 'tank', 'port', 'heli'))
         self.audio.music({'title': 'calm', 'map': 'calm', 'defense': 'battle', 'combat': 'battle',
-                          'aerial': 'battle', 'ground': 'battle', 'hack': 'battle', 'tank': 'battle', 'port': 'battle', 'upgrade': 'calm', 'heli': 'battle', 'gameover': None}[state])
+                          'aerial': 'battle', 'ground': 'battle', 'hack': 'battle', 'tank': 'battle', 'port': 'battle', 'upgrade': 'calm', 'heli': 'battle', 'helisel': 'calm', 'gameover': None}[state])
         if state not in ('map', 'combat'):
             self.audio.engine_vol(0)
 
@@ -538,6 +538,10 @@ class CoreMixin:
                     self.start_landing(island[0])
             elif self.state == 'aerial' and e.key in (pygame.K_b, pygame.K_x) and not self.paused:
                 self.air_bomb()
+            elif self.state == 'helisel' and e.key in (pygame.K_1, pygame.K_2, pygame.K_3, pygame.K_4):
+                self.heli_pick(e.key - pygame.K_1)
+            elif self.state == 'helisel' and e.key == pygame.K_ESCAPE:
+                self.go('map')
             elif self.state == 'map' and e.key == pygame.K_c and not self.paused:
                 self.heli_call()
             elif self.state == 'map' and e.key == pygame.K_b and not self.paused:
@@ -593,6 +597,10 @@ class CoreMixin:
                 self.fire_interceptor()
             elif self.state == 'tank':
                 self.tk_fire()
+            elif self.state == 'helisel':
+                for i in range(len(self.heli_cands)):
+                    if self.heli_sel_rect(i).collidepoint(e.pos):
+                        self.heli_pick(i)
             elif self.state == 'upgrade':
                 for i in range(len(self.up_cards)):
                     if self.up_card_rect(i).collidepoint(e.pos):
@@ -721,6 +729,8 @@ class CoreMixin:
             self.draw_upgrade(cv)
         elif self.state == 'heli':
             self.draw_heli(cv)
+        elif self.state == 'helisel':
+            self.draw_helisel(cv)
         elif self.state == 'port':
             self.draw_port(cv)
         elif self.state == 'ground':

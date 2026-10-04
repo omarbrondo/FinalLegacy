@@ -145,6 +145,11 @@ class GamepadMixin:
                 if b in pressed:
                     key(k)
             return
+        if st == 'helisel':
+            for b, k in (('X', pygame.K_1), ('A', pygame.K_2), ('Y', pygame.K_3), ('RB', pygame.K_4), ('B', pygame.K_ESCAPE)):
+                if b in pressed:
+                    key(k)
+            return
         if st == 'hack':
             for b, k in (('UP', pygame.K_UP), ('DN', pygame.K_DOWN), ('LF', pygame.K_LEFT), ('RG', pygame.K_RIGHT),
                          ('A', pygame.K_SPACE), ('X', pygame.K_z), ('B', pygame.K_TAB)):

@@ -689,7 +689,9 @@ class MapMixin:
                 pygame.draw.line(cv, (230, 230, 230), (sx, sy + 8), (sx, sy - 34), 2)
                 pygame.draw.polygon(cv, (255, 210, 70), [(sx, sy - 34), (sx + 20, sy - 27), (sx, sy - 20)])
                 left = MAX_LANDING_ATTEMPTS - self.landing_attempts[i]
-                self.text(cv, '%s - %s' % (self.isl_name(i), 'DESEMBARCO (%d)' % left if left > 0 else 'SIN INTENTOS'),
+                if i in self.cleared_isl:
+                    left = -1
+                self.text(cv, '%s - %s' % (self.isl_name(i), 'DESPEJADA: antena sin resistencia (L)' if left < 0 else ('DESEMBARCO (%d)' % left if left > 0 else 'SIN INTENTOS')),
                           self.f_s, (255, 230, 140) if left > 0 else (200, 120, 110), sx, sy + ir * 0.95, 'c')
         self.fxm.draw(cv, cx, cy)
         for nst in self.nests:
@@ -771,7 +773,10 @@ class MapMixin:
             if island:
                 island_idx, x, y, r, s = island
                 attempts = self.landing_attempts[island_idx]
-                if attempts >= MAX_LANDING_ATTEMPTS:
+                if island_idx in self.cleared_isl:
+                    self.text(cv, '%s DESPEJADA por el Blackhawk: presioná L para instalar la antena sin resistencia' % self.isl_name(island_idx),
+                              self.f_m, (120, 255, 190), W // 2, H - 148, 'c')
+                elif attempts >= MAX_LANDING_ATTEMPTS:
                     self.text(cv, '%s: sin intentos de desembarco' % self.isl_name(island_idx),
                               self.f_m, (255, 140, 110), W // 2, H - 148, 'c')
                 else:
