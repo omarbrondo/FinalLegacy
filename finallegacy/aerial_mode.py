@@ -147,7 +147,7 @@ class AerialMixin:
         for k, ang in enumerate(angs):
             off = (k - (len(angs) - 1) / 2) * (9 if wl == 2 else 5)
             vx, vy = vec(ang, 800)
-            a['pbul'].append(dict(x=p['x'] + off, y=p['y'] - 36, vx=vx, vy=vy))
+            a['pbul'].append(dict(x=p['x'] + off, y=p['y'] - 36, vx=vx, vy=vy, dmg=self.up_dmg()))
         self.audio.play('mg', .15)
 
     def air_bomb(self):
@@ -214,13 +214,13 @@ class AerialMixin:
                 p['homing'] = max(p['homing'], 5.0)
             p['mcd'] = max(0.0, p['mcd'] - dt)
             if (keys[pygame.K_SPACE] or keys[pygame.K_f] or mouse[0]) and p['cd'] <= 0 and a['phase'] == 'play':
-                p['cd'] = 0.07 if p['rapid'] > 0 else 0.11
+                p['cd'] = (0.07 if p['rapid'] > 0 else 0.11) * self.up_reload()
                 self.air_fire_player()
                 if p['homing'] > 0 and p['mcd'] <= 0:
                     p['mcd'] = 0.45
                     for sd in (-1, 1):
                         vx_, vy_ = vec(sd * 28, 440)
-                        a['pbul'].append(dict(x=p['x'] + sd * 20, y=p['y'] - 10, vx=vx_, vy=-abs(vy_), dmg=2, hom=True))
+                        a['pbul'].append(dict(x=p['x'] + sd * 20, y=p['y'] - 10, vx=vx_, vy=-abs(vy_), dmg=2 * self.up_dmg(), hom=True))
             if random.random() < dt * 40:
                 self.fx.add('glow', p['x'] + random.uniform(-3, 3), p['y'] + 42, 0, 60, 0.15, 8, 3, (255, 150, 60))
         # escenario

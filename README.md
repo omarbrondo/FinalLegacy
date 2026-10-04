@@ -47,7 +47,7 @@ Cada modo suma contenido nuevo a medida que avanzan las oleadas:
 - **Infantería**: perros y francotiradores (láser de mira).
 - **Puerto**: jefe tanque u helicóptero según la oleada; noche y tormenta.
 - **Hackeo**: virus que corrompen nodos, cortafuegos y segunda fuente.
-- **Entre oleadas**: elegís 1 de 3 mejoras (casco, recarga, misiles guiados, nano-reparación…).
+- **Entre oleadas**: elegís 1 de 3 mejoras (daño +20%, recarga, explosivos, casco, misiles guiados, nano-reparación…); al completar las oleadas 3 y 5 elegís dos. El daño y la recarga valen en todos los modos.
 
 ## Helicóptero Blackhawk
 

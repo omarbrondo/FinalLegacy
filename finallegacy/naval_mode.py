@@ -480,7 +480,7 @@ class NavalMixin:
         c = self.c
         x, y = s['x'], s['y']
         if s['own'] == 'p':
-            dmg = 3 if full else 2
+            dmg = (3 if full else 2) * self.up_dmg()
             armored = c['is_boss'] and c['special'] == 'armor' and abs(angle_diff(s['ang'], c['e']['h'] + 180)) < 60
             if armored:
                 dmg *= 0.25
@@ -488,7 +488,7 @@ class NavalMixin:
                 for _ in range(4):
                     self.fx.add('spark', x, y, random.uniform(-160, 160), random.uniform(-160, 160), 0.3, col=(200, 230, 255), drag=2)
             else:
-                self.pop('-%d' % dmg, x, y - 20, (255, 255, 160))
+                self.pop('-%d' % round(dmg), x, y - 20, (255, 255, 160))
             c['e']['hp'] -= dmg
         else:
             dmg = s['dmg'][0] if full else s['dmg'][1]
