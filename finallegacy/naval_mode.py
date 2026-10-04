@@ -62,7 +62,7 @@ class NavalMixin:
             self.toast('¡Sin munición! Presioná E para huir', (255, 90, 80))
             return
         self.ammo -= 1
-        p['cool'] = 0.9
+        p['cool'] = 0.9 * self.up_reload()
         tx, ty = self.combat_aim()
         self.launch_missile(p, bearing(tx - p['x'], ty - p['y']), 400, 'p')
         self.audio.play('launch', .8)

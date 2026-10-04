@@ -150,6 +150,8 @@ ENEMY_TYPES = {
     'rifle': dict(hp=4, speed=58, range=280, dmg=5, rate=(1.1, 1.9), pts=100),
     'mg': dict(hp=7, speed=34, range=360, dmg=4, rate=(2.2, 3.2), pts=200),
     'gren': dict(hp=4, speed=46, range=380, dmg=0, rate=(4.8, 6.8), pts=150),
+    'sniper': dict(hp=3, speed=24, range=620, dmg=16, rate=(3.6, 5.2), pts=250),
+    'dog': dict(hp=2, speed=150, range=40, dmg=7, rate=(0.9, 1.2), pts=120),
 }
 
 

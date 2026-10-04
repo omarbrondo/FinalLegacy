@@ -89,10 +89,18 @@ class PortMixin:
             if kind == 'tank':
                 e = self.pt_enemy('tank', cam + W + 200, self.PT_GR, -1)
                 e['state'] = 'enter'
+                e['variant'] = 'heli' if self.wave % 2 == 0 else 'tank'
+                if e['variant'] == 'heli':
+                    e['y'] = self.PT_GR - 150.0
+                    e['rot'] = 0.0
+                    e['hp'] = e['max'] = e['max'] * 0.8
                 pt['boss'] = e
                 pt['enemies'].append(e)
                 self.audio.play('alarm')
-                self.banner('¡TANQUE DE PUERTO!', 'Saltá sus proyectiles y no pares de disparar', (255, 90, 70), 3.4)
+                if e['variant'] == 'heli':
+                    self.banner('¡HELICÓPTERO DE ASALTO!', 'Disparale hacia arriba y cubrite de los misiles', (255, 90, 70), 3.4)
+                else:
+                    self.banner('¡TANQUE DE PUERTO!', 'Saltá sus proyectiles y no pares de disparar', (255, 90, 70), 3.4)
                 continue
             if kind == 'sniper':
                 ahead = [pl for pl in pt['plats'] if cam + 200 < pl['x'] < cam + W - 100] or pt['plats'][:1]
@@ -166,7 +174,7 @@ class PortMixin:
         pt['kills'] += 1
         big = e['kind'] in ('tank', 'turret')
         pts = {'rifle': 100, 'knife': 100, 'gren': 150, 'sniper': 200, 'shield': 150, 'flame': 200, 'turret': 250, 'tank': 2000}[e['kind']]
-        if e['kind'] == 'tank':
+        if e['kind'] == 'tank' and e.get('variant') != 'heli':
             pt['wrecks'].append(dict(kind='tank', x=e['x'], y=e['y']))
             pt['freeze'] = 0.9
         elif e['kind'] == 'turret':
@@ -372,7 +380,104 @@ class PortMixin:
         elif k == 'tank':
             self.pt_ai_tank(e, dt)
 
+    def pt_ai_heli(self, e, dt):
+        pt = self.pt
+        p = pt['p']
+        alive = not p['dead']
+        cam = pt['cam']
+        home = (pt['lock'] if pt['lock'] is not None else cam) + W - 300
+        e['st'] += dt
+        e['rot'] += dt * 40
+        ratio = e['hp'] / e['max']
+        e['flash'] = max(0.0, e['flash'] - dt)
+        gy = self.PT_GR
+        if e['state'] == 'enter':
+            e['x'] -= 170 * dt
+            if e['x'] <= home:
+                e['state'], e['st'], e['cd'] = 'fight', 0.0, 1.4
+        elif e['state'] == 'fight':
+            e['x'] = max(home + math.sin(e['st'] * 0.6) * 150, (pt['lock'] or cam) + 460)
+            e['y'] += (gy - 160 + math.sin(e['st'] * 1.3) * 18 - e['y']) * min(1.0, dt * 3)
+            if e['burst'] > 0:
+                e['bcd'] -= dt
+                if e['bcd'] <= 0:
+                    e['burst'] -= 1
+                    e['bcd'] = 0.09
+                    ang = math.degrees(math.atan2(p['y'] - 36 - (e['y'] - 20), p['x'] - (e['x'] - 120))) + random.uniform(-6, 6)
+                    self.pt_ebullet(e['x'] - 120, e['y'] - 20, ang, 560, 6)
+                    self.audio.play('mg', .2)
+            elif e['cd'] <= 0 and alive:
+                e['atk'] += 1
+                e['cd'] = random.uniform(1.6, 2.4) * (0.75 if ratio < 0.5 else 1.0)
+                if ratio < 0.5 and e['atk'] % 4 == 0:
+                    e['state'], e['st'] = 'dive', 0.0
+                    self.pop('¡EN PICADA!', W / 2, 300, (255, 90, 70))
+                elif e['atk'] % 3 == 0:
+                    for off in (-210, 0, 210):
+                        pt['mort'].append(dict(x=p['x'] + off + random.uniform(-40, 40), t=0.0))
+                    self.pop('¡MISILES!', W / 2, 300, (255, 160, 60))
+                    self.audio.play('ping', .6)
+                else:
+                    e['burst'], e['bcd'] = 12, 0.0
+        elif e['state'] == 'dive':
+            tx = p['x'] + 20
+            e['x'] += clamp(tx - e['x'], -380 * dt, 380 * dt)
+            e['y'] += (gy - 95 - e['y']) * min(1.0, dt * 4)
+            if abs(p['x'] - e['x']) < 120 and p['y'] > e['y'] - 150 and alive and e['st'] > 0.5:
+                self.pt_hurt(22)
+                e['state'], e['st'] = 'climb', 0.0
+            if e['st'] > 2.2:
+                e['state'], e['st'] = 'climb', 0.0
+        elif e['state'] == 'climb':
+            e['y'] += (gy - 200 - e['y']) * min(1.0, dt * 3)
+            e['x'] += (home - e['x']) * min(1.0, dt * 1.5)
+            if e['st'] > 1.4:
+                e['state'], e['st'] = 'fight', 0.0
+
+    def pt_draw_heli(self, cv, sx, fy, e):
+        t = self.t
+        hit = e['hit'] > 0
+        body = (210, 210, 210) if hit else (58, 70, 56)
+        dark = (150, 150, 150) if hit else (36, 44, 36)
+        pygame.draw.ellipse(cv, (40, 36, 44), (sx - 110, self.PT_GR - 6, 220, 12))
+        # cola
+        pygame.draw.polygon(cv, dark, [(sx + 40, fy - 62), (sx + 190, fy - 70), (sx + 190, fy - 56), (sx + 40, fy - 36)])
+        pygame.draw.polygon(cv, body, [(sx + 175, fy - 66), (sx + 205, fy - 100), (sx + 214, fy - 96), (sx + 192, fy - 56)])
+        # cuerpo
+        pygame.draw.ellipse(cv, body, (sx - 140, fy - 92, 230, 80))
+        pygame.draw.ellipse(cv, dark, (sx - 140, fy - 92, 230, 80), 3)
+        pygame.draw.ellipse(cv, (120, 190, 215) if not hit else (255, 255, 255), (sx - 134, fy - 84, 84, 44))
+        pygame.draw.ellipse(cv, (200, 235, 245), (sx - 124, fy - 80, 36, 16))
+        # armas
+        pygame.draw.rect(cv, dark, (sx - 112, fy - 22, 70, 12), border_radius=4)
+        pygame.draw.rect(cv, (24, 24, 28), (sx - 138, fy - 20, 40, 7))
+        for k in range(3):
+            pygame.draw.rect(cv, (30, 34, 30), (sx - 20 + k * 16, fy - 34, 12, 26), border_radius=3)
+        # patines
+        pygame.draw.line(cv, dark, (sx - 80, fy - 4), (sx + 50, fy - 4), 4)
+        pygame.draw.line(cv, dark, (sx - 50, fy - 14), (sx - 54, fy - 4), 3)
+        pygame.draw.line(cv, dark, (sx + 20, fy - 14), (sx + 24, fy - 4), 3)
+        # rotor principal
+        pygame.draw.line(cv, (24, 24, 28), (sx - 20, fy - 92), (sx - 20, fy - 106), 4)
+        rl = 190
+        a1 = math.cos(e['rot'])
+        pygame.draw.ellipse(cv, (96, 98, 108), (sx - 20 - rl, fy - 114, rl * 2, 14), 1)
+        pygame.draw.line(cv, (200, 202, 208), (sx - 20 - rl * a1, fy - 108), (sx - 20 + rl * a1, fy - 108), 3)
+        pygame.draw.line(cv, (200, 202, 208), (sx - 20 - rl * math.sin(e['rot']) * 0.9, fy - 106),
+                         (sx - 20 + rl * math.sin(e['rot']) * 0.9, fy - 106), 2)
+        # rotor de cola
+        ra = 30 * math.cos(e['rot'] * 1.3)
+        pygame.draw.line(cv, (200, 202, 208), (sx + 208, fy - 98 - ra), (sx + 208, fy - 98 + ra), 3)
+        if int(t * 3) % 2 == 0:
+            glow(cv, sx + 196, fy - 62, 14, (255, 60, 50), 0.8)
+        if e['burst'] > 0 and e['bcd'] > 0.04:
+            self.pt_flash(cv, sx - 138, fy - 17, 0, False)
+        if e['hp'] < e['max'] * 0.5 and random.random() < 0.4:
+            self.fx.add('smoke', e['x'] + random.uniform(-30, 30), fy - 50, random.uniform(-10, 10), -40, 1.6, 8, 26, (40, 40, 44))
+
     def pt_ai_tank(self, e, dt):
+        if e.get('variant') == 'heli':
+            return self.pt_ai_heli(e, dt)
         pt = self.pt
         p = pt['p']
         alive = not p['dead']
@@ -715,7 +820,7 @@ class PortMixin:
                 return self.game_over('Tu barco se hundió')
         else:
             self.port_done = True
-            self.hull = min(100, self.hull + 30)
+            self.hull = min(self.hull_max, self.hull + 30)
             self.fuel = 100.0
             self.ammo = 40
             for en in self.enemies:
@@ -1016,9 +1121,11 @@ class PortMixin:
                 continue
             k = e['kind']
             fy = int(e['y'])
-            if k == 'tank':
+            if k == 'tank' and e.get('variant') == 'heli':
+                self.pt_draw_heli(cv, sx, fy, e)
+                continue
+            elif k == 'tank':
                 img = self.pt_tank_img(e)
-                cv.blit(self.pt_shadow, (sx - 150, fy - 8)) if False else None
                 cv.blit(img, (sx - 260, fy - 176))
                 if e['tele'] > 0:
                     glow(cv, sx - 224, fy - 111, 30 + 12 * math.sin(e['st'] * 30), (255, 160, 70))
@@ -1149,6 +1256,25 @@ class PortMixin:
                 sx = d['x'] - cam
                 if -120 < sx < W + 120:
                     glow(cv, sx - 18, GR - 170, 70, (255, 214, 140), 0.55)
+        sc = (self.wave - 1) % 3
+        if sc:
+            ov = pygame.Surface((W, H), pygame.SRCALPHA)
+            ov.fill((6, 10, 40, 120) if sc == 1 else (30, 36, 50, 95))
+            cv.blit(ov, (0, 0))
+            if sc == 1:
+                for d in pt['decor']:
+                    if d['kind'] == 'lamp' and -120 < d['x'] - cam < W + 120:
+                        glow(cv, d['x'] - cam - 18, GR - 170, 130, (255, 214, 140), 0.55)
+            else:
+                for i in range(70):
+                    rx = (i * 97 + t * 420 + i * i * 13) % (W + 100) - 50
+                    ry = (i * 61 + t * 900 + i * 29) % H
+                    pygame.draw.line(cv, (170, 190, 215), (rx, ry), (rx - 9, ry + 22), 1)
+                if int(t * 0.7) != int(t * 0.7 - 0.016) and random.random() < 0.15:
+                    pt['flash_t'] = 0.18
+                pt['flash_t'] = max(0.0, pt.get('flash_t', 0.0) - 0.016)
+                if pt['flash_t'] > 0:
+                    cv.fill((90, 90, 110), special_flags=pygame.BLEND_RGB_ADD)
         cv.blit(self.pt_vig, (0, 0))
         # HUD
         self.panel(cv, (14, 12, 250, 56), 160)
@@ -1158,7 +1284,7 @@ class PortMixin:
         self.text(cv, 'PUERTO ENEMIGO', self.f_m, (255, 140, 110), W // 2, 16, 'c')
         boss = pt['boss']
         if boss is not None:
-            self.bar(cv, W // 2 - 210, 44, 420, 26, boss['hp'] / boss['max'], (240, 80, 70), 'TANQUE DE PUERTO')
+            self.bar(cv, W // 2 - 210, 44, 420, 26, boss['hp'] / boss['max'], (240, 80, 70), 'HELICÓPTERO DE ASALTO' if boss.get('variant') == 'heli' else 'TANQUE DE PUERTO')
         else:
             self.bar(cv, W // 2 - 210, 44, 420, 26, clamp(p['x'] / (self.PT_LEN - 1500), 0, 1), (255, 190, 90), 'AVANCE')
         self.panel(cv, (14, H - 126, 330, 112), 190)
