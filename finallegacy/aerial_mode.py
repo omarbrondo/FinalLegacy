@@ -2,7 +2,7 @@
 import math
 import pygame
 import random
-from .common import H, Particles, W, WIN_WAVE, bearing, clamp, dist, draw_circ, glow, lerp, shade, vec
+from .common import H, Particles, W, WIN_WAVE, angle_diff, bearing, clamp, dist, draw_circ, glow, lerp, shade, vec
 from .sprites import make_shadow
 
 
@@ -13,17 +13,21 @@ class AerialMixin:
     def start_aerial(self, city=None):
         self.fx = Particles()
         w = self.wave
-        kinds = ['vee', 'line', 'dive', 'vee', 'pair', 'line', 'bomber', 'dive', 'vee', 'pair']
+        pool = ['vee', 'line', 'dive', 'pair', 'vee', 'line']
+        if w >= 2:
+            pool += ['kami', 'bomber']
+        if w >= 3:
+            pool += ['mines', 'spiral']
+        if w >= 4:
+            pool += ['gunship']
         events, t = [], 2.0
-        gap = max(3.4, 4.8 - 0.15 * w)
-        for i in range(8 + w):
-            k = kinds[i % len(kinds)]
-            if k == 'bomber' and w < 2:
-                k = 'line'
+        gap = max(3.2, 4.8 - 0.15 * w)
+        for i in range(min(16, 8 + w)):
+            k = pool[i % len(pool)] if i < len(pool) else random.choice(pool)
             events.append((t, k, random.uniform(200, W - 200)))
             t += gap + random.uniform(-0.4, 0.8)
         self.a = dict(city=city, t=0.0, scroll=0.0, phase='play', pt=0.0, fail=False, kills=0,
-                      p=dict(x=W / 2, y=H - 140.0, hp=100.0, inv=0.0, cd=0.0, bcd=0.0, wl=1, shield=0.0, vx=0.0, dead=False),
+                      p=dict(x=W / 2, y=H - 140.0, hp=100.0, inv=0.0, cd=0.0, bcd=0.0, wl=1, shield=0.0, vx=0.0, dead=False, rapid=0.0, homing=0.0, mcd=0.0),
                       foes=[], ebul=[], pbul=[], bombs=[], ground=[], caps=[], isl=[], clouds=[],
                       forms={}, fid=0, events=events, boss_t=t + 2.5, boss=None, boss_dead=False,
                       isl_t=0.0, boat_t=6.0, cloud_t=0.0)
@@ -53,10 +57,12 @@ class AerialMixin:
 
     def air_foe(self, kind, x, y, fid=None, **kw):
         w = self.wave
-        hp = {'viper': 2 + w // 3, 'stealth': 5 + w // 2, 'bomber': 16 + 3 * w}[kind]
+        hp = {'viper': 2 + w // 3, 'stealth': 5 + w // 2, 'bomber': 16 + 3 * w, 'kami': 2, 'gunship': 10 + w, 'mine': 3}[kind]
         f = dict(kind=kind, x=x, y=y, bx=x, hp=float(hp), max=float(hp), t=0.0, ph=random.uniform(0, 6.28),
                  cd=random.uniform(1.2, 2.8), fid=fid, vx=0.0, vy=0.0, mode=0, hit=0.0)
         f.update(kw)
+        if kind == 'kami':
+            f['a'] = kw.get('a_', 180.0)
         self.a['foes'].append(f)
         return f
 
@@ -80,6 +86,19 @@ class AerialMixin:
                 self.air_foe('stealth', clamp(x + ox, 80, W - 80), -60, fid, mode=0)
         elif kind == 'bomber':
             self.air_foe('bomber', x, -90, fid)
+        elif kind == 'kami':
+            for i in range(3):
+                self.air_foe('kami', clamp(x + (i - 1) * 70, 50, W - 50), -50 - i * 40, fid, a_=180.0)
+        elif kind == 'spiral':
+            for i in range(6):
+                self.air_foe('viper', clamp(x, 150, W - 150), -50 - i * 46, fid, spiral=i)
+        elif kind == 'mines':
+            gap = random.randrange(5)
+            for i in range(6):
+                if i not in (gap, gap + 1):
+                    self.air_foe('mine', 80 + i * 188, -40.0, fid)
+        elif kind == 'gunship':
+            self.air_foe('gunship', clamp(x, 200, W - 200), -80, fid)
         a['forms'][fid] = dict(n=sum(1 for f in a['foes'] if f['fid'] == fid), escaped=False)
 
     def air_ebul(self, x, y, ang, speed, r=5):
@@ -97,17 +116,28 @@ class AerialMixin:
             return
         a['foes'].remove(f)
         a['kills'] += 1
-        pts = {'viper': 100, 'stealth': 250, 'bomber': 800}[f['kind']]
+        pts = {'viper': 100, 'stealth': 250, 'bomber': 800, 'kami': 150, 'gunship': 500, 'mine': 100}[f['kind']]
         self.add_score(pts)
         self.pop('+%d' % pts, f['x'], f['y'] - 20)
-        self.air_boom(f['x'], f['y'], {'viper': 0.9, 'stealth': 1.1, 'bomber': 2.0}[f['kind']], f['kind'] == 'bomber')
+        self.air_boom(f['x'], f['y'], {'viper': 0.9, 'stealth': 1.1, 'bomber': 2.0, 'kami': 0.8, 'gunship': 1.4, 'mine': 1.0}[f['kind']], f['kind'] in ('bomber', 'gunship'))
+        if f['kind'] == 'mine':
+            for i in range(8):
+                self.air_ebul(f['x'], f['y'], i * 45, 120, 5)
         form = a['forms'].get(f['fid'])
         if form:
             form['n'] -= 1
             if form['n'] <= 0 and not form['escaped']:
-                a['caps'].append(dict(x=f['x'], y=f['y'], kind=random.choice(('W', 'W', 'H', 'S')), t=0.0))
-        elif f['kind'] == 'bomber':
-            a['caps'].append(dict(x=f['x'], y=f['y'], kind='W', t=0.0))
+                a['caps'].append(dict(x=f['x'], y=f['y'], kind=self.air_cap_kind(), t=0.0))
+        elif f['kind'] in ('bomber', 'gunship'):
+            a['caps'].append(dict(x=f['x'], y=f['y'], kind='W' if f['kind'] == 'bomber' else self.air_cap_kind(), t=0.0))
+
+    def air_cap_kind(self):
+        pool = ['W', 'W', 'H', 'S']
+        if self.wave >= 2:
+            pool.append('R')
+        if self.wave >= 3:
+            pool.append('M')
+        return random.choice(pool)
 
     def air_fire_player(self):
         a = self.a
@@ -140,7 +170,7 @@ class AerialMixin:
             self.pop('+%d' % pts, g['x'], g['y'] - 18)
             self.air_boom(g['x'], g['y'], 1.2, True)
             if random.random() < 0.5:
-                a['caps'].append(dict(x=g['x'], y=g['y'], kind=random.choice(('W', 'H', 'S')), t=0.0))
+                a['caps'].append(dict(x=g['x'], y=g['y'], kind=self.air_cap_kind(), t=0.0))
 
     def air_hurt(self, dmg):
         a = self.a
@@ -178,9 +208,17 @@ class AerialMixin:
             p['vx'] += (mx / n * 320 - p['vx']) * min(1, dt * 12)
             p['x'] = clamp(p['x'] + p['vx'] * dt, 44, W - 44)
             p['y'] = clamp(p['y'] + my / n * 300 * dt, 150, H - 70)
+            p['rapid'] = max(0.0, p['rapid'] - dt)
+            p['homing'] = max(0.0, p['homing'] - dt)
+            p['mcd'] = max(0.0, p['mcd'] - dt)
             if (keys[pygame.K_SPACE] or keys[pygame.K_f] or mouse[0]) and p['cd'] <= 0 and a['phase'] == 'play':
-                p['cd'] = 0.11
+                p['cd'] = 0.07 if p['rapid'] > 0 else 0.11
                 self.air_fire_player()
+                if p['homing'] > 0 and p['mcd'] <= 0:
+                    p['mcd'] = 0.45
+                    for sd in (-1, 1):
+                        vx_, vy_ = vec(sd * 28, 440)
+                        a['pbul'].append(dict(x=p['x'] + sd * 20, y=p['y'] - 10, vx=vx_, vy=-abs(vy_), dmg=2, hom=True))
             if random.random() < dt * 40:
                 self.fx.add('glow', p['x'] + random.uniform(-3, 3), p['y'] + 42, 0, 60, 0.15, 8, 3, (255, 150, 60))
         # escenario
@@ -223,19 +261,37 @@ class AerialMixin:
                 _, kind, x = a['events'].pop(0)
                 self.air_spawn_formation(kind, x)
             if a['boss'] is None and a['t'] >= a['boss_t']:
-                hp = 80 + 20 * self.wave
-                a['boss'] = dict(x=W / 2, y=-170.0, hp=float(hp), max=float(hp), t=0.0, pc=2.0, pi=0, stream=0, sd=0.0,
-                                 wc=1.2, hit=0.0)
+                a['boss'] = self.air_boss_make()
                 self.audio.play('alarm')
-                self.banner('¡ALERTA! COMANDANTE STEALTH', 'Destruí al bombardero furtivo', (255, 90, 70), 3.2)
+                from .air_boss import AIR_BOSSES
+                spec = AIR_BOSSES[a['boss']['k']]
+                self.banner('¡ALERTA! %s' % spec['name'], spec['hint'], (255, 90, 70), 3.6)
         # enemigos
         for f in a['foes'][:]:
             f['t'] += dt
             f['hit'] = max(0.0, f['hit'] - dt)
             k = f['kind']
-            if k == 'viper':
+            if k == 'viper' and f.get('spiral') is not None:
+                f['y'] += (96 + 3 * self.wave) * dt
+                f['x'] = f['bx'] + math.cos(f['t'] * 2.6 + f['spiral'] * 1.05) * 120
+            elif k == 'viper':
                 f['y'] += (110 + 3 * self.wave) * dt
                 f['x'] = f['bx'] + math.sin(f['t'] * 2.2 + f['ph']) * 55
+            elif k == 'kami':
+                if f['t'] > 0.45 and not p['dead']:
+                    f['a'] = (f['a'] + clamp(angle_diff(f['a'], bearing(p['x'] - f['x'], p['y'] - f['y'])), -105 * dt, 105 * dt)) % 360
+                vx_, vy_ = vec(f['a'], (220 if f['t'] < 0.45 else 270) * dt)
+                f['x'] += vx_
+                f['y'] += vy_
+            elif k == 'mine':
+                f['y'] += self.AIR_SCROLL * dt
+                if not p['dead'] and dist(f['x'], f['y'], p['x'], p['y']) < 40:
+                    self.air_hurt(15)
+                    self.air_kill_foe(f)
+                    continue
+            elif k == 'gunship':
+                f['y'] += (70 if (f['y'] < 190 and f['t'] < 8) else (0 if f['t'] < 8 else 120)) * dt
+                f['x'] = f['bx'] + math.sin(f['t'] * 0.6) * 110
             elif k == 'stealth' and f['mode'] != 0:
                 if f['t'] < 1.3:
                     f['x'] += -f['mode'] * 230 * dt
@@ -262,6 +318,14 @@ class AerialMixin:
                     f['cd'] = random.uniform(2.2, 3.0)
                     for da in (-14, 0, 14):
                         self.air_ebul(f['x'], f['y'] + 20, aim + da, 230)
+                elif k in ('kami', 'mine'):
+                    f['cd'] = 99.0
+                elif k == 'gunship':
+                    f['cd'] = 1.7
+                    for da in (-16, -8, 0, 8, 16):
+                        self.air_ebul(f['x'], f['y'] + 30, aim + da, 215)
+                    for sx in (-1, 1):
+                        self.air_ebul(f['x'] + sx * 30, f['y'] + 10, 180, 190)
                 else:
                     f['cd'] = 1.15
                     f['mode'] += 1
@@ -279,41 +343,12 @@ class AerialMixin:
         # jefe
         b = a['boss']
         if b and not a['boss_dead']:
-            b['t'] += dt
-            b['hit'] = max(0.0, b['hit'] - dt)
-            if b['y'] < 175:
-                b['y'] += 80 * dt
-            else:
-                b['x'] = W / 2 + math.sin(b['t'] * 0.55) * (W / 2 - 230)
-                rage = b['hp'] < b['max'] * 0.5
-                b['pc'] -= dt
-                if b['pc'] <= 0 and not p['dead']:
-                    pat = b['pi'] % 3
-                    b['pi'] += 1
-                    b['pc'] = 1.7 if rage else 2.5
-                    aim = bearing(p['x'] - b['x'], p['y'] - b['y'])
-                    if pat == 0:
-                        for i in range(-3, 4):
-                            self.air_ebul(b['x'], b['y'] + 60, aim + i * 11, 215)
-                    elif pat == 1:
-                        off = random.uniform(0, 360)
-                        for i in range(20 if rage else 16):
-                            self.air_ebul(b['x'], b['y'] + 20, off + i * (360 / (20 if rage else 16)), 150, 6)
-                    else:
-                        b['stream'], b['sd'] = 12 if rage else 9, 0.0
-                if b['stream'] > 0:
-                    b['sd'] -= dt
-                    if b['sd'] <= 0 and not p['dead']:
-                        b['stream'] -= 1
-                        b['sd'] = 0.08
-                        self.air_ebul(b['x'], b['y'] + 50, bearing(p['x'] - b['x'], p['y'] - b['y']) + random.uniform(-2, 2), 270)
-                b['wc'] -= dt
-                if b['wc'] <= 0 and not p['dead']:
-                    b['wc'] = 1.2 if rage else 1.8
-                    for sx in (-1, 1):
-                        self.air_ebul(b['x'] + sx * 110, b['y'] + 30, bearing(p['x'] - b['x'] - sx * 110, p['y'] - b['y'] - 30), 230)
+            self.air_boss_update(dt)
+        self.air_ambient_update(dt)
         # balas del jugador
         for bl in a['pbul'][:]:
+            if bl.get('hom'):
+                self.air_homing(bl, dt)
             bl['x'] += bl['vx'] * dt
             bl['y'] += bl['vy'] * dt
             if bl['y'] < -30 or bl['x'] < -30 or bl['x'] > W + 30:
@@ -321,22 +356,19 @@ class AerialMixin:
                 continue
             hit = None
             for f in a['foes']:
-                if dist(bl['x'], bl['y'], f['x'], f['y']) < {'viper': 24, 'stealth': 30, 'bomber': 60}[f['kind']]:
+                if dist(bl['x'], bl['y'], f['x'], f['y']) < {'viper': 24, 'stealth': 30, 'bomber': 60, 'kami': 20, 'gunship': 38, 'mine': 20}[f['kind']]:
                     hit = f
                     break
             if hit:
-                hit['hp'] -= 1
+                hit['hp'] -= bl.get('dmg', 1)
                 hit['hit'] = 0.08
                 a['pbul'].remove(bl)
                 self.fx.add('spark', bl['x'], bl['y'], random.uniform(-100, 100), random.uniform(-60, 60), 0.2, col=(255, 230, 150), drag=2)
                 if hit['hp'] <= 0:
                     self.air_kill_foe(hit)
                 continue
-            if b and not a['boss_dead'] and dist(bl['x'], bl['y'], b['x'], b['y'] + 10) < 80:
-                b['hp'] -= 1
-                b['hit'] = 0.08
+            if b and not a['boss_dead'] and self.air_boss_hit(bl):
                 a['pbul'].remove(bl)
-                self.fx.add('spark', bl['x'], bl['y'], random.uniform(-100, 100), random.uniform(-60, 60), 0.2, col=(255, 230, 150), drag=2)
                 continue
         # balas enemigas
         for eb in a['ebul'][:]:
@@ -370,6 +402,12 @@ class AerialMixin:
                 elif q['kind'] == 'H':
                     p['hp'] = min(100.0, p['hp'] + 30)
                     self.pop('+30 AVIÓN', p['x'], p['y'] - 40, (120, 255, 150))
+                elif q['kind'] == 'R':
+                    p['rapid'] = 9.0
+                    self.pop('RÁFAGA', p['x'], p['y'] - 40, (255, 235, 110))
+                elif q['kind'] == 'M':
+                    p['homing'] = 10.0
+                    self.pop('MISILES GUÍA', p['x'], p['y'] - 40, (200, 150, 255))
                 else:
                     p['shield'] = 7.0
                     self.pop('ESCUDO', p['x'], p['y'] - 40, (120, 220, 255))
@@ -378,11 +416,11 @@ class AerialMixin:
         # choque contra enemigos
         if not p['dead']:
             for f in a['foes'][:]:
-                if dist(f['x'], f['y'], p['x'], p['y']) < {'viper': 28, 'stealth': 32, 'bomber': 56}[f['kind']] and p['inv'] <= 0:
+                if dist(f['x'], f['y'], p['x'], p['y']) < {'viper': 28, 'stealth': 32, 'bomber': 56, 'kami': 24, 'gunship': 40, 'mine': 26}[f['kind']] and p['inv'] <= 0:
                     self.air_hurt(20)
-                    if f['kind'] != 'bomber':
+                    if f['kind'] not in ('bomber', 'gunship'):
                         self.air_kill_foe(f)
-        if b and not a['boss_dead'] and not p['dead'] and dist(b['x'], b['y'], p['x'], p['y']) < 85:
+        if b and not a['boss_dead'] and not p['dead'] and b['alpha'] > 0.5 and dist(b['x'], b['y'], p['x'], p['y']) < b['r'] * 0.9:
             self.air_hurt(20)
         # jefe derrotado / jugador caído
         if b and not a['boss_dead'] and b['hp'] <= 0:
@@ -471,7 +509,7 @@ class AerialMixin:
             spr.set_alpha(215)
             cv.blit(spr, (c['x'] - w2 // 2, c['y'] - h2 // 2))
         for q in a['caps']:
-            col = {'W': (255, 150, 50), 'H': (80, 220, 110), 'S': (90, 190, 255)}[q['kind']]
+            col = {'W': (255, 150, 50), 'H': (80, 220, 110), 'S': (90, 190, 255), 'R': (255, 230, 90), 'M': (190, 130, 255)}[q['kind']]
             glow(cv, q['x'], q['y'], 30, col, 0.7)
             pygame.draw.circle(cv, shade(col, -70), (int(q['x']), int(q['y'])), 14)
             pygame.draw.circle(cv, col, (int(q['x']), int(q['y'])), 12)
@@ -486,13 +524,31 @@ class AerialMixin:
             sh.set_alpha(75)
             cv.blit(sh, (x - sh.get_width() // 2 + sh_off[0], y - sh.get_height() // 2 + sh_off[1]))
         for f in a['foes']:
-            spr = A[{'viper': 'viper', 'stealth': 'stealth', 'bomber': 'bomber'}[f['kind']]]
+            if f['kind'] == 'mine':
+                mx_, my_ = int(f['x']), int(f['y'])
+                for ang_ in range(8):
+                    a2 = ang_ * 0.785 + t * 0.5
+                    pygame.draw.line(cv, (24, 26, 30), (mx_, my_), (mx_ + math.cos(a2) * 24, my_ + math.sin(a2) * 24), 4)
+                pygame.draw.circle(cv, (20, 22, 26), (mx_, my_), 17)
+                pygame.draw.circle(cv, (92, 98, 108), (mx_, my_), 14)
+                pygame.draw.circle(cv, (255, 70, 60) if int(t * 4 + f['x']) % 2 == 0 else (110, 30, 30), (mx_, my_), 5)
+                continue
+            if f['kind'] == 'kami' and 'kami' not in A:
+                kv = A['viper'].copy()
+                kv.fill((255, 90, 70, 0), special_flags=pygame.BLEND_RGB_ADD)
+                A['kami'] = kv
+            if f['kind'] == 'gunship' and 'gunship' not in A:
+                gb_ = A['bomber']
+                A['gunship'] = pygame.transform.smoothscale(gb_, (int(gb_.get_width() * 0.62), int(gb_.get_height() * 0.62)))
+            spr = A[{'viper': 'viper', 'stealth': 'stealth', 'bomber': 'bomber', 'kami': 'kami', 'gunship': 'gunship'}[f['kind']]]
+            if f['kind'] == 'kami':
+                spr = pygame.transform.rotate(spr, -(f['a'] - 180))
             shadow(spr, f['x'], f['y'])
             if f['hit'] > 0:
                 spr = spr.copy()
                 spr.fill((90, 90, 90, 0), special_flags=pygame.BLEND_RGB_ADD)
             cv.blit(spr, (f['x'] - spr.get_width() // 2, f['y'] - spr.get_height() // 2))
-            if f['kind'] == 'bomber':
+            if f['kind'] in ('bomber', 'gunship'):
                 for sx in (-1, 1):
                     glow(cv, f['x'] + sx * 22, f['y'] - 18, 20, (255, 140, 60), 0.7)
                 pygame.draw.rect(cv, (8, 12, 24), (f['x'] - 40, f['y'] - 80, 80, 6))
@@ -501,14 +557,7 @@ class AerialMixin:
                 glow(cv, f['x'], f['y'] - 36 if f['kind'] == 'viper' else f['y'] - 28, 12, (255, 150, 70), 0.6)
         b = a['boss']
         if b and not a['boss_dead']:
-            spr = A['boss']
-            shadow(spr, b['x'], b['y'])
-            if b['hit'] > 0:
-                spr = spr.copy()
-                spr.fill((90, 90, 90, 0), special_flags=pygame.BLEND_RGB_ADD)
-            cv.blit(spr, (b['x'] - spr.get_width() // 2, b['y'] - spr.get_height() // 2))
-            for sx in (-1, 1):
-                glow(cv, b['x'] + sx * 36, b['y'] - 54, 28 + 4 * math.sin(t * 20), (255, 120, 60), 0.8)
+            self.air_boss_draw(cv, shadow)
         if not p['dead']:
             shadow(A['f16'], p['x'], p['y'])
             spr = A['f16']
@@ -526,7 +575,12 @@ class AerialMixin:
                 pulse = 0.6 + 0.4 * math.sin(t * 10)
                 draw_circ(cv, p['x'], p['y'], 54, (110, 210, 255), 50 * pulse + 20)
                 draw_circ(cv, p['x'], p['y'], 54, (170, 235, 255), 200, 2)
+        self.air_ambient_draw(cv)
         for bl in a['pbul']:
+            if bl.get('hom'):
+                glow(cv, bl['x'], bl['y'], 14, (190, 130, 255), 0.8)
+                pygame.draw.line(cv, (200, 150, 255), (bl['x'], bl['y']), (bl['x'] - bl['vx'] * 0.04, bl['y'] - bl['vy'] * 0.04), 5)
+                continue
             pygame.draw.line(cv, (255, 244, 170), (bl['x'], bl['y']), (bl['x'] - bl['vx'] * 0.03, bl['y'] - bl['vy'] * 0.03), 3)
             pygame.draw.line(cv, (255, 255, 255), (bl['x'], bl['y']), (bl['x'] - bl['vx'] * 0.015, bl['y'] - bl['vy'] * 0.015), 1)
         for eb in a['ebul']:
@@ -549,11 +603,19 @@ class AerialMixin:
         self.panel(cv, (W // 2 - 230, 12, 460, 70), 170)
         b = a['boss']
         if b and not a['boss_dead']:
-            self.text(cv, 'COMANDANTE STEALTH', self.f_m, (255, 110, 90), W // 2, 16, 'c')
+            from .air_boss import AIR_BOSSES
+            self.text(cv, AIR_BOSSES[b['k']]['name'], self.f_m, (255, 110, 90), W // 2, 16, 'c')
             self.bar(cv, W // 2 - 210, 44, 420, 26, b['hp'] / b['max'], (240, 80, 70), 'JEFE')
         else:
             self.text(cv, '¡BATALLA AÉREA!', self.f_m, (100, 180, 255), W // 2, 16, 'c')
             self.bar(cv, W // 2 - 210, 44, 420, 26, a['t'] / a['boss_t'], (100, 180, 255), 'AVANCE')
+        yy_ = 90
         if p['shield'] > 0:
-            self.text(cv, 'ESCUDO %.0f' % p['shield'], self.f_s, (150, 225, 255), W - 20, 90, 'r')
+            self.text(cv, 'ESCUDO %.0f' % p['shield'], self.f_s, (150, 225, 255), W - 20, yy_, 'r')
+            yy_ += 20
+        if p['rapid'] > 0:
+            self.text(cv, 'RÁFAGA %.0f' % p['rapid'], self.f_s, (255, 235, 110), W - 20, yy_, 'r')
+            yy_ += 20
+        if p['homing'] > 0:
+            self.text(cv, 'MISILES GUÍA %.0f' % p['homing'], self.f_s, (200, 150, 255), W - 20, yy_, 'r')
         self.text(cv, 'WASD mover | ESPACIO/clic disparar | B/clic der. bomba', self.f_s, (210, 225, 255), W - 14, H - 30, 'r')
