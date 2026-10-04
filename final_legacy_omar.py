@@ -906,35 +906,58 @@ def tex_hall(seed):
     return s
 
 
-def tex_camo(base, blots, seed):
+def tex_mech(base, accent, seed):
     rnd = random.Random(seed)
     s = pygame.Surface((64, 64))
-    s.fill(base)
-    for _ in range(26):
-        c = rnd.choice(blots)
-        x, y, w, h = rnd.randint(-10, 60), rnd.randint(-10, 60), rnd.randint(10, 26), rnd.randint(8, 18)
-        for ox, oy in ((0, 0), (-64, 0), (64, 0), (0, -64), (0, 64)):
-            pygame.draw.ellipse(s, c, (x + ox, y + oy, w, h))
-    for y in (0, 32):
-        pygame.draw.line(s, shade(base, -50), (0, y), (63, y), 1)
-    for x in (0, 32):
-        pygame.draw.line(s, shade(base, -50), (x, 0), (x, 63), 1)
-    for y in (4, 36):
-        for x in range(4, 64, 8):
-            pygame.draw.circle(s, shade(base, 36), (x, y), 1)
+    for y in range(64):
+        f = y / 63
+        k_ = lerp(1.22, 0.78, f)
+        pygame.draw.line(s, (min(255, int(base[0] * k_)), min(255, int(base[1] * k_)), min(255, int(base[2] * k_))), (0, y), (63, y))
+    for k_ in (0, 32):
+        pygame.draw.line(s, shade(base, -62), (k_, 0), (k_, 63), 2)
+        pygame.draw.line(s, shade(base, -62), (0, k_), (63, k_), 2)
+    for ox, oy in ((3, 3), (35, 3), (3, 35), (35, 35)):
+        pygame.draw.rect(s, shade(base, 26), (ox, oy, 26, 26), 1)
+        for bx, by in ((ox + 3, oy + 3), (ox + 22, oy + 3), (ox + 3, oy + 22), (ox + 22, oy + 22)):
+            pygame.draw.circle(s, shade(base, -50), (bx + 1, by + 1), 2)
+            pygame.draw.circle(s, shade(base, 52), (bx, by), 1)
+    for k_ in range(-64, 128, 14):
+        pygame.draw.line(s, accent, (k_, 46), (k_ + 12, 56), 3)
+    pygame.draw.rect(s, shade(accent, -80), (0, 44, 64, 2))
+    pygame.draw.rect(s, shade(accent, -80), (0, 57, 64, 2))
+    for _ in range(20):
+        x, y = rnd.randint(0, 60), rnd.randint(0, 40)
+        pygame.draw.line(s, shade(base, 44), (x, y), (x + rnd.randint(3, 9), y + rnd.randint(-2, 2)), 1)
     return s
 
 
-def tex_steel(seed):
-    rnd = random.Random(seed)
+def tex_visor():
     s = pygame.Surface((64, 64))
-    _grain(s, (70, 76, 88), 6, rnd)
-    for k in range(-64, 128, 24):
-        pygame.draw.line(s, (232, 140, 40), (k, 0), (k + 64, 64), 7)
-    for y in (0, 32):
-        pygame.draw.line(s, (36, 40, 48), (0, y), (63, y), 2)
-    for x in (0, 32):
-        pygame.draw.line(s, (36, 40, 48), (x, 0), (x, 63), 2)
+    for y in range(64):
+        f = abs(y - 32) / 32
+        v = max(0.0, 1 - f * 2.2)
+        pygame.draw.line(s, (int(lerp(26, 255, v)), int(lerp(8, 170, v ** 1.3)), int(lerp(10, 54, v ** 2))), (0, y), (63, y))
+    for x in (16, 32, 48):
+        pygame.draw.line(s, (50, 14, 12), (x, 0), (x, 63), 2)
+    return s
+
+
+def tex_joint():
+    s = pygame.Surface((64, 64))
+    for y in range(64):
+        v = int(lerp(88, 40, abs(y - 20) / 44))
+        pygame.draw.line(s, (v, v + 4, v + 12), (0, y), (63, y))
+    for y in range(4, 64, 10):
+        pygame.draw.line(s, (24, 26, 32), (0, y), (63, y), 2)
+    return s
+
+
+def tex_vent():
+    s = pygame.Surface((64, 64))
+    s.fill((46, 50, 60))
+    for y in range(6, 60, 8):
+        pygame.draw.rect(s, (12, 12, 16), (6, y, 52, 4))
+        pygame.draw.rect(s, (160, 60, 40), (6, y + 4, 52, 1))
     return s
 
 
@@ -994,8 +1017,11 @@ def make_tk_textures():
     T['bld'] = [tk_entry(tex_brick(1), 4), tk_entry(tex_brick(2), 4), tk_entry(tex_concrete(3), 4),
                 tk_entry(tex_concrete(4), 4), tk_entry(tex_glass(5), 4), tk_entry(tex_sand(6), 4)]
     T['hall'] = tk_entry(tex_hall(7), 4)
-    T['camo_e'] = tk_entry(tex_camo((112, 66, 50), [(78, 44, 36), (150, 104, 70), (60, 52, 40)], 8), 1)
-    T['camo_s'] = tk_entry(tex_steel(9), 1)
+    T['mech_e'] = tk_entry(tex_mech((112, 34, 40), (240, 190, 40), 8), 1)
+    T['mech_s'] = tk_entry(tex_mech((78, 88, 104), (236, 150, 30), 9), 1)
+    T['visor'] = tk_entry(tex_visor(), 1)
+    T['joint'] = tk_entry(tex_joint(), 1)
+    T['vent'] = tk_entry(tex_vent(), 1)
     T['tread'] = tk_entry(tex_tread(), 1)
     T['barrel'] = tk_entry(tex_barrel(), 1)
     T['missile'] = tk_entry(tex_missile(), 1)
@@ -1726,7 +1752,7 @@ class Game:
                 self.strike_kind = 'missile'
             self.audio.play('alarm')
             if self.strike_kind == 'tank':
-                self.banner('¡INVASIÓN BLINDADA!', 'Tanques enemigos entran en ' + self.strike_city['name'], (120, 255, 160), 3.8)
+                self.banner('¡INVASIÓN DE MECHAS!', 'Mechas enemigos entran en ' + self.strike_city['name'], (120, 255, 160), 3.8)
             elif self.strike_kind == 'ground':
                 self.banner('¡INVASIÓN ANFIBIA!', 'Desembarco en ' + self.strike_city['name'], (255, 150, 60), 3.8)
             elif self.strike_kind == 'aerial':
@@ -3558,7 +3584,7 @@ class Game:
                       city0=city['hp'], hurt=0.0, sweep=0.0, inrange=False, msg_t=0.0, msg='',
                       p=dict(x=0.0, z=-112.0, yaw=0.0, v=0.0, hp=TK_HP, cd=0.0, blocked=0.0, dead=False))
         self.go('tank')
-        self.banner('¡INVASIÓN BLINDADA!', 'Defendé %s desde tu tanque | W/S: avanzar | A/D: girar | ESPACIO: cañón' % city['name'],
+        self.banner('¡INVASIÓN DE MECHAS!', 'Defendé %s desde tu tanque | W/S: avanzar | A/D: girar | ESPACIO: cañón' % city['name'],
                     (120, 255, 160), 4.2)
 
     def tk_free(self, x, z, r):
@@ -3847,7 +3873,7 @@ class Game:
                                 self.tk_kill(e, e['kind'])
                             else:
                                 self.audio.play('hit', .6)
-                                self.tk_say('IMPACTO EN SUPERTANQUE')
+                                self.tk_say('IMPACTO EN MECHA PESADO')
                         break
             if gone and s in k['pshells']:
                 k['pshells'].remove(s)
@@ -4195,19 +4221,71 @@ class Game:
                         cv.fill((255, 214, 120), (r.x + 2 + (j * 5) % max(1, r.w - 4), r.y + 4 + (j * 9) % max(1, r.h - 6), 2, 2))
         cv.fill((96, 64, 92), (vp.x, hor - 1, vp.w, 3))
 
-    def tk_add_tank(self, strips, e):
+    def tk_add_prism(self, strips, cx, cz, r, y0, y1, n, rot, tex, tile_w, uoff=0.0):
+        p = self.k['p']
+        a0 = math.radians(rot)
+        pts = [(cx + math.sin(a0 - 2 * math.pi * i / n) * r, cz + math.cos(a0 - 2 * math.pi * i / n) * r) for i in range(n)]
+        vs, vo = 1.0 / (y1 - y0), -y0 / (y1 - y0)
+        for i in range(n):
+            (x0, z0), (x1, z1) = pts[i], pts[(i + 1) % n]
+            mx, mz = (x0 + x1) / 2, (z0 + z1) / 2
+            nx, nz = mx - cx, mz - cz
+            if nx * (p['x'] - mx) + nz * (p['z'] - mz) <= 0:
+                continue
+            nl = math.hypot(nx, nz) or 1.0
+            side = 0 if (nx / nl * 0.55 + nz / nl * 0.83) > -0.1 else 1
+            self.tk_face(strips, x0, z0, x1, z1, y0, y1, tex, math.hypot(x1 - x0, z1 - z0) / tile_w, uoff + i * 0.21, vs, vo, side,
+                         y0 <= 0.01)
+
+    def tk_mech_point(self, e, off_r, off_f, S, use_tur=True):
+        a = math.radians(e['tur'] if use_tur else e['h'])
+        return (e['x'] + math.cos(a) * off_r * S + math.sin(a) * off_f * S,
+                e['z'] - math.sin(a) * off_r * S + math.cos(a) * off_f * S)
+
+    def tk_add_mech(self, strips, e):
         T = self.tk_tex
-        S = 1.3
-        body = T['camo_e'] if e['kind'] == 'tank' else T['camo_s']
-        a = math.radians(e['h'])
-        for off in (-1.6, 1.6):
-            self.tk_add_box(strips, e['x'] + math.cos(a) * off * S, e['z'] - math.sin(a) * off * S, .55 * S, 2.6 * S, 0, 1.0 * S,
-                            e['h'], T['tread'], 1.6)
-        self.tk_add_box(strips, e['x'], e['z'], 1.15 * S, 2.3 * S, .55 * S, 1.55 * S, e['h'], body, 2.4)
-        ta = math.radians(e['tur'])
-        self.tk_add_box(strips, e['x'], e['z'], 1.0 * S, 1.15 * S, 1.55 * S, 2.35 * S, e['tur'], body, 2.0)
-        self.tk_add_box(strips, e['x'] + math.sin(ta) * 2.3 * S, e['z'] + math.cos(ta) * 2.3 * S, .17 * S, 1.55 * S, 1.78 * S, 2.08 * S,
-                        e['tur'], T['barrel'], 1.0)
+        heavy = e['kind'] == 'super'
+        S = 1.5 if heavy else 1.2
+        arm = T['mech_s'] if heavy else T['mech_e']
+        h, tu = e['h'], e['tur']
+        tread = e['tread'] / 1.6
+        pl = self.k['p']
+        near = math.hypot(e['x'] - pl['x'], e['z'] - pl['z']) < 55
+        for sd in (-1, 1):
+            tx, tz = self.tk_mech_point(e, sd * 1.55, 0, S, False)
+            self.tk_add_box(strips, tx, tz, .62 * S, 2.0 * S, 0, 1.0 * S, h, T['tread'], 1.6, uoff=tread)
+            for f in ((-2.0, 2.0) if near else ()):
+                wx, wz = self.tk_mech_point(e, sd * 1.55, f, S, False)
+                self.tk_add_prism(strips, wx, wz, .62 * S, 0, 1.0 * S, 8, h, T['tread'], 1.6, tread)
+            self.tk_add_box(strips, tx, tz, .66 * S, 2.3 * S, 1.0 * S, 1.45 * S, h, arm, 2.0)
+        bx, bz = self.tk_mech_point(e, 0, 0, S, False)
+        self.tk_add_box(strips, bx, bz, 1.0 * S, 1.9 * S, .45 * S, 1.5 * S, h, arm, 2.4)
+        self.tk_add_prism(strips, e['x'], e['z'], 1.35 * S, 1.5 * S, 1.85 * S, 10, tu, T['joint'], 1.8)
+        self.tk_add_prism(strips, e['x'], e['z'], 1.15 * S, 1.85 * S, 3.5 * S, 10, tu, arm, 2.0)
+        cx_, cz_ = self.tk_mech_point(e, 0, 1.0, S)
+        self.tk_add_box(strips, cx_, cz_, .75 * S, .3 * S, 2.3 * S, 3.2 * S, tu, T['joint'], 1.2)
+        for sd in (-1, 1):
+            sx, sz = self.tk_mech_point(e, sd * 1.75, 0.1, S)
+            self.tk_add_box(strips, sx, sz, .5 * S, .8 * S, 2.5 * S, 3.7 * S, tu, arm, 1.6)
+            if near:
+                self.tk_add_prism(strips, sx, sz, .66 * S, 2.6 * S, 3.6 * S, 8, tu, T['joint'], 1.2)
+            ax, az = self.tk_mech_point(e, sd * 1.75, 2.0, S)
+            self.tk_add_box(strips, ax, az, .27 * S, 1.15 * S, 2.8 * S, 3.4 * S, tu, arm, 1.4)
+            gx, gz = self.tk_mech_point(e, sd * 1.75, 3.4, S)
+            if near:
+                self.tk_add_box(strips, gx, gz, .12 * S, 1.2 * S, 2.98 * S, 3.2 * S, tu, T['barrel'], 1.0)
+            if heavy:
+                px, pz = self.tk_mech_point(e, sd * 1.75, -.1, S)
+                self.tk_add_box(strips, px, pz, .42 * S, .6 * S, 3.7 * S, 4.3 * S, tu, T['vent'], 1.0)
+        hx, hz = self.tk_mech_point(e, 0, .4, S)
+        self.tk_add_prism(strips, hx, hz, .6 * S, 3.5 * S, 4.3 * S, 8, tu, arm, 1.4)
+        vx, vz = self.tk_mech_point(e, 0, .98, S)
+        self.tk_add_box(strips, vx, vz, .46 * S, .05 * S, 3.75 * S, 4.05 * S, tu, T['visor'], 1.0)
+        kx, kz = self.tk_mech_point(e, 0, -1.3, S)
+        self.tk_add_box(strips, kx, kz, .8 * S, .4 * S, 2.2 * S, 3.5 * S, tu, T['vent'], 1.6)
+        if near:
+            qx, qz = self.tk_mech_point(e, .65, -1.3, S)
+            self.tk_add_box(strips, qx, qz, .05 * S, .05 * S, 3.5 * S, 5.3 * S, tu, T['joint'], 1.0)
 
     def tk_scene(self, cv):
         k = self.k
@@ -4229,7 +4307,7 @@ class Game:
             else:
                 self.tk_add_box(strips, b['x'], b['z'], b['hw'], b['hd'], 0, b['h'], 0, T['bld'][b['tx']], 8.0, 8.0, b['uo'])
         for e in k['tanks']:
-            self.tk_add_tank(strips, e)
+            self.tk_add_mech(strips, e)
         for m in k['missiles']:
             self.tk_add_box(strips, m['x'], m['z'], .35, 1.5, .6, 1.5, m['h'], T['missile'], 3.0)
         self.tk_flush(cv, strips)
@@ -4248,8 +4326,18 @@ class Game:
             if fl_[2] > 1:
                 fx_, fy_ = self.tk_prj(fl_)
                 glow(cv, fx_, fy_, min(160, int(220 / fl_[2]) + 8), (255, 150, 50))
+        for e in k['tanks']:
+            S = 1.5 if e['kind'] == 'super' else 1.2
+            vx, vz = self.tk_mech_point(e, 0, 1.1, S)
+            c = self.tk_cam(vx, 3.9 * S, vz)
+            if 1.5 < c[2] < 130 and self.tk_los(p['x'], p['z'], e['x'], e['z']):
+                sx, sy = self.tk_prj(c)
+                if vp.x < sx < vp.right:
+                    glow(cv, sx, sy, min(70, int(260 / c[2]) + 10), (255, 70, 40) if e['kind'] == 'tank' else (255, 190, 60))
         for e in k['tanks'] + k['missiles']:
-            c = self.tk_cam(e['x'], 4.4 if e['kind'] != 'missile' else 3.0, e['z'])
+            if not self.tk_los(p['x'], p['z'], e['x'], e['z']):
+                continue
+            c = self.tk_cam(e['x'], (8.0 if e['kind'] == 'super' else 7.0) if e['kind'] != 'missile' else 3.0, e['z'])
             if 6 < c[2] < 110:
                 sx, sy = self.tk_prj(c)
                 if vp.x + 6 < sx < vp.right - 6:
@@ -4496,7 +4584,7 @@ class Game:
                  'DEFENSA   Mouse o flechas apuntan   Clic/ESPACIO lanzan interceptor',
                  'COMBATE   Mouse apunta, clic lanza un misil recto (¡adelantate!)   E: huir',
                  'TIERRA   WASD soldado   Clic disparar   R recargar   ESPACIO granada',
-                 'TANQUE   W/S avanzar   A/D girar   ESPACIO o clic: cañón (vista interior)',
+                 'MECHAS   Conducí tu tanque: W/S avanzar   A/D girar   ESPACIO o clic: cañón',
                  'JEFE   Instalá antenas en las islas (L) y hackeá su escudo con H cerca del buque',
                  'AIRE   WASD mover   ESPACIO disparar   B bomba',
                  'P pausa   M sonido   F1 efecto CRT']
