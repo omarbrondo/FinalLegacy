@@ -1567,6 +1567,8 @@ class Game:
         self.radar_t = 0.0
         self.nests = []
         self.spawn_nests()
+        self.rescue = None
+        self.rescue_t = 45.0
         self.cam = [self.sx - W / 2, self.sy - H / 2]
         self.wake_t = 0.0
         self.dock_t = 0.0
@@ -1600,7 +1602,7 @@ class Game:
         """Baterías costeras enemigas sobre algunos islotes pequeños (se renuevan cada oleada)."""
         hp = 14 + 4 * self.wave
         self.nests = [dict(x=x, y=y, r=r, hp=float(hp), max=float(hp), cool=0.0, ang=180.0, nest=True, alive=True, seen=False)
-                      for (x, y, r, _s) in random.sample(DECOR_ISLANDS, 10)]
+                      for (x, y, r, _s) in random.sample([i for i in DECOR_ISLANDS if dist(i[0], i[1], self.sx, self.sy) > 800], 10)]
 
     def spawn_wave(self):
         n = min(3 + self.wave, 9)
@@ -1659,6 +1661,9 @@ class Game:
                 self.crt_on = not self.crt_on
             elif e.key == pygame.K_m:
                 self.audio.toggle_mute()
+            elif e.key == pygame.K_F5 and self.state == 'map' and not self.paused:
+                self.rescue = None
+                self.begin_rescue()
             elif e.key in (pygame.K_F2, pygame.K_F3, pygame.K_F4) and self.state == 'map' and not self.paused:
                 alive = [c for c in self.cities if not c['dead']]
                 if alive:
@@ -1875,6 +1880,12 @@ class Game:
             if d < 78 and en['cool'] <= 0:
                 return self.start_combat(en)
         self.radar_t = max(0.0, self.radar_t - dt)
+        if self.rescue is not None:
+            self.upd_rescue(dt)
+        elif self.attack is None:
+            self.rescue_t -= dt
+            if self.rescue_t <= 0:
+                self.begin_rescue()
         for nst in self.nests:
             if not nst['alive']:
                 continue
@@ -1951,6 +1962,59 @@ class Game:
         if not self.enemies:
             self.wave_clear()
 
+    def begin_rescue(self):
+        """Náufragos: a veces bajo el alcance de una batería costera."""
+        live = [n for n in self.nests if n['alive']]
+        for _ in range(60):
+            if live and random.random() < 0.6:
+                n = random.choice(live)
+                a = random.uniform(0, 6.28)
+                d = random.uniform(235, 300)
+                x, y = n['x'] + math.cos(a) * d, n['y'] + math.sin(a) * d
+                guarded = True
+            else:
+                x, y = random.uniform(200, WORLD_W - 200), random.uniform(200, WORLD_H - 200)
+                guarded = False
+            if 100 < x < WORLD_W - 100 and 100 < y < WORLD_H - 100 and not self.on_land(x, y, 70) and dist(x, y, self.sx, self.sy) > 500:
+                break
+        t = clamp(dist(x, y, self.sx, self.sy) / (VMAX * 0.7) + 25, 45, 90)
+        self.rescue = dict(x=x, y=y, t=t, total=t, prog=0.0, guarded=guarded)
+        self.audio.play('alarm', .6)
+        self.banner('¡SOS: NÁUFRAGOS!', ('Bajo el alcance de una batería costera | ' if guarded else '') + 'Llegá en %d s y quedate junto a la balsa' % t,
+                    (255, 220, 90), 4.0)
+
+    def upd_rescue(self, dt):
+        r = self.rescue
+        r['t'] -= dt
+        d = dist(self.sx, self.sy, r['x'], r['y'])
+        if d < 95 and abs(self.sv) < 70:
+            r['prog'] += dt / 4.0
+            if int(r['prog'] * 8) != int((r['prog'] - dt / 4.0) * 8):
+                self.audio.play('blip', .4)
+        else:
+            r['prog'] = max(0.0, r['prog'] - dt / 6.0)
+        if r['prog'] >= 1.0:
+            reward = random.choice(('hull', 'fuel', 'ammo'))
+            pts = 300 + 100 * self.wave
+            self.add_score(pts)
+            self.audio.play('win', .7)
+            if reward == 'hull':
+                self.hull = min(100, self.hull + 25)
+                gift = '+25 casco (los náufragos ayudan con las reparaciones)'
+            elif reward == 'fuel':
+                self.fuel = min(100, self.fuel + 40)
+                gift = '+40% combustible'
+            else:
+                self.ammo = min(40, self.ammo + 12)
+                gift = '+12 munición'
+            self.banner('¡NÁUFRAGOS RESCATADOS!', '+%d puntos  |  %s' % (pts, gift), (120, 255, 160), 3.6)
+            self.rescue = None
+            self.rescue_t = random.uniform(80, 120)
+        elif r['t'] <= 0:
+            self.toast('Los náufragos se perdieron en el mar...', (255, 160, 120))
+            self.rescue = None
+            self.rescue_t = random.uniform(70, 100)
+
     def antenna_city(self, i):
         """Pseudo-ciudad que representa una antena instalada (para el viaje y la defensa)."""
         x, y, r, sd = EXTRA_ISLANDS[i]
@@ -2012,6 +2076,46 @@ class Game:
                 return True
         return False
 
+    def draw_pointer(self, cv, cx, cy, wx, wy, label, col, pul=0.5):
+        """Flecha en el borde de la pantalla que apunta a un objetivo fuera de vista."""
+        sx, sy = wx - cx, wy - cy
+        if 40 < sx < W - 40 and 100 < sy < H - 40:
+            return
+        ang = math.atan2(wy - self.sy, wx - self.sx)
+        ax = W / 2 + math.cos(ang) * min(W / 2 - 60, (H / 2 - 60) / max(0.01, abs(math.sin(ang))) * abs(math.cos(ang)))
+        ay = H / 2 + math.sin(ang) * min(H / 2 - 60, (W / 2 - 60) / max(0.01, abs(math.cos(ang))) * abs(math.sin(ang)))
+        pts = [(ax + math.cos(ang) * 26, ay + math.sin(ang) * 26),
+               (ax + math.cos(ang + 2.5) * 22, ay + math.sin(ang + 2.5) * 22),
+               (ax + math.cos(ang - 2.5) * 22, ay + math.sin(ang - 2.5) * 22)]
+        glow(cv, ax, ay, 40, col, 0.5 + 0.4 * pul)
+        pygame.draw.polygon(cv, col, pts)
+        self.text(cv, label, self.f_s, col, ax, ay + 24, 'c')
+
+    def draw_rescue(self, cv, cx, cy):
+        r = self.rescue
+        t = self.t
+        sx, sy = r['x'] - cx, r['y'] - cy
+        pul = 0.5 + 0.5 * math.sin(t * 5)
+        if -100 < sx < W + 100 and -100 < sy < H + 100:
+            bob = math.sin(t * 2.2 + r['x']) * 3
+            draw_circ(cv, sx, sy, 95, (255, 220, 90), 30 + 40 * pul, 2)
+            pygame.draw.rect(cv, (120, 84, 50), (sx - 14, sy - 9 + bob, 28, 18), border_radius=4)
+            pygame.draw.rect(cv, (200, 150, 90), (sx - 12, sy - 7 + bob, 24, 14), 1, border_radius=3)
+            for k, off in enumerate((-8, 0, 8)):
+                pygame.draw.circle(cv, (240, 120, 60) if k != 1 else (250, 230, 120), (int(sx + off), int(sy - 2 + bob)), 4)
+            pygame.draw.line(cv, (230, 230, 230), (sx, sy + bob), (sx, sy - 24 + bob), 2)
+            pygame.draw.polygon(cv, (255, 70, 60), [(sx, sy - 24 + bob), (sx + 13, sy - 19 + bob), (sx, sy - 14 + bob)])
+            if r['prog'] > 0:
+                pygame.draw.rect(cv, (8, 12, 24), (sx - 32, sy + 22, 64, 9))
+                pygame.draw.rect(cv, (120, 255, 160), (sx - 31, sy + 23, int(62 * r['prog']), 7))
+                self.text(cv, 'RESCATANDO...', self.f_s, (180, 255, 200), sx, sy + 34, 'c')
+        self.panel(cv, (W // 2 - 190, 92 if self.attack is not None else 8, 380, 46), 190)
+        yy = 98 if self.attack is not None else 14
+        sec = max(0.0, r['t'])
+        self.text(cv, 'SOS NÁUFRAGOS  %02d.%03d' % (int(sec), int((sec % 1) * 1000)), self.f_m,
+                  (255, 220, 90) if sec > 10 else (255, 90 + int(100 * pul), 70), W // 2, yy, 'c')
+        self.draw_pointer(cv, cx, cy, r['x'], r['y'], 'NÁUFRAGOS', (255, 220, 90), pul)
+
     def draw_attack(self, cv, cx, cy):
         at = self.attack
         c = at['city']
@@ -2028,16 +2132,7 @@ class Game:
         d = dist(self.sx, self.sy, c['x'], c['y'])
         self.text(cv, '%s  |  %d m' % ({'tank': 'TANQUES', 'ground': 'DESEMBARCO', 'aerial': 'CAZAS', 'antenna': 'COMANDOS'}[at['kind']], int(d)),
                   self.f_s, (210, 220, 240), W // 2 + 110, 52, 'c')
-        if not (40 < sx < W - 40 and 100 < sy < H - 40):
-            ang = math.atan2(c['y'] - self.sy, c['x'] - self.sx)
-            ax = W / 2 + math.cos(ang) * min(W / 2 - 60, (H / 2 - 60) / max(0.01, abs(math.sin(ang))) * abs(math.cos(ang)))
-            ay = H / 2 + math.sin(ang) * min(H / 2 - 60, (W / 2 - 60) / max(0.01, abs(math.cos(ang))) * abs(math.sin(ang)))
-            pts = [(ax + math.cos(ang) * 26, ay + math.sin(ang) * 26),
-                   (ax + math.cos(ang + 2.5) * 22, ay + math.sin(ang + 2.5) * 22),
-                   (ax + math.cos(ang - 2.5) * 22, ay + math.sin(ang - 2.5) * 22)]
-            glow(cv, ax, ay, 40, (255, 80, 60), 0.5 + 0.4 * pul)
-            pygame.draw.polygon(cv, col, pts)
-            self.text(cv, c['name'], self.f_s, col, ax, ay + 24, 'c')
+        self.draw_pointer(cv, cx, cy, c['x'], c['y'], c['name'], col, pul)
         if low:
             pygame.draw.rect(cv, (255, 40, 40), (0, 0, W, H), 4 + int(6 * pul))
 
@@ -5142,6 +5237,8 @@ class Game:
         self.draw_minimap(cv)
         if self.attack is not None:
             self.draw_attack(cv, cx, cy)
+        if self.rescue is not None:
+            self.draw_rescue(cv, cx, cy)
         thr = 1.0 if self.attack is not None else 1 - clamp(self.strike_t / 60.0, 0, 1)
         self.text(cv, 'AMENAZA ENEMIGA', self.f_s, (255, 190, 170), W - 296 + 8, 76)
         self.bar(cv, W - 296, 96, 282, 14, thr, (255, 90 + int(100 * (1 - thr)), 60), '')
@@ -5204,6 +5301,8 @@ class Game:
         if self.attack is not None and self.attack['kind'] == 'antenna' and int(self.t * 4) % 2 == 0:
             ac = self.attack['city']
             pygame.draw.circle(cv, (255, 60, 50), (int(x0 + ac['x'] * sc), int(y0 + ac['y'] * sc)), 9, 2)
+        if self.rescue is not None and int(self.t * 3) % 2 == 0:
+            pygame.draw.circle(cv, (255, 230, 90), (int(x0 + self.rescue['x'] * sc), int(y0 + self.rescue['y'] * sc)), 6, 2)
         for q in self.crates:
             pygame.draw.circle(cv, (120, 255, 255), (int(x0 + q['x'] * sc), int(y0 + q['y'] * sc)), 2)
         for en in self.enemies:
