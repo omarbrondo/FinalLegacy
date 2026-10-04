@@ -174,9 +174,10 @@ class MapMixin:
         self.radar_t = max(0.0, self.radar_t - dt)
         if self.convoy is not None:
             self.upd_convoy(dt)
-        elif self.attack is None and self.wave >= 2:
+        else:
+            # el reloj corre siempre; si justo hay un ataque o alerta en curso, el convoy sale apenas termine
             self.convoy_t -= dt
-            if self.convoy_t <= 0:
+            if self.convoy_t <= 0 and self.wave >= 2 and self.attack is None and not self.warned and self.rescue is None:
                 self.begin_convoy()
         if self.rescue is not None:
             self.upd_rescue(dt)
@@ -272,6 +273,7 @@ class MapMixin:
         """Convoy aliado entre dos ciudades: cazadores enemigos lo atacan; hay que escoltarlo."""
         alive = [c for c in self.cities if not c['dead']]
         if len(alive) < 2:
+            self.convoy_t = 20.0
             return
         src = random.choice(alive)
         dst = max((c for c in alive if c is not src), key=lambda c: dist(c['x'], c['y'], src['x'], src['y']) + random.uniform(0, 600))
@@ -297,7 +299,7 @@ class MapMixin:
     def end_convoy(self, ok):
         cv_ = self.convoy
         self.convoy = None
-        self.convoy_t = random.uniform(110, 150)
+        self.convoy_t = random.uniform(75, 105)
         for en in self.enemies:
             en.pop('raider', None)
         if ok:
@@ -569,6 +571,7 @@ class MapMixin:
                 c['hp'] = min(100, c['hp'] + 20)
         self.ammo = min(40, self.ammo + 12)
         self.spawn_nests()
+        self.convoy_t = min(self.convoy_t, 35.0)       # cada oleada nueva trae un convoy pronto
         self.port_tries = 0
         self.port_done = False
         self.audio.play('win', .7)
