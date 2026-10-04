@@ -1092,7 +1092,7 @@ class Game:
             rand = random.random()
             if self.strike_n == 2 or (self.strike_n > 2 and rand < 0.3):
                 self.strike_kind = 'ground'
-            elif self.wave >= 3 and rand < 0.6:
+            elif rand < 0.35:
                 self.strike_kind = 'aerial'
             else:
                 self.strike_kind = 'missile'
