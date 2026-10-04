@@ -25,7 +25,7 @@ HZ = 590                      # horizonte en la escena de defensa
 SKY_W = 640                   # ancho del skyline
 WIN_WAVE = 6                  # oleadas para ganar
 VMAX = 170.0                  # velocidad máx. del buque en el mapa (px/s)
-BOSS_WAVE = 3                 # cada cuántas oleadas aparece jefe final
+SHIELD_R = 230                 # radio del escudo digital del jefe en el mapa
 ANTENNA_ISLANDS = [0, 1, 2, 3, 4]   # islas donde se puede desembarcar e instalar antena (índices de EXTRA_ISLANDS)
 ARENA_R = 330                  # radio de la isla en el combate de infantería
 LANDING_ENEMIES = 10           # enemigos por desembarque
@@ -802,6 +802,9 @@ class Game:
         reg('e_hull', make_ship(42, 112, (150, 60, 60), (170, 90, 80), (30, 30, 30), False))
         self.tur_p = make_turret(8, (70, 140, 170))
         self.tur_e = make_turret(8, (150, 60, 60))
+        self.tur_b = make_turret(12, (110, 50, 130))
+        reg('b_map', make_ship(34, 92, (96, 44, 120), (130, 74, 154), (255, 90, 210)))
+        reg('b_hull', make_ship(64, 172, (96, 44, 120), (130, 74, 154), (255, 90, 210), False))
         self.sol = {'p': make_soldier_frames('rifle', 'p')}
         for kd in ENEMY_TYPES:
             self.sol['e_' + kd] = make_soldier_frames(kd, 'e')
@@ -1104,23 +1107,22 @@ class Game:
             mh = 10 + 2 * (self.wave - 1)
             self.enemies.append(dict(x=x, y=y, h=random.uniform(0, 360), v=0.0, hp=mh, max=mh, state='patrol',
                                      wp=self.rand_wp(), cool=0.0, is_boss=False))
-        if self.wave % BOSS_WAVE == 0:
-            x = y = 0
-            for _ in range(60):
-                x, y = random.uniform(150, WORLD_W - 150), random.uniform(150, WORLD_H - 150)
-                if dist(x, y, self.sx, self.sy) > 900 and not self.on_land(x, y, 120):
-                    break
-            boss_hp = 35 + 15 * ((self.wave // BOSS_WAVE) - 1)
-            self.enemies.append(dict(x=x, y=y, h=random.uniform(0, 360), v=0.0, hp=boss_hp, max=boss_hp,
-                                     state='patrol', wp=self.rand_wp(), cool=0.0, is_boss=True,
-                                     burst=[], orb=1, orb_t=3.0))
+        x = y = 0
+        for _ in range(60):
+            x, y = random.uniform(150, WORLD_W - 150), random.uniform(150, WORLD_H - 150)
+            if dist(x, y, self.sx, self.sy) > 900 and not self.on_land(x, y, 120):
+                break
+        boss_hp = 30 + 14 * (self.wave - 1)
+        self.enemies.append(dict(x=x, y=y, h=random.uniform(0, 360), v=0.0, hp=boss_hp, max=boss_hp,
+                                 state='patrol', wp=self.rand_wp(), cool=0.0, is_boss=True, shield=True,
+                                 hack_cd=0.0, seen=False))
 
     def go(self, state):
         self.state = state
         self.fade = 1.0
         pygame.mouse.set_visible(state not in ('defense', 'combat', 'aerial', 'ground'))
         self.audio.music({'title': 'calm', 'map': 'calm', 'defense': 'battle', 'combat': 'battle',
-                          'aerial': 'battle', 'ground': 'battle', 'gameover': None}[state])
+                          'aerial': 'battle', 'ground': 'battle', 'hack': 'battle', 'gameover': None}[state])
         if state not in ('map', 'combat'):
             self.audio.engine_vol(0)
 
@@ -1144,12 +1146,14 @@ class Game:
         if e.type == pygame.MOUSEMOTION:
             self.mouse_moved = True
             self.aim = [float(e.pos[0]), float(e.pos[1])]
+            if self.state == 'hack':
+                self.h['kb'] = False
         if e.type == pygame.KEYDOWN:
             if e.key == pygame.K_F1:
                 self.crt_on = not self.crt_on
             elif e.key == pygame.K_m:
                 self.audio.toggle_mute()
-            elif e.key in (pygame.K_p, pygame.K_ESCAPE) and self.state in ('map', 'defense', 'combat', 'ground', 'aerial'):
+            elif e.key in (pygame.K_p, pygame.K_ESCAPE) and self.state in ('map', 'defense', 'combat', 'ground', 'aerial', 'hack'):
                 self.paused = not self.paused
             elif e.key == pygame.K_q and self.paused:
                 pygame.quit()
@@ -1168,13 +1172,29 @@ class Game:
                     self.start_landing(island[0])
             elif self.state == 'aerial' and e.key in (pygame.K_b, pygame.K_x) and not self.paused:
                 self.air_bomb()
+            elif self.state == 'map' and e.key == pygame.K_h and not self.paused:
+                self.try_hack()
+            elif self.state == 'hack' and not self.paused:
+                h = self.h
+                if e.key == pygame.K_TAB and h['phase'] == 'play':
+                    self.end_hack(False, abort=True)
+                elif e.key in (pygame.K_LEFT, pygame.K_RIGHT, pygame.K_UP, pygame.K_DOWN):
+                    dx = (e.key == pygame.K_RIGHT) - (e.key == pygame.K_LEFT)
+                    dy = (e.key == pygame.K_DOWN) - (e.key == pygame.K_UP)
+                    h['cur'] = (clamp(h['cur'][0] + dx, 0, h['cols'] - 1), clamp(h['cur'][1] + dy, 0, h['rows'] - 1))
+                    h['kb'] = True
+                elif e.key in (pygame.K_SPACE, pygame.K_RETURN, pygame.K_z):
+                    h['kb'] = True
+                    self.hack_rotate(h['cur'], 3 if e.key == pygame.K_z else 1)
             elif self.state == 'combat' and not self.paused:
                 if e.key == pygame.K_SPACE:
                     self.fire_shell()
                 elif e.key == pygame.K_e:
                     self.flee()
-                elif e.key == pygame.K_c:
-                    self.cyber_attack()
+        if e.type == pygame.MOUSEBUTTONDOWN and e.button in (1, 3) and self.state == 'hack' and not self.paused:
+            cell = self.hack_cell_at(e.pos)
+            if cell:
+                self.hack_rotate(cell, 1 if e.button == 1 else 3)
         if e.type == pygame.MOUSEBUTTONDOWN and e.button == 3 and self.state == 'ground' and not self.paused:
             self.throw_grenade_p()
         if e.type == pygame.MOUSEBUTTONDOWN and e.button == 3 and self.state == 'aerial' and not self.paused:
@@ -1219,6 +1239,8 @@ class Game:
             self.upd_combat(dt)
         elif self.state == 'aerial':
             self.upd_aerial(dt)
+        elif self.state == 'hack':
+            self.upd_hack(dt)
         elif self.state == 'ground':
             self.upd_ground(dt)
         elif self.state in ('title', 'gameover'):
@@ -1311,6 +1333,17 @@ class Game:
         for en in self.enemies:
             self.ai_map(en, dt)
             d = dist(self.sx, self.sy, en['x'], en['y'])
+            if en.get('shield'):
+                en['hack_cd'] = max(0.0, en['hack_cd'] - dt)
+                if d < SHIELD_R:
+                    k = d or 1.0
+                    self.sx = en['x'] + (self.sx - en['x']) / k * SHIELD_R
+                    self.sy = en['y'] + (self.sy - en['y']) / k * SHIELD_R
+                    self.sv *= 0.6
+                    if self.t - getattr(self, 'shield_toast', -9) > 3:
+                        self.shield_toast = self.t
+                        self.toast('Escudo digital: presioná H para hackearlo', (255, 120, 220))
+                continue
             if d < 78 and en['cool'] <= 0:
                 return self.start_combat(en)
         # cajas
@@ -1413,7 +1446,11 @@ class Game:
         is_boss = en.get('is_boss', False)
         chase_dist = 520 if is_boss else 430
 
-        if en['state'] == 'patrol' and d < chase_dist and en['cool'] <= 0:
+        if is_boss and not en['seen'] and d < 700:
+            en['seen'] = True
+            self.audio.play('alarm')
+            self.banner('¡BUQUE JEFE DETECTADO!', 'Protegido por escudo digital: instalá antenas (L) y hackealo (H)', (255, 120, 220), 4.0)
+        if en['state'] == 'patrol' and d < chase_dist and en['cool'] <= 0 and not en.get('shield'):
             en['state'] = 'chase'
             self.audio.play('ping')
             if is_boss:
@@ -1616,43 +1653,272 @@ class Game:
             return self.game_over('Todas las ciudades fueron destruidas')
         self.go('map')
 
+    # ---------------------------------------------------------- CIBERATAQUE (minijuego de nodos)
+    HACK_DIRS = ((0, -1, 1, 4), (1, 0, 2, 8), (0, 1, 4, 1), (-1, 0, 8, 2))
+
+    @staticmethod
+    def rot_mask(m, k=1):
+        for _ in range(k % 4):
+            m = ((m << 1) | (m >> 3)) & 15
+        return m
+
+    def hack_generate(self, cols, rows, nterm):
+        while True:
+            r0 = random.randrange(rows)
+            masks = {(0, r0): 8}
+            order = [(0, r0)]
+            for _ in range(3000):
+                if len(masks) >= int(cols * rows * 0.72):
+                    break
+                cx, cy = random.choice(order)
+                dx, dy, bit, opp = random.choice(self.HACK_DIRS)
+                nx, ny = cx + dx, cy + dy
+                if 0 <= nx < cols and 0 <= ny < rows and (nx, ny) not in masks:
+                    masks[(cx, cy)] |= bit
+                    masks[(nx, ny)] = opp
+                    order.append((nx, ny))
+            leaves = [c for c, m in masks.items() if bin(m).count('1') == 1 and c != (0, r0)]
+            if len(leaves) >= nterm:
+                break
+        terms = set(random.sample(leaves, nterm))
+        tiles = {c: dict(m=m, sol=m, term=c in terms) for c, m in masks.items()}
+        while True:
+            for t in tiles.values():
+                t['m'] = self.rot_mask(t['sol'], random.randrange(4))
+            self.h = dict(tiles=tiles, root=(0, r0), cols=cols, rows=rows)
+            if len(self.hack_power()[1]) < nterm:
+                break
+        return tiles, (0, r0), terms
+
+    def hack_power(self):
+        h = self.h
+        tiles, root = h['tiles'], h['root']
+        pw = set()
+        if tiles[root]['m'] & 8:
+            pw.add(root)
+            stack = [root]
+            while stack:
+                cx, cy = stack.pop()
+                m = tiles[(cx, cy)]['m']
+                for dx, dy, bit, opp in self.HACK_DIRS:
+                    nb = (cx + dx, cy + dy)
+                    if m & bit and nb in tiles and nb not in pw and tiles[nb]['m'] & opp:
+                        pw.add(nb)
+                        stack.append(nb)
+        return pw, [c for c in pw if tiles[c]['term']]
+
+    def nearest_shield_boss(self, rng=520):
+        best = None
+        for en in self.enemies:
+            if en.get('shield'):
+                d = dist(self.sx, self.sy, en['x'], en['y'])
+                if d < rng and (best is None or d < best[0]):
+                    best = (d, en)
+        return best[1] if best else None
+
+    def try_hack(self):
+        boss = self.nearest_shield_boss()
+        n = sum(self.antennas.values())
+        if boss is None:
+            self.toast('No hay ningún escudo enemigo al alcance', (255, 200, 120))
+        elif n == 0:
+            self.toast('Sin antenas: desembarcá en las islas (L) para instalarlas', (255, 140, 100))
+        elif boss['hack_cd'] > 0:
+            self.toast('Sistemas enemigos reiniciando: %d s' % math.ceil(boss['hack_cd']), (255, 200, 120))
+        else:
+            self.start_hack(boss)
+
+    def start_hack(self, boss):
+        lvl, n = self.wave, sum(self.antennas.values())
+        cols, rows = 5 + (lvl >= 3) + (lvl >= 5), 4 + (lvl >= 4)
+        nterm = 2 + lvl // 3
+        tiles, root, terms = self.hack_generate(cols, rows, nterm)
+        total = max(22.0, 40.0 + 5 * n - 2 * (lvl - 1))
+        csz = 86
+        h = self.h
+        h.update(boss=boss, n=n, nterm=nterm, t=total, total=total, phase='play', pt=0.0, csz=csz,
+                 gx=96, gy=(H - rows * csz) // 2 + 24, cur=root, kb=False, log=[], logt=0.0, done=set())
+        h['rain'] = [[random.randrange(0, W, 18), random.uniform(-400, H), random.uniform(60, 160)] for _ in range(40)]
+        if not hasattr(self, 'rain_gl'):
+            self.rain_gl = [[self.f_s.render(ch, True, (0, g, int(g * .45))) for g in (35, 70, 130, 230)] for ch in '01']
+        self.toasts, self.banners = [], []
+        self.hack_say('> ENLACE CON %d ANTENA(S)' % n)
+        self.hack_say('> OBJETIVO: ESCUDO DEL JEFE')
+        self.hack_say('> ENERGIZA %d TERMINALES' % nterm)
+        self.aim = [W / 2, H / 2]
+        self.go('hack')
+
+    def hack_say(self, s):
+        self.h['log'].append(s)
+        self.h['log'] = self.h['log'][-9:]
+
+    def hack_rotate(self, cell, k=1):
+        h = self.h
+        if h['phase'] != 'play' or cell not in h['tiles']:
+            return
+        t = h['tiles'][cell]
+        t['m'] = self.rot_mask(t['m'], k)
+        self.audio.play('blip', .5)
+        tp = self.hack_power()[1]
+        if len(tp) > len(h['done']):
+            self.audio.play('pickup', .5)
+        h['done'] = set(tp)
+        if len(tp) == h['nterm']:
+            h['phase'], h['pt'] = 'win', 0.0
+            self.hack_say('> ACCESO CONCEDIDO')
+            self.audio.play('win', .8)
+
+    def hack_cell_at(self, pos):
+        h = self.h
+        cx, cy = (pos[0] - h['gx']) // h['csz'], (pos[1] - h['gy']) // h['csz']
+        return (int(cx), int(cy)) if 0 <= cx < h['cols'] and 0 <= cy < h['rows'] else None
+
+    def upd_hack(self, dt):
+        h = self.h
+        h['logt'] += dt
+        for col in h['rain']:
+            col[1] += col[2] * dt
+            if col[1] - 15 * 16 > H:
+                col[1] = random.uniform(-200, 0)
+                col[2] = random.uniform(60, 160)
+        if h['phase'] == 'play':
+            h['t'] -= dt
+            if int(h['t']) != int(h['t'] + dt) and h['t'] < 10:
+                self.audio.play('blip', .4)
+            if h['t'] <= 0:
+                h['phase'], h['pt'] = 'fail', 0.0
+                self.hack_say('> INTRUSION DETECTADA')
+                self.audio.play('lose', .6)
+        else:
+            h['pt'] += dt
+            if h['pt'] > 1.8:
+                self.end_hack(h['phase'] == 'win')
+
+    def end_hack(self, ok, abort=False):
+        h = self.h
+        boss = h['boss']
+        self.go('map')
+        if ok:
+            boss['shield'] = False
+            n = h['n']
+            cut = min(0.4, 0.08 * n) * boss['max']
+            boss['hp'] = max(1.0, boss['hp'] - cut)
+            bonus = 300 + int(50 * h['t'])
+            self.add_score(bonus)
+            self.banner('¡ESCUDO DESTRUIDO!', 'Casco enemigo -%d%% por %d antena(s)  |  Bonus +%d' % (int(cut / boss['max'] * 100), n, bonus),
+                        (110, 240, 255), 3.6)
+        elif abort:
+            boss['hack_cd'] = 6.0
+            self.toast('Ciberataque abortado', (255, 200, 120))
+        else:
+            boss['hack_cd'] = 25.0
+            self.hull = max(1.0, self.hull - 10)
+            self.audio.play('hit', .7)
+            self.shake = 8
+            self.toast('Contraataque enemigo: -10 casco. Reintentá en 25 s', (255, 120, 100))
+
+    def draw_hack_tile(self, cv, x, y, sz, tile, powered, hover, t):
+        r = pygame.Rect(x + 3, y + 3, sz - 6, sz - 6)
+        pygame.draw.rect(cv, (11, 19, 33), r, border_radius=10)
+        pygame.draw.rect(cv, (64, 214, 244) if powered else (36, 58, 88), r, 2, border_radius=10)
+        cx, cy = x + sz // 2, y + sz // 2
+        col = (96, 246, 255) if powered else (72, 98, 132)
+        if powered:
+            glow(cv, cx, cy, 48, (30, 130, 170), 0.55)
+        for bit, (dx, dy) in ((1, (0, -1)), (2, (1, 0)), (4, (0, 1)), (8, (-1, 0))):
+            if tile['m'] & bit:
+                ex, ey = cx + dx * (sz // 2 - 3), cy + dy * (sz // 2 - 3)
+                if powered:
+                    pygame.draw.line(cv, (18, 86, 108), (cx, cy), (ex, ey), 14)
+                pygame.draw.line(cv, col, (cx, cy), (ex, ey), 8)
+        pygame.draw.circle(cv, col, (cx, cy), 7)
+        if tile['term']:
+            pts = [(cx + math.cos(math.radians(60 * k + 30)) * 19, cy + math.sin(math.radians(60 * k + 30)) * 19) for k in range(6)]
+            pulse = 0.5 + 0.5 * math.sin(t * 6)
+            ring = (90, 255, 150) if powered else (255, int(60 + 60 * pulse), int(60 + 40 * pulse))
+            pygame.draw.polygon(cv, (11, 19, 33), pts)
+            pygame.draw.polygon(cv, ring, pts, 3)
+            pygame.draw.circle(cv, ring, (cx, cy), 6)
+            if powered:
+                glow(cv, cx, cy, 30, (40, 200, 110), 0.7)
+        if hover:
+            pygame.draw.rect(cv, (255, 255, 255), r.inflate(4, 4), 1, border_radius=11)
+
+    def draw_hack(self, cv):
+        h = self.h
+        t = self.t
+        cv.fill((4, 8, 14))
+        for gx_, gy_, sp in h['rain']:
+            for j in range(15):
+                yy = gy_ - j * 16
+                if 0 <= yy < H:
+                    lv = 3 if j == 0 else (2 if j < 4 else (1 if j < 9 else 0))
+                    cv.blit(self.rain_gl[(int(gx_) // 18 + j + int(t * 3)) % 2][lv], (gx_, yy))
+        dark = pygame.Surface((W, H), pygame.SRCALPHA)
+        dark.fill((4, 8, 14, 175))
+        cv.blit(dark, (0, 0))
+        cs, gx, gy = h['csz'], h['gx'], h['gy']
+        self.text(cv, 'CIBERATAQUE  //  ESCUDO DIGITAL', self.f_l, (110, 240, 255), 96, 30)
+        self.text(cv, 'Girá los nodos para llevar energía desde la fuente a todas las terminales', self.f_s, (150, 190, 220), 96, 72)
+        pw = self.hack_power()[0]
+        hover = h['cur'] if h['kb'] else self.hack_cell_at(pygame.mouse.get_pos())
+        rx, ry = h['root']
+        sy_ = gy + ry * cs + cs // 2
+        glow(cv, gx - 40, sy_, 56, (40, 120, 255), 0.9 + 0.1 * math.sin(t * 5))
+        pygame.draw.rect(cv, (16, 40, 90), (gx - 64, sy_ - 24, 44, 48), border_radius=8)
+        pygame.draw.rect(cv, (90, 160, 255), (gx - 64, sy_ - 24, 44, 48), 2, border_radius=8)
+        pygame.draw.polygon(cv, (255, 235, 120), [(gx - 40, sy_ - 16), (gx - 52, sy_ + 3), (gx - 42, sy_ + 3), (gx - 46, sy_ + 17), (gx - 30, sy_ - 4), (gx - 40, sy_ - 4)])
+        pygame.draw.line(cv, (96, 246, 255) if (rx, ry) in pw else (72, 98, 132), (gx - 20, sy_), (gx + 4, sy_), 8)
+        for c in range(h['cols']):
+            for r in range(h['rows']):
+                x, y = gx + c * cs, gy + r * cs
+                tile = h['tiles'].get((c, r))
+                if tile is None:
+                    pygame.draw.rect(cv, (9, 14, 24), (x + 3, y + 3, cs - 6, cs - 6), border_radius=10)
+                    pygame.draw.rect(cv, (22, 34, 52), (x + 3, y + 3, cs - 6, cs - 6), 1, border_radius=10)
+                else:
+                    self.draw_hack_tile(cv, x, y, cs, tile, (c, r) in pw, hover == (c, r), t)
+        px = 780
+        self.panel(cv, (px - 20, 100, 330, 320), 190)
+        frac = clamp(h['t'] / h['total'], 0, 1)
+        self.text(cv, 'TIEMPO', self.f_s, (170, 200, 230), px, 112)
+        self.bar(cv, px, 134, 290, 24, frac, (90, 220, 255) if frac > 0.3 else (255, 90, 80), '%.1f s' % max(0, h['t']))
+        left = h['nterm'] - len(h['done'])
+        self.text(cv, 'FIREWALL', self.f_s, (170, 200, 230), px, 170)
+        self.bar(cv, px, 192, 290, 24, left / h['nterm'], (240, 90, 120), '%d%%' % int(100 * left / h['nterm']))
+        self.text(cv, 'ANTENAS ENLAZADAS: %d' % h['n'], self.f_s, (150, 240, 255), px, 232)
+        self.text(cv, 'TERMINALES: %d/%d' % (len(h['done']), h['nterm']), self.f_s, (150, 240, 255), px, 256)
+        for i, ln in enumerate(h['log'][-6:]):
+            self.text(cv, ln[:30], self.f_s, (90, 220, 150), px, 288 + i * 20, shadow=False)
+        if int(t * 2) % 2 == 0:
+            self.text(cv, '_', self.f_s, (90, 220, 150), px, 288 + min(6, len(h['log'])) * 20, shadow=False)
+        self.text(cv, 'Clic izq.: girar  |  Clic der.: al revés  |  flechas+ESPACIO  |  TAB: abortar', self.f_s, (180, 205, 235), 96, H - 36)
+        if h['phase'] != 'play':
+            ok = h['phase'] == 'win'
+            self.dim(cv, 90)
+            self.text(cv, 'ACCESO CONCEDIDO' if ok else 'INTRUSION DETECTADA', self.f_xl, (110, 255, 170) if ok else (255, 90, 90), W // 2, H // 2 - 60, 'c')
+
     # ---------------------------------------------------------- COMBATE
     def start_combat(self, en):
         self.fx = Particles()
         self.enemy_ref = en
         is_boss = en.get('is_boss', False)
-        antennas_active = sum(1 for i, active in self.antennas.items() if active)
         self.c = dict(
             p=dict(x=W / 2, y=H - 170.0, h=0.0, v=0.0, cool=0.0, wake=0.0, sink=None),
             e=dict(x=W / 2 + random.uniform(-150, 150), y=170.0, h=180.0, v=40.0, cool=1.5 if is_boss else 2.0,
                    orb=random.choice([-1, 1]), orb_t=5.0, burst=[], wake=0.0, sink=None, hp=en['hp'], max=en['max']),
-            shells=[], t=0.0, is_boss=is_boss, cyber_available=(is_boss and antennas_active > 0),
-            cyber_used=False, cyber_cooldown=0.0)
+            shells=[], t=0.0, is_boss=is_boss)
         self.aim = [W / 2, 300.0]
         self.go('combat')
         if is_boss:
-            msg = 'Este es un combate peligroso. Derrótalo para avanzar'
-            if antennas_active > 0:
-                msg += ' | C: ciberataque (%d antenas)' % antennas_active
-            self.banner('¡JEFE FINAL!', msg, (255, 50, 50), 3.2)
+            self.banner('¡BUQUE JEFE!', 'Escudo digital caído. Hundilo antes de que te hunda', (255, 50, 50), 3.2)
         else:
-            self.banner('¡COMBATE NAVAL!', 'W/S/A/D: navegar  |  Mouse+Clic: disparar  |  E: huir', (255, 150, 90), 3.0)
+            self.banner('¡COMBATE NAVAL!', 'W/S/A/D: navegar  |  Mouse+Clic: disparar misil (vuela recto)  |  E: huir', (255, 150, 90), 3.4)
 
-    def cyber_attack(self):
-        c = self.c
-        if not c.get('cyber_available', False) or c.get('cyber_used', False) or c['e']['sink'] is not None:
-            return
-        c['cyber_used'] = True
-        e = c['e']
-        dmg = 20 + 5 * (self.wave // BOSS_WAVE)
-        e['hp'] -= dmg
-        self.audio.play('ping')
-        self.shake = max(self.shake, 15)
-        self.pop('CIBERATAQUE\n-%d' % dmg, e['x'], e['y'] - 30, (100, 200, 255))
-        for _ in range(15):
-            a = random.uniform(0, 6.28)
-            self.fx.add('spark', e['x'], e['y'], math.cos(a) * 200, math.sin(a) * 200, 0.4, col=(100, 200, 255), drag=1.8)
-        self.banner('CIBERATAQUE', '-%d daño al enemigo' % dmg, (100, 200, 255), 2.0)
+    def launch_missile(self, ship, ang, speed, own):
+        fx_, fy_ = vec(ang, 30)
+        vx, vy = vec(ang, speed)
+        self.c['shells'].append(dict(x=ship['x'] + fx_, y=ship['y'] + fy_, vx=vx, vy=vy, ang=ang, own=own, life=3.0))
 
     def fire_shell(self):
         c = self.c
@@ -1666,11 +1932,8 @@ class Game:
         self.ammo -= 1
         p['cool'] = 0.9
         tx, ty = self.combat_aim()
-        d = dist(p['x'], p['y'], tx, ty)
-        T = clamp(d / 380, 0.7, 2.0)
-        accurate = random.random() < 0.65
-        c['shells'].append(dict(x0=p['x'], y0=p['y'], x1=tx, y1=ty, t=0.0, T=T, own='p', accurate=accurate))
-        self.audio.play('cannon', .8)
+        self.launch_missile(p, bearing(tx - p['x'], ty - p['y']), 400, 'p')
+        self.audio.play('launch', .8)
         self.fx.add('glow', p['x'], p['y'], life=.2, r0=20, r1=44, col=(255, 220, 150))
         self.shake = max(self.shake, 3)
 
@@ -1757,9 +2020,10 @@ class Game:
             is_boss = self.c.get('is_boss', False)
             if e['cool'] <= 0 and p['sink'] is None:
                 if is_boss:
-                    e['cool'] = random.uniform(1.2, 1.8)
+                    e['cool'] = random.uniform(1.7, 2.4) * max(0.6, 1 - 0.05 * self.wave)
                     self.enemy_fire(1.0)
-                    e['burst'].append(0.4)
+                    if self.wave >= 2:
+                        e['burst'].append(0.4)
                 else:
                     e['cool'] = random.uniform(2.1, 3.0) * max(0.55, 1 - 0.07 * self.wave)
                     self.enemy_fire(1.0)
@@ -1785,11 +2049,7 @@ class Game:
                     self.fx.add('glow', ship['x'] + random.uniform(-14, 14), ship['y'] + random.uniform(-30, 30), life=.4,
                                 r0=8, r1=22, col=(255, 140, 50))
         # proyectiles
-        for s in c['shells'][:]:
-            s['t'] += dt
-            if s['t'] >= s['T']:
-                c['shells'].remove(s)
-                self.shell_land(s)
+        self.update_missiles(dt)
         # hundimientos
         for ship, key in ((e, 'e'), (p, 'p')):
             if ship['sink'] is not None:
@@ -1823,44 +2083,56 @@ class Game:
     def enemy_fire(self, _):
         c = self.c
         p, e = c['p'], c['e']
-        d = dist(p['x'], p['y'], e['x'], e['y'])
-        T = clamp(d / 320, 1.0, 2.2)
+        spd = 250 + 8 * self.wave
+        T = dist(p['x'], p['y'], e['x'], e['y']) / spd
         vx, vy = vec(p['h'], p['v'])
-        spread = max(26, 80 - 8 * self.wave)
-        a, r = random.uniform(0, 6.28), random.uniform(0, spread)
-        tx = clamp(p['x'] + vx * T + math.cos(a) * r, 20, W - 20)
-        ty = clamp(p['y'] + vy * T + math.sin(a) * r, 20, H - 20)
-        accurate = random.random() < 0.6
-        c['shells'].append(dict(x0=e['x'], y0=e['y'], x1=tx, y1=ty, t=0.0, T=T, own='e', accurate=accurate))
-        self.audio.play('cannon', .5)
+        err = max(2.0, 11 - 1.2 * self.wave)
+        ang = bearing(p['x'] + vx * T - e['x'], p['y'] + vy * T - e['y']) + random.uniform(-err, err)
+        self.launch_missile(e, ang, spd, 'e')
+        self.audio.play('launch', .5)
         self.fx.add('glow', e['x'], e['y'], life=.2, r0=20, r1=40, col=(255, 160, 120))
 
-    def shell_land(self, s):
+    def ship_hit(self, ship, x, y, boss):
+        L, r, core = (62, 26, 34) if boss else (44, 17, 24)
+        dx, dy = vec(ship['h'], 1)
+        t = clamp((x - ship['x']) * dx + (y - ship['y']) * dy, -L, L)
+        hit = dist(x, y, ship['x'] + dx * t, ship['y'] + dy * t) < r
+        return hit, dist(x, y, ship['x'], ship['y']) < core
+
+    def update_missiles(self, dt):
         c = self.c
         p, e = c['p'], c['e']
-        x, y = s['x1'], s['y1']
-        tgt = e if s['own'] == 'p' else p
+        for s in c['shells'][:]:
+            s['x'] += s['vx'] * dt
+            s['y'] += s['vy'] * dt
+            s['life'] -= dt
+            if random.random() < dt * 45:
+                bx, by = vec(s['ang'], -14)
+                self.fx.add('smoke', s['x'] + bx, s['y'] + by, 0, 0, 0.7, 2, 7, (200, 200, 205))
+            tgt = e if s['own'] == 'p' else p
+            if tgt['sink'] is None:
+                hit, full = self.ship_hit(tgt, s['x'], s['y'], tgt is e and c['is_boss'])
+                if hit:
+                    c['shells'].remove(s)
+                    self.missile_hit(s, tgt, full)
+                    continue
+            if s['life'] <= 0 or not (-60 < s['x'] < W + 60 and -60 < s['y'] < H + 60):
+                c['shells'].remove(s)
 
-        if not s.get('accurate', True):
-            x += random.uniform(-120, 120)
-            y += random.uniform(-100, 100)
-
-        d = dist(x, y, tgt['x'], tgt['y'])
-        if d <= 54 and tgt['sink'] is None:
-            full = d <= 24
-            if s['own'] == 'p':
-                e['hp'] -= 3 if full else 1.5
-                self.pop('-%s' % ('3' if full else '1.5'), x, y - 20, (255, 255, 160))
-            else:
-                dmg = 24 if full else 12
-                self.hull -= dmg
-                self.pop('-%d CASCO' % dmg, x, y - 20, (255, 110, 100))
-                self.shake = max(self.shake, 12)
-            self.fx.explode(x, y, 1.0 if full else 0.7)
-            self.audio.play('hit')
+    def missile_hit(self, s, tgt, full):
+        c = self.c
+        x, y = s['x'], s['y']
+        if s['own'] == 'p':
+            dmg = 3 if full else 2
+            c['e']['hp'] -= dmg
+            self.pop('-%d' % dmg, x, y - 20, (255, 255, 160))
         else:
-            self.fx.splash(x, y, 1.0)
-            self.audio.play('splash', .6)
+            dmg = 22 if full else 12
+            self.hull -= dmg
+            self.pop('-%d CASCO' % dmg, x, y - 20, (255, 110, 100))
+            self.shake = max(self.shake, 12)
+        self.fx.explode(x, y, 1.0 if full else 0.7)
+        self.audio.play('hit')
 
     # ---------------------------------------------------------- BATALLA AÉREA (estilo Twinbee)
     AIR_SCROLL = 80.0
@@ -2905,6 +3177,8 @@ class Game:
             self.draw_combat(cv)
         elif self.state == 'aerial':
             self.draw_aerial(cv)
+        elif self.state == 'hack':
+            self.draw_hack(cv)
         elif self.state == 'ground':
             self.draw_ground(cv)
         elif self.state == 'gameover':
@@ -2954,15 +3228,17 @@ class Game:
                 self.text(cv, ln, self.f_xl, (30, 10, 0), W // 2 + dx, y + dy, 'c', shadow=False)
             self.text(cv, ln, self.f_xl, col, W // 2, y, 'c', shadow=False)
         self.text(cv, 'EDICIÓN OMAR BRONDO', self.f_l, (120, 220, 255), W // 2, 275, 'c')
-        self.panel(cv, (W // 2 - 380, 335, 760, 215), 170)
-        lines = ['MAPA   W/S acelerar-frenar   A/D girar   R (en puerto) reabastecer',
+        self.panel(cv, (W // 2 - 380, 325, 760, 240), 170)
+        lines = ['MAPA   W/S acelerar-frenar   A/D girar   R (en puerto) reabastecer   L desembarcar',
                  'DEFENSA   Mouse o flechas apuntan   Clic/ESPACIO lanzan interceptor',
-                 'COMBATE   Mouse apunta y dispara (el proyectil tarda: ¡adelantate!)',
-                 '          Esquivá los círculos rojos   E: huir',
-                 'TIERRA   WASD soldado   Clic disparar   R recargar   ESPACIO granada   L: desembarcar',
+                 'COMBATE   Mouse apunta, clic lanza un misil que vuela recto (¡adelantate!)',
+                 '          Maniobrá para esquivar los misiles enemigos   E: huir',
+                 'TIERRA   WASD soldado   Clic disparar   R recargar   ESPACIO granada',
+                 'JEFE   Instalá antenas en las islas (L) y hackeá su escudo con H cerca del buque',
+                 'AIRE   WASD mover   ESPACIO disparar   B bomba',
                  'P pausa   M sonido   F1 efecto CRT']
         for i, ln in enumerate(lines):
-            self.text(cv, ln, self.f_s, (220, 232, 255), W // 2 - 360, 350 + i * 30)
+            self.text(cv, ln, self.f_s, (220, 232, 255), W // 2 - 360, 336 + i * 28)
         if int(t * 2) % 2 == 0:
             self.text(cv, 'PRESIONÁ ENTER PARA ZARPAR', self.f_l, (255, 255, 255), W // 2, 575, 'c')
         self.text(cv, 'Récord: %d' % self.hiscore, self.f_m, (255, 230, 120), W // 2, 640, 'c')
@@ -3053,9 +3329,16 @@ class Game:
                           self.f_s, (255, 230, 140) if left > 0 else (200, 120, 110), sx, sy + ir * 0.95, 'c')
         self.fxm.draw(cv, cx, cy)
         for en in self.enemies:
-            self.blit_ship(cv, 'e_map', en['x'], en['y'], en['h'], cx, cy)
+            self.blit_ship(cv, 'b_map' if en.get('is_boss') else 'e_map', en['x'], en['y'], en['h'], cx, cy)
             if en['state'] == 'chase':
                 draw_circ(cv, en['x'] - cx, en['y'] - cy, 44, (255, 80, 70), 120, 2)
+            if en.get('shield'):
+                sx_, sy_ = en['x'] - cx, en['y'] - cy
+                pulse = 0.5 + 0.5 * math.sin(self.t * 3)
+                draw_circ(cv, sx_, sy_, SHIELD_R, (255, 90, 220), 20 + 20 * pulse)
+                draw_circ(cv, sx_, sy_, SHIELD_R, (255, 130, 235), 150 + 80 * pulse, 3)
+                draw_circ(cv, sx_, sy_, SHIELD_R - 14, (160, 90, 255), 70, 1)
+                self.text(cv, 'ESCUDO DIGITAL', self.f_s, (255, 150, 235), sx_, sy_ - SHIELD_R - 22, 'c')
         self.blit_ship(cv, 'p_map', self.sx, self.sy, self.sh, cx, cy)
         # HUD
         self.draw_hud(cv)
@@ -3064,10 +3347,21 @@ class Game:
         thr = 1 - clamp(self.strike_t / 30.0, 0, 1)
         self.text(cv, 'AMENAZA ENEMIGA', self.f_s, (255, 190, 170), W - 296 + 8, 76)
         self.bar(cv, W - 296, 96, 282, 14, thr, (255, 90 + int(100 * (1 - thr)), 60), '')
+        n_ant = sum(self.antennas.values())
+        self.text(cv, 'ANTENAS %d/%d' % (n_ant, len(self.antennas)), self.f_s, (130, 235, 255) if n_ant else (170, 170, 180), W - 296 + 8, 116)
+        bs = self.nearest_shield_boss()
+        if bs:
+            if n_ant == 0:
+                self.text(cv, 'ESCUDO DEL JEFE: instalá antenas desembarcando en las islas (L)', self.f_m, (255, 150, 235), W // 2, H - 176, 'c')
+            elif bs['hack_cd'] > 0:
+                self.text(cv, 'Sistemas enemigos reiniciando: %d s' % math.ceil(bs['hack_cd']), self.f_m, (255, 200, 120), W // 2, H - 176, 'c')
+            else:
+                self.text(cv, 'H: CIBERATAQUE al escudo del jefe (%d antena%s)' % (n_ant, '' if n_ant == 1 else 's'), self.f_m,
+                          (130, 240, 255), W // 2, H - 176, 'c')
         dk = self.nearest_dock()
         if dk:
             self.text(cv, 'PUERTO: mantené R para reabastecer y reparar',
-                      self.f_m, (140, 255, 210), W // 2, H - 60, 'c')
+                      self.f_m, (140, 255, 210), W // 2, H - 148, 'c')
         else:
             island = self.nearest_landing_island()
             if island:
@@ -3075,13 +3369,13 @@ class Game:
                 attempts = self.landing_attempts[island_idx]
                 if attempts >= MAX_LANDING_ATTEMPTS:
                     self.text(cv, '%s: sin intentos de desembarco' % self.isl_name(island_idx),
-                              self.f_m, (255, 140, 110), W // 2, H - 60, 'c')
+                              self.f_m, (255, 140, 110), W // 2, H - 148, 'c')
                 else:
                     self.text(cv, '%s CERCANA: presioná L para desembarcar (10 soldados enemigos)  |  Intentos: %d/%d' %
                               (self.isl_name(island_idx), attempts, MAX_LANDING_ATTEMPTS),
-                              self.f_m, (100, 180, 255), W // 2, H - 60, 'c')
+                              self.f_m, (100, 180, 255), W // 2, H - 148, 'c')
             elif self.fuel <= 0:
-                self.text(cv, 'SIN COMBUSTIBLE', self.f_m, (255, 90, 80), W // 2, H - 60, 'c')
+                self.text(cv, 'SIN COMBUSTIBLE', self.f_m, (255, 90, 80), W // 2, H - 148, 'c')
         if self.warned and int(self.t * 4) % 2 == 0:
             pygame.draw.rect(cv, (255, 40, 40), (0, 0, W, H), 8)
 
@@ -3104,8 +3398,9 @@ class Game:
         for q in self.crates:
             pygame.draw.circle(cv, (120, 255, 255), (int(x0 + q['x'] * sc), int(y0 + q['y'] * sc)), 2)
         for en in self.enemies:
-            if dist(en['x'], en['y'], self.sx, self.sy) < 1100:
-                pygame.draw.circle(cv, (255, 70, 60), (int(x0 + en['x'] * sc), int(y0 + en['y'] * sc)), 3)
+            if dist(en['x'], en['y'], self.sx, self.sy) < 1100 or en.get('is_boss'):
+                boss = en.get('is_boss')
+                pygame.draw.circle(cv, (255, 90, 220) if boss else (255, 70, 60), (int(x0 + en['x'] * sc), int(y0 + en['y'] * sc)), 5 if boss else 3)
         pygame.draw.rect(cv, (255, 255, 255), (x0 + self.cam[0] * sc, y0 + self.cam[1] * sc, W * sc, H * sc), 1)
         pygame.draw.circle(cv, (80, 255, 255), (int(x0 + self.sx * sc), int(y0 + self.sy * sc)), 4)
         self.text(cv, 'RADAR', self.f_s, (150, 190, 230), x0 + 4, y0 + 2)
@@ -3329,44 +3624,38 @@ class Game:
         p, e = c['p'], c['e']
         is_boss = c.get('is_boss', False)
         self.draw_ocean(cv, 0, 0, self.t)
-        # anillos de impacto
-        for s in c['shells']:
-            k = s['t'] / s['T']
-            col = (120, 255, 160) if s['own'] == 'p' else (255, 80, 70)
-            draw_circ(cv, s['x1'], s['y1'], 54, col, 70 + 60 * math.sin(self.t * 12), 2)
-            draw_circ(cv, s['x1'], s['y1'], max(4, 54 * (1 - k)), col, 220, 3)
         if is_boss:
-            glow(cv, e['x'], e['y'], 80 + 20 * math.sin(self.t * 2), (255, 80, 60), 0.4)
+            glow(cv, e['x'], e['y'], 90 + 20 * math.sin(self.t * 2), (255, 80, 200), 0.35)
         self.fx.draw(cv)
         # buques
-        for ship, key, tur, tcol in ((e, 'e_hull', self.tur_e, None), (p, 'p_hull', self.tur_p, None)):
+        ekey, etur = ('b_hull', self.tur_b) if is_boss else ('e_hull', self.tur_e)
+        for ship, key, tur in ((e, ekey, etur), (p, 'p_hull', self.tur_p)):
             alpha = 255
             if ship['sink'] is not None:
                 alpha = int(255 * clamp(1 - (ship['sink'] - 1.0) / 1.4, 0, 1))
             if alpha > 0:
                 self.blit_ship(cv, key, ship['x'], ship['y'], ship['h'], alpha=alpha)
-                fx_, fy_ = vec(ship['h'], 124 * 0.23 if key == 'p_hull' else 112 * 0.23)
+                fx_, fy_ = vec(ship['h'], {'p_hull': 124, 'e_hull': 112, 'b_hull': 172}[key] * 0.23)
                 if ship is p:
                     tx_, ty_ = self.combat_aim()
                 else:
                     tx_, ty_ = p['x'], p['y']
                 ang = bearing(tx_ - (ship['x'] + fx_), ty_ - (ship['y'] + fy_))
                 self.blit_turret(cv, tur, ship['x'] + fx_, ship['y'] + fy_, ang, alpha)
-        # proyectiles en el aire
+        # misiles (vuelan en línea recta)
         for s in c['shells']:
-            k = s['t'] / s['T']
-            x = lerp(s['x0'], s['x1'], k)
-            y = lerp(s['y0'], s['y1'], k)
-            h = math.sin(math.pi * k)
-            draw_circ(cv, x, y, 5, (0, 0, 0), 70)
-            sz = 4 + 3 * h
             col = (255, 240, 160) if s['own'] == 'p' else (255, 150, 120)
-            glow(cv, x, y - 26 * h, 16, col)
-            pygame.draw.circle(cv, (255, 255, 255), (int(x), int(y - 26 * h)), int(sz))
-            if random.random() < 0.6:
-                self.fx.add('smoke', x, y - 26 * h, 0, 0, 0.6, 2, 6, (180, 180, 180))
+            hx, hy = vec(s['ang'], 16)
+            tx_, ty_ = vec(s['ang'], -16)
+            glow(cv, s['x'] + tx_, s['y'] + ty_, 16, (255, 170, 70))
+            pygame.draw.line(cv, (70, 74, 84), (s['x'] + tx_, s['y'] + ty_), (s['x'] + hx, s['y'] + hy), 8)
+            pygame.draw.line(cv, (226, 230, 236), (s['x'] + tx_, s['y'] + ty_), (s['x'] + hx, s['y'] + hy), 5)
+            pygame.draw.circle(cv, (230, 70, 56) if s['own'] == 'e' else (255, 210, 70), (int(s['x'] + hx), int(s['y'] + hy)), 5)
+            fx2, fy2 = vec(s['ang'] + 90, 5)
+            pygame.draw.line(cv, col, (s['x'] + tx_ + fx2, s['y'] + ty_ + fy2), (s['x'] + tx_ - fx2, s['y'] + ty_ - fy2), 2)
         # mira
         ax, ay = self.combat_aim()
+        pygame.draw.line(cv, (120, 150, 190), (p['x'], p['y']), (ax, ay), 1)
         pygame.draw.circle(cv, (255, 230, 120), (int(ax), int(ay)), 16, 2)
         pygame.draw.circle(cv, (255, 230, 120), (int(ax), int(ay)), 2)
         for dx, dy in ((-26, 0), (26, 0), (0, -26), (0, 26)):
@@ -3376,18 +3665,14 @@ class Game:
         self.draw_hud(cv)
         self.panel(cv, (W // 2 - 230, 12, 460, 70), 170)
         if is_boss:
-            self.text(cv, '¡JEFE FINAL!', self.f_m, (255, 80, 60), W // 2, 16, 'c')
+            self.text(cv, '¡BUQUE JEFE!', self.f_m, (255, 110, 220), W // 2, 16, 'c')
         else:
             self.text(cv, 'DESTRUCTOR ENEMIGO', self.f_m, (255, 140, 120), W // 2, 16, 'c')
         self.bar(cv, W // 2 - 210, 44, 420, 26, e['hp'] / e['max'], (240, 80, 70), 'CASCO ENEMIGO')
         rl = 1 - clamp(p['cool'] / 0.9, 0, 1)
         pygame.draw.rect(cv, (8, 12, 24), (W // 2 - 60, H - 40, 120, 10))
         pygame.draw.rect(cv, (120, 255, 160) if rl >= 1 else (255, 200, 80), (W // 2 - 59, H - 39, int(118 * rl), 8))
-        if c.get('cyber_available', False):
-            cyber_text = 'C: ciberataque' if not c.get('cyber_used', False) else 'Ciberataque (usado)'
-            self.text(cv, 'Clic/ESPACIO disparar  |  E huir  |  ' + cyber_text, self.f_s, (200, 220, 255), W // 2, H - 64, 'c')
-        else:
-            self.text(cv, 'Clic/ESPACIO disparar  |  E huir', self.f_s, (200, 220, 255), W // 2, H - 64, 'c')
+        self.text(cv, 'Clic/ESPACIO: misil recto (adelantate al objetivo)  |  E huir', self.f_s, (200, 220, 255), W // 2, H - 64, 'c')
 
     # ---- batalla aérea
     def draw_aerial(self, cv):
