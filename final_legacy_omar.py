@@ -792,6 +792,7 @@ class Game:
         self.sx, self.sy = 1200.0, 760.0
         self.sh, self.sv = 0.0, 0.0
         self.hull, self.fuel, self.ammo = 100.0, 100.0, 30
+        self.antennas = {i: False for i in ANTENNA_ISLANDS}
         self.cities = []
         for (name, x, y, r, seed) in CITY_DEFS:
             c = dict(name=name, x=x, y=y, r=r, hp=100.0, dead=False, seed=seed)
@@ -909,6 +910,8 @@ class Game:
                     self.fire_shell()
                 elif e.key == pygame.K_e:
                     self.flee()
+                elif e.key == pygame.K_c:
+                    self.cyber_attack()
         if e.type == pygame.MOUSEBUTTONDOWN and e.button == 3 and self.state == 'ground' and not self.paused:
             self.fire_cannon_g()
         if e.type == pygame.MOUSEBUTTONDOWN and e.button == 1 and not self.paused:
@@ -1335,17 +1338,38 @@ class Game:
         self.fx = Particles()
         self.enemy_ref = en
         is_boss = en.get('is_boss', False)
+        antennas_active = sum(1 for i, active in self.antennas.items() if active)
         self.c = dict(
             p=dict(x=W / 2, y=H - 170.0, h=0.0, v=0.0, cool=0.0, wake=0.0, sink=None),
             e=dict(x=W / 2 + random.uniform(-150, 150), y=170.0, h=180.0, v=40.0, cool=1.5 if is_boss else 2.0,
                    orb=random.choice([-1, 1]), orb_t=5.0, burst=[], wake=0.0, sink=None, hp=en['hp'], max=en['max']),
-            shells=[], t=0.0, is_boss=is_boss)
+            shells=[], t=0.0, is_boss=is_boss, cyber_available=(is_boss and antennas_active > 0),
+            cyber_used=False, cyber_cooldown=0.0)
         self.aim = [W / 2, 300.0]
         self.go('combat')
         if is_boss:
-            self.banner('¡JEFE FINAL!', 'Este es un combate peligroso. Derrótalo para avanzar', (255, 50, 50), 3.2)
+            msg = 'Este es un combate peligroso. Derrótalo para avanzar'
+            if antennas_active > 0:
+                msg += ' | C: ciberataque (%d antenas)' % antennas_active
+            self.banner('¡JEFE FINAL!', msg, (255, 50, 50), 3.2)
         else:
             self.banner('¡COMBATE NAVAL!', 'W/S/A/D: navegar  |  Mouse+Clic: disparar  |  E: huir', (255, 150, 90), 3.0)
+
+    def cyber_attack(self):
+        c = self.c
+        if not c.get('cyber_available', False) or c.get('cyber_used', False) or c['e']['sink'] is not None:
+            return
+        c['cyber_used'] = True
+        e = c['e']
+        dmg = 20 + 5 * (self.wave // BOSS_WAVE)
+        e['hp'] -= dmg
+        self.audio.play('ping')
+        self.shake = max(self.shake, 15)
+        self.pop('CIBERATAQUE\n-%d' % dmg, e['x'], e['y'] - 30, (100, 200, 255))
+        for _ in range(15):
+            a = random.uniform(0, 6.28)
+            self.fx.add('spark', e['x'], e['y'], math.cos(a) * 200, math.sin(a) * 200, 0.4, col=(100, 200, 255), drag=1.8)
+        self.banner('CIBERATAQUE', '-%d daño al enemigo' % dmg, (100, 200, 255), 2.0)
 
     def fire_shell(self):
         c = self.c
@@ -1974,6 +1998,13 @@ class Game:
             city['hp'] = max(0.0, city['hp'] - 30)
             if city['hp'] <= 0:
                 city['dead'] = True
+        else:
+            for i, (x, y, r, s) in enumerate(EXTRA_ISLANDS):
+                if dist(g['city']['x'], g['city']['y'], x, y) < 200 and i in ANTENNA_ISLANDS:
+                    if not self.antennas[i]:
+                        self.antennas[i] = True
+                        self.toast('¡ANTENA INSTALADA en isla %d!' % (i - 3), (120, 255, 160))
+                        self.banner('SISTEMA DEFENSIVO', 'Antena #%d lista. Ciberataque disponible.' % (i - 3), (120, 220, 255), 3.0)
         self.warned = False
         self.strike_t = max(22.0, random.uniform(30, 42) - self.wave * 2)
         if all(c['dead'] for c in self.cities):
@@ -2399,7 +2430,11 @@ class Game:
         rl = 1 - clamp(p['cool'] / 0.9, 0, 1)
         pygame.draw.rect(cv, (8, 12, 24), (W // 2 - 60, H - 40, 120, 10))
         pygame.draw.rect(cv, (120, 255, 160) if rl >= 1 else (255, 200, 80), (W // 2 - 59, H - 39, int(118 * rl), 8))
-        self.text(cv, 'Clic/ESPACIO disparar  |  E huir', self.f_s, (200, 220, 255), W // 2, H - 64, 'c')
+        if c.get('cyber_available', False):
+            cyber_text = 'C: ciberataque' if not c.get('cyber_used', False) else 'Ciberataque (usado)'
+            self.text(cv, 'Clic/ESPACIO disparar  |  E huir  |  ' + cyber_text, self.f_s, (200, 220, 255), W // 2, H - 64, 'c')
+        else:
+            self.text(cv, 'Clic/ESPACIO disparar  |  E huir', self.f_s, (200, 220, 255), W // 2, H - 64, 'c')
 
     # ---- batalla aérea
     def draw_aerial(self, cv):
