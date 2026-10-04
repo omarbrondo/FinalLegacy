@@ -9,6 +9,7 @@ from .common import (
     WORLD_H, WORLD_W, angle_diff, bearing,
     clamp, coast_r, dist, draw_circ,
     glow, vec)
+from .boss_art import BOSS_TYPES
 
 
 class MapMixin:
@@ -64,7 +65,8 @@ class MapMixin:
         boss_hp = 36 + 16 * (self.wave - 1)
         self.enemies.append(dict(x=x, y=y, h=random.uniform(0, 360), v=0.0, hp=boss_hp, max=boss_hp,
                                  state='patrol', wp=self.rand_wp(), cool=0.0, is_boss=True, shield=True,
-                                 hack_cd=0.0, seen=False, name=BOSS_NAMES[(self.wave - 1) % len(BOSS_NAMES)]))
+                                 hack_cd=0.0, seen=False, name=BOSS_NAMES[(self.wave - 1) % len(BOSS_NAMES)],
+                                 btype=(self.wave - 1) % len(BOSS_TYPES)))
 
     # ---------------------------------------------------------- MAPA
     def upd_map(self, dt):
@@ -699,7 +701,7 @@ class MapMixin:
                     if en['state'] == 'chase':
                         draw_circ(cv, en['x'] - cx, en['y'] - cy, 44, (255, 80, 70), 120, 2)
                 continue
-            self.blit_ship(cv, 'b_map' if en.get('is_boss') else 'e_map', en['x'], en['y'], en['h'], cx, cy)
+            self.blit_ship(cv, ('b%d_map' % en.get('btype', 0)) if en.get('is_boss') else 'e_map', en['x'], en['y'], en['h'], cx, cy)
             if en['state'] == 'chase':
                 draw_circ(cv, en['x'] - cx, en['y'] - cy, 44, (255, 80, 70), 120, 2)
             if en.get('shield'):
@@ -708,7 +710,7 @@ class MapMixin:
                 draw_circ(cv, sx_, sy_, SHIELD_R, (255, 90, 220), 20 + 20 * pulse)
                 draw_circ(cv, sx_, sy_, SHIELD_R, (255, 130, 235), 150 + 80 * pulse, 3)
                 draw_circ(cv, sx_, sy_, SHIELD_R - 14, (160, 90, 255), 70, 1)
-                self.text(cv, 'ACORAZADO %s' % en['name'], self.f_s, (255, 150, 235), sx_, sy_ + 78, 'c')
+                self.text(cv, '%s %s' % (BOSS_TYPES[en.get('btype', 0)]['label'], en['name']), self.f_s, (255, 150, 235), sx_, sy_ + 78, 'c')
         self.blit_ship(cv, 'p_map', self.sx, self.sy, self.sh, cx, cy)
         # HUD
         self.draw_hud(cv)

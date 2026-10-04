@@ -18,6 +18,7 @@ python final_legacy_omar.py
 | `common.py` | Constantes, utilidades matemáticas, helpers de dibujo y partículas |
 | `audio.py` | Síntesis de sonido y música |
 | `sprites.py` | Naves, soldados cenitales, cazas, nubes, coberturas |
+| `boss_art.py` | Los 6 jefes navales (siluetas y habilidades de cada uno) |
 | `tk_art.py` | Texturas y modelo 3D del tanque (combate urbano) |
 | `pt_art.py` | Arte del asalto lateral (soldados, tanque, fondo) |
 | `core.py` | Recursos, UI común, partida, eventos y bucle principal |

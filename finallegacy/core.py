@@ -12,10 +12,11 @@ from .common import (
     dist, lerp, shade, vec)
 from .audio import Audio
 from .sprites import (
-    ENEMY_TYPES, draw_cover, make_battleship, make_cargo,
+    ENEMY_TYPES, draw_cover, make_cargo,
     make_cloud, make_f117, make_f16, make_shadow,
     make_ship, make_soldier_frames, make_sub, make_turret)
 from .tk_art import make_tank_sprites, make_tk_textures
+from .boss_art import BOSS_TYPES, make_boss_sprite
 
 
 class CoreMixin:
@@ -114,8 +115,9 @@ class CoreMixin:
         self.tur_e = make_turret(8, (150, 60, 60))
         self.tur_b = make_turret(12, (150, 160, 178))
         self.tur_b2 = make_turret(10, (150, 160, 178))
-        reg('b_map', make_battleship(46, 126))
-        reg('b_hull', make_battleship(98, 270))
+        for k_ in range(len(BOSS_TYPES)):
+            reg('b%d_map' % k_, make_boss_sprite(k_, 46, 126))
+            reg('b%d_hull' % k_, make_boss_sprite(k_, 98, 270))
         self.sol = {'p': make_soldier_frames('rifle', 'p')}
         for kd in ENEMY_TYPES:
             self.sol['e_' + kd] = make_soldier_frames(kd, 'e')
