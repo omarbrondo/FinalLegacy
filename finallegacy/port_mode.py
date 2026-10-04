@@ -722,7 +722,7 @@ class PortMixin:
             if boom:
                 pt['nades'].remove(n)
                 if n['own'] == 'p':
-                    self.pt_blast(n['x'], min(n['y'], self.PT_GR - 4), 95, 6, 10, 'p')
+                    self.pt_blast(n['x'], min(n['y'], self.PT_GR - 4), 95 * self.up_blast(), 6 * self.up_dmg(), 10, 'p')
                 else:
                     self.pt_blast(n['x'], min(n['y'], self.PT_GR - 4), 95, 0, 28, 'e')
         # barriles explosivos
@@ -814,13 +814,13 @@ class PortMixin:
         if p['cd'] > 0 or p['dead']:
             return
         hmg = p['hmg'] > 0
-        p['cd'] = 0.075 if hmg else 0.115
+        p['cd'] = (0.075 if hmg else 0.115) * self.up_reload()
         p['flash'] = 0.05
         pv = p.get('pv') or (p['x'], p['y'] - (50 if p['crouch'] else 67))
         mx, my, dx, dy = self.pt_muzzle('player', pv, p['face'], self.aim[0] + pt['cam'], self.aim[1])
         a = math.atan2(dy, dx)
         a += math.radians(random.uniform(-3.5, 3.5) if hmg else random.uniform(-1.2, 1.2))
-        pt['bul'].append(dict(x=mx, y=my, vx=math.cos(a) * 980, vy=math.sin(a) * 980, dmg=1.0, life=0.9))
+        pt['bul'].append(dict(x=mx, y=my, vx=math.cos(a) * 980, vy=math.sin(a) * 980, dmg=1.0 * self.up_dmg(), life=0.9))
         self.audio.play('mg', .3)
         if random.random() < 0.7:
             self.pt_casing(pv[0] + dx * 24, pv[1] + dy * 24, p['face'])

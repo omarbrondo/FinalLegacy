@@ -443,8 +443,8 @@ class TankMixin:
                 if e['kind'] == 'missile':
                     self.tk_kill(e, 'missile')
                 else:
-                    e['hp'] -= 1
-                    if e['hp'] <= 0:
+                    e['hp'] -= self.up_dmg()
+                    if e['hp'] <= 0.001:
                         self.tk_kill(e, e['kind'])
                     else:
                         self.audio.play('hit', .6)

@@ -359,7 +359,7 @@ class HeliMixin:
             p['cd'] = max(0.0, p['cd'] - dt)
             p['rcd'] = max(0.0, p['rcd'] - dt)
             if (pygame.mouse.get_pressed()[0] or keys[pygame.K_f]) and p['cd'] <= 0:
-                p['cd'] = 0.065
+                p['cd'] = 0.065 * self.up_reload()
                 p['side'] *= -1
                 ox, oy = vec(p['h'] + 90 * p['side'], 14)
                 nx, ny = vec(p['h'], 50)
@@ -379,12 +379,12 @@ class HeliMixin:
             hit = False
             for t in self.heli_hit_list(m):
                 if dist(b['x'], b['y'], t['x'], t['y']) < t['r'] + 4:
-                    self.heli_damage(t, 1.0 if t['k'] != 'bunker' else 0.6)
+                    self.heli_damage(t, (1.0 if t['k'] != 'bunker' else 0.6) * self.up_dmg())
                     self.fx.add('spark', b['x'], b['y'], random.uniform(-80, 80), random.uniform(-80, 80), 0.25, col=(255, 210, 120), drag=2)
                     hit = True
                     break
             if not hit and ship and not ship['dead'] and self.heli_on_ship(ship, b['x'], b['y']):
-                self.heli_ship_damage(0.5)
+                self.heli_ship_damage(0.5 * self.up_dmg())
                 self.fx.add('spark', b['x'], b['y'], random.uniform(-80, 80), random.uniform(-80, 80), 0.25, col=(255, 210, 120), drag=2)
                 hit = True
             if not hit:
@@ -415,7 +415,7 @@ class HeliMixin:
                     boom = True
             if boom:
                 m['rk'].remove(r)
-                self.heli_blast(r['x'], r['y'], 70, 9.0, 5.0, 1.0)
+                self.heli_blast(r['x'], r['y'], 70 * self.up_blast(), 9.0 * self.up_dmg(), 5.0 * self.up_dmg(), 1.0)
         # enemigos
         if m['phase'] == 'play' and not p['dead']:
             for t in m['T']:
@@ -561,7 +561,7 @@ class HeliMixin:
             self.audio.play('empty')
             return
         p['rk'] -= 1
-        p['rcd'] = 0.38
+        p['rcd'] = 0.38 * self.up_reload()
         ox, oy = vec(p['h'] + 90 * (1 if p['rk'] % 2 else -1), 52)
         m['rk'].append(dict(x=p['x'] + ox, y=p['y'] + oy, h=p['h'], sp=330.0, life=1.5, trail=[]))
         self.audio.play('launch', .7)

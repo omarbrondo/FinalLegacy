@@ -332,11 +332,11 @@ class GroundMixin:
                 self.start_reload()
                 return
             p['pmag'] -= 1
-            p['cd'] = 0.34
+            p['cd'] = 0.34 * self.up_reload()
             ang = p['h'] + random.uniform(-1, 1) * 1.2
             mx, my = vec(p['h'], 34)
             vx, vy = vec(ang, 640)
-            g['bullets'].append(dict(x=p['x'] + mx, y=p['y'] + my, vx=vx, vy=vy, own='p', dmg=2.2, life=0.7, silent=True, ign=self.g_ign(p['x'], p['y'])))
+            g['bullets'].append(dict(x=p['x'] + mx, y=p['y'] + my, vx=vx, vy=vy, own='p', dmg=2.2 * self.up_dmg(), life=0.7, silent=True, ign=self.g_ign(p['x'], p['y'])))
             self.audio.play('blip', .18)
             self.g_noise(85, 0.25)
             return
@@ -345,13 +345,13 @@ class GroundMixin:
             return
         self.g_noise(430, 0.4)
         p['mag'] -= 1
-        p['cd'] = 0.1
+        p['cd'] = 0.1 * self.up_reload()
         p['flash'] = 0.06
         p['bloom'] = min(6.0, p['bloom'] + 0.8)
         ang = p['h'] + random.uniform(-1, 1) * (1.0 + p['bloom'])
         mx, my = vec(p['h'], 40)
         vx, vy = vec(ang, 580)
-        g['bullets'].append(dict(x=p['x'] + mx, y=p['y'] + my, vx=vx, vy=vy, own='p', dmg=1.0, life=0.85,
+        g['bullets'].append(dict(x=p['x'] + mx, y=p['y'] + my, vx=vx, vy=vy, own='p', dmg=1.0 * self.up_dmg(), life=0.85,
                                  ign=self.g_ign(p['x'], p['y'])))
         self.audio.play('mg', .3)
         ex, ey = vec(p['h'] + 90, 12)
@@ -403,7 +403,7 @@ class GroundMixin:
     def explode_nade(self, n):
         g = self.g
         p = g['p']
-        x, y, R = n['x1'], n['y1'], 62
+        x, y, R = n['x1'], n['y1'], 62 * (self.up_blast() if n['own'] == 'p' else 1.0)
         self.fx.explode(x, y, 1.1, True)
         self.audio.play('boom_s', .7)
         self.shake = max(self.shake, 7)
@@ -412,7 +412,7 @@ class GroundMixin:
         for e in g['enemies'][:]:
             d = dist(x, y, e['x'], e['y'])
             if d < R:
-                e['hp'] -= (6.5 if n['own'] == 'p' else 2.0) * (1 - 0.45 * d / R)
+                e['hp'] -= (6.5 * self.up_dmg() if n['own'] == 'p' else 2.0) * (1 - 0.45 * d / R)
                 e['hit'] = 0.15
                 if e['state'] in ('hold', 'susp'):
                     self.alert(e)

@@ -231,7 +231,7 @@ class DefenseMixin:
                 for m in d['missiles'][:]:
                     if dist(m['x'], m['y'], b['x'], b['y']) < rad + (14 if m['k'] == 'boss' else 4):
                         if m['k'] == 'boss' and m['flash'] <= 0:
-                            m['hp'] -= 1
+                            m['hp'] -= self.up_dmg()
                             m['flash'] = 0.25
                             self.fx.explode(m['x'], m['y'], 0.6)
                             if m['hp'] > 0:

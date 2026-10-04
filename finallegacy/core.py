@@ -417,6 +417,7 @@ class CoreMixin:
         self.hull, self.fuel, self.ammo = 100.0, 100.0, 30
         self.hull_max = 100.0
         self.up = {}
+        self.up_left = 0
         self.antennas = {i: False for i in ANTENNA_ISLANDS}
         self.landing_attempts = {i: 0 for i in range(len(EXTRA_ISLANDS))}
         self.cities = []
