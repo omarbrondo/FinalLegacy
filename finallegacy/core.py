@@ -22,7 +22,7 @@ from .boss_art import BOSS_TYPES, make_boss_sprite
 
 class CoreMixin:
     def __init__(self):
-        pygame.display.set_caption('FINAL LEGACY - Edición Omar Brondo')
+        pygame.display.set_caption('RETRO LEGACY - Edición Omar Brondo')
         try:
             self.screen = pygame.display.set_mode((W, H), pygame.SCALED)
         except pygame.error:                      # sin renderizador: ventana común (sin escalado)
@@ -848,7 +848,7 @@ class CoreMixin:
         self.blit_ship(cv, 'p_map', x, 640, 90)
         x2 = W + 150 - (t * 55) % (W + 300)
         self.blit_ship(cv, 'e_map', x2, 700, 270)
-        for ln, y, col in (('FINAL', 90, (255, 220, 110)), ('LEGACY', 175, (255, 160, 70))):
+        for ln, y, col in (('RETRO', 90, (255, 220, 110)), ('LEGACY', 175, (255, 160, 70))):
             for dx, dy in ((-3, 0), (3, 0), (0, -3), (0, 3), (-3, -3), (3, 3), (-3, 3), (3, -3)):
                 self.text(cv, ln, self.f_xl, (30, 10, 0), W // 2 + dx, y + dy, 'c', shadow=False)
             self.text(cv, ln, self.f_xl, col, W // 2, y, 'c', shadow=False)
