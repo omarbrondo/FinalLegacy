@@ -34,7 +34,17 @@ class HackMixin:
             if len(leaves) >= nterm:
                 break
         terms = set(random.sample(leaves, nterm))
-        tiles = {c: dict(m=m, sol=m, term=c in terms) for c, m in masks.items()}
+        tiles = {c: dict(m=m, sol=m, term=c in terms, src=False, fw=False) for c, m in masks.items()}
+        free = [c for c, t_ in tiles.items() if not t_['term'] and c != (0, r0)]
+        lvl = self.wave
+        if lvl >= 5 and len(free) > 8:                  # segunda fuente de energía
+            far = sorted(free, key=lambda c: -abs(c[0] - 0))[:max(3, len(free) // 3)]
+            c = random.choice(far)
+            tiles[c]['src'] = True
+            free.remove(c)
+        if lvl >= 4:                                    # cortafuegos: girarlos cuesta tiempo
+            for c in random.sample(free, min(len(free), lvl // 3 + 1)):
+                tiles[c]['fw'] = True
         while True:
             for t in tiles.values():
                 t['m'] = self.rot_mask(t['sol'], random.randrange(4))
@@ -47,9 +57,12 @@ class HackMixin:
         h = self.h
         tiles, root = h['tiles'], h['root']
         pw = set()
+        seeds = [c for c, t_ in tiles.items() if t_.get('src')]
         if tiles[root]['m'] & 8:
-            pw.add(root)
-            stack = [root]
+            seeds.append(root)
+        if seeds:
+            pw.update(seeds)
+            stack = list(seeds)
             while stack:
                 cx, cy = stack.pop()
                 m = tiles[(cx, cy)]['m']
@@ -94,7 +107,7 @@ class HackMixin:
         csz = 86
         h = self.h
         h.update(boss=boss, n=n, nterm=nterm, t=total, total=total, base_total=total, fails=0, lvl=lvl, phase='play', pt=0.0, csz=csz,
-                 gx=96, gy=(H - rows * csz) // 2 + 24, cur=root, kb=False, log=[], logt=0.0, done=set())
+                 gx=96, gy=(H - rows * csz) // 2 + 24, cur=root, kb=False, log=[], logt=0.0, done=set(), vt=self.hack_virus_gap(), glitch=None)
         h['rain'] = [[random.randrange(0, W, 18), random.uniform(-400, H), random.uniform(60, 160)] for _ in range(40)]
         if not hasattr(self, 'rain_gl'):
             self.rain_gl = [[self.f_s.render(ch, True, (0, g, int(g * .45))) for g in (35, 70, 130, 230)] for ch in '01']
@@ -111,11 +124,14 @@ class HackMixin:
         self.hack_generate(old['cols'], old['rows'], old['nterm'])
         new = self.h
         self.h = old
-        old.update(tiles=new['tiles'], root=new['root'], cur=new['root'], done=set(), phase='play', pt=0.0)
+        old.update(tiles=new['tiles'], root=new['root'], cur=new['root'], done=set(), phase='play', pt=0.0, vt=self.hack_virus_gap(), glitch=None)
         old['total'] = old['t'] = max(18.0, old['base_total'] - 3.0 * old['fails'])
         self.hack_say('> NUEVO ENLACE  (INTENTO %d)' % (old['fails'] + 1))
         self.hack_say('> RUTA REGENERADA')
         self.audio.play('pickup', .6)
+
+    def hack_virus_gap(self):
+        return random.uniform(6.5, 9.0) - min(3.0, 0.5 * self.wave) if self.wave >= 3 else 1e9
 
     def hack_say(self, s):
         self.h['log'].append(s)
@@ -127,6 +143,9 @@ class HackMixin:
             return
         t = h['tiles'][cell]
         t['m'] = self.rot_mask(t['m'], k)
+        if t.get('fw'):
+            h['t'] = max(0.5, h['t'] - 1.5)
+            self.hack_say('> CORTAFUEGOS: -1.5 s')
         self.audio.play('blip', .5)
         tp = self.hack_power()[1]
         if len(tp) > len(h['done']):
@@ -152,6 +171,22 @@ class HackMixin:
                 col[2] = random.uniform(60, 160)
         if h['phase'] == 'play':
             h['t'] -= dt
+            h['vt'] -= dt
+            if h['glitch'] is not None:
+                h['glitch'][1] -= dt
+                if h['glitch'][1] <= 0:
+                    cell = h['glitch'][0]
+                    h['glitch'] = None
+                    h['tiles'][cell]['m'] = self.rot_mask(h['tiles'][cell]['m'], random.choice((1, 2, 3)))
+                    h['done'] = set(self.hack_power()[1])
+                    self.audio.play('hit', .4)
+                    self.hack_say('> VIRUS: NODO CORRUPTO')
+            elif h['vt'] <= 0:
+                h['vt'] = self.hack_virus_gap()
+                pw_ = list(self.hack_power()[0])
+                cells = [c for c in pw_ if not h['tiles'][c]['term']] or list(h['tiles'])
+                h['glitch'] = [random.choice(cells), 1.0]
+                self.hack_say('> ALERTA: VIRUS DETECTADO')
             step = 0.5 if h['t'] < 5 else 1.0
             if h['t'] < 10 and int(h['t'] / step) != int((h['t'] + dt) / step):
                 self.audio.play('blip', .5)
@@ -212,6 +247,13 @@ class HackMixin:
             pygame.draw.circle(cv, ring, (cx, cy), 6)
             if powered:
                 glow(cv, cx, cy, 30, (40, 200, 110), 0.7)
+        if tile.get('fw'):
+            pygame.draw.rect(cv, (255, 90, 70), r, 2, border_radius=10)
+            for k in range(4):
+                pygame.draw.line(cv, (255, 90, 70), (x + 8 + k * 6, y + sz - 8), (x + 14 + k * 6, y + sz - 14), 2)
+        if tile.get('src'):
+            glow(cv, x + 14, y + 14, 22, (60, 130, 255), 0.9)
+            pygame.draw.polygon(cv, (255, 235, 120), [(x + 14, y + 6), (x + 8, y + 16), (x + 13, y + 16), (x + 11, y + 24), (x + 20, y + 13), (x + 15, y + 13)])
         if hover:
             pygame.draw.rect(cv, (255, 255, 255), r.inflate(4, 4), 1, border_radius=11)
 
@@ -249,6 +291,8 @@ class HackMixin:
                     pygame.draw.rect(cv, (22, 34, 52), (x + 3, y + 3, cs - 6, cs - 6), 1, border_radius=10)
                 else:
                     self.draw_hack_tile(cv, x, y, cs, tile, (c, r) in pw, hover == (c, r), t)
+                    if h['glitch'] is not None and h['glitch'][0] == (c, r) and int(t * 12) % 2 == 0:
+                        pygame.draw.rect(cv, (255, 60, 220), (x + 3, y + 3, cs - 6, cs - 6), 4, border_radius=10)
         px = 780
         self.panel(cv, (px - 20, 100, 330, 320), 190)
         frac = clamp(h['t'] / h['total'], 0, 1)
