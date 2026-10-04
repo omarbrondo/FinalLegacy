@@ -720,6 +720,24 @@ class Game:
         pygame.draw.circle(s, (200, 220, 255), (12, 10), 3)
         return s
 
+    def make_soldier(self, kind, col):
+        s = pygame.Surface((16, 28), pygame.SRCALPHA)
+        pygame.draw.circle(s, col, (8, 6), 3)
+        pygame.draw.rect(s, col, (6, 9, 4, 10))
+        pygame.draw.rect(s, shade(col, -30), (5, 8, 6, 2))
+        pygame.draw.line(s, shade(col, -60), (5, 12), (2, 18), 2)
+        pygame.draw.line(s, shade(col, -60), (11, 12), (14, 18), 2)
+        pygame.draw.line(s, shade(col, -60), (5, 17), (3, 27), 2)
+        pygame.draw.line(s, shade(col, -60), (11, 17), (13, 27), 2)
+        if kind == 'rifleman':
+            pygame.draw.rect(s, (100, 100, 100), (12, 10, 3, 8))
+        elif kind == 'mg':
+            pygame.draw.rect(s, (120, 80, 60), (11, 9, 4, 9))
+            pygame.draw.rect(s, (100, 100, 100), (13, 9, 2, 5))
+        elif kind == 'grenade':
+            pygame.draw.circle(s, (60, 60, 60), (13, 11), 2)
+        return s
+
     # ------------------------------------------------------------ util
     def text(self, dst, s, font, col, x, y, anchor='l', shadow=True, alpha=None):
         img = font.render(s, True, col)
