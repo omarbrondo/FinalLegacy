@@ -1696,6 +1696,11 @@ class Game:
                 h = self.h
                 if e.key == pygame.K_TAB and h['phase'] == 'play':
                     self.end_hack(False, abort=True)
+                elif h['phase'] == 'fail':
+                    if h['pt'] > 0.6 and e.key in (pygame.K_SPACE, pygame.K_RETURN):
+                        self.hack_retry()
+                    elif e.key == pygame.K_TAB:
+                        self.end_hack(False)
                 elif e.key in (pygame.K_LEFT, pygame.K_RIGHT, pygame.K_UP, pygame.K_DOWN):
                     dx = (e.key == pygame.K_RIGHT) - (e.key == pygame.K_LEFT)
                     dy = (e.key == pygame.K_DOWN) - (e.key == pygame.K_UP)
@@ -1710,9 +1715,13 @@ class Game:
                 elif e.key == pygame.K_e:
                     self.flee()
         if e.type == pygame.MOUSEBUTTONDOWN and e.button in (1, 3) and self.state == 'hack' and not self.paused:
-            cell = self.hack_cell_at(e.pos)
-            if cell:
-                self.hack_rotate(cell, 1 if e.button == 1 else 3)
+            if self.h['phase'] == 'fail':
+                if self.h['pt'] > 0.6 and e.button == 1:
+                    self.hack_retry()
+            else:
+                cell = self.hack_cell_at(e.pos)
+                if cell:
+                    self.hack_rotate(cell, 1 if e.button == 1 else 3)
         if e.type == pygame.MOUSEBUTTONDOWN and e.button == 3 and self.state == 'ground' and not self.paused:
             self.throw_grenade_p()
         if e.type == pygame.MOUSEBUTTONDOWN and e.button == 3 and self.state == 'aerial' and not self.paused:
@@ -2262,7 +2271,7 @@ class Game:
         total = max(22.0, 40.0 + 5 * n - 2 * (lvl - 1))
         csz = 86
         h = self.h
-        h.update(boss=boss, n=n, nterm=nterm, t=total, total=total, phase='play', pt=0.0, csz=csz,
+        h.update(boss=boss, n=n, nterm=nterm, t=total, total=total, base_total=total, fails=0, lvl=lvl, phase='play', pt=0.0, csz=csz,
                  gx=96, gy=(H - rows * csz) // 2 + 24, cur=root, kb=False, log=[], logt=0.0, done=set())
         h['rain'] = [[random.randrange(0, W, 18), random.uniform(-400, H), random.uniform(60, 160)] for _ in range(40)]
         if not hasattr(self, 'rain_gl'):
@@ -2273,6 +2282,18 @@ class Game:
         self.hack_say('> ENERGIZA %d TERMINALES' % nterm)
         self.aim = [W / 2, H / 2]
         self.go('hack')
+
+    def hack_retry(self):
+        """Nuevo intento tras un fallo: puzzle distinto y un poco menos de tiempo."""
+        old = self.h
+        self.hack_generate(old['cols'], old['rows'], old['nterm'])
+        new = self.h
+        self.h = old
+        old.update(tiles=new['tiles'], root=new['root'], cur=new['root'], done=set(), phase='play', pt=0.0)
+        old['total'] = old['t'] = max(18.0, old['base_total'] - 3.0 * old['fails'])
+        self.hack_say('> NUEVO ENLACE  (INTENTO %d)' % (old['fails'] + 1))
+        self.hack_say('> RUTA REGENERADA')
+        self.audio.play('pickup', .6)
 
     def hack_say(self, s):
         self.h['log'].append(s)
@@ -2309,16 +2330,21 @@ class Game:
                 col[2] = random.uniform(60, 160)
         if h['phase'] == 'play':
             h['t'] -= dt
-            if int(h['t']) != int(h['t'] + dt) and h['t'] < 10:
-                self.audio.play('blip', .4)
+            step = 0.5 if h['t'] < 5 else 1.0
+            if h['t'] < 10 and int(h['t'] / step) != int((h['t'] + dt) / step):
+                self.audio.play('blip', .5)
             if h['t'] <= 0:
+                h['t'] = 0.0
                 h['phase'], h['pt'] = 'fail', 0.0
+                h['fails'] += 1
+                self.hull = max(1.0, self.hull - 5)
+                self.shake = 8
                 self.hack_say('> INTRUSION DETECTADA')
                 self.audio.play('lose', .6)
         else:
             h['pt'] += dt
-            if h['pt'] > 1.8:
-                self.end_hack(h['phase'] == 'win')
+            if h['phase'] == 'win' and h['pt'] > 1.8:
+                self.end_hack(True)
 
     def end_hack(self, ok, abort=False):
         h = self.h
@@ -2338,10 +2364,7 @@ class Game:
             self.toast('Ciberataque abortado', (255, 200, 120))
         else:
             boss['hack_cd'] = 25.0
-            self.hull = max(1.0, self.hull - 10)
-            self.audio.play('hit', .7)
-            self.shake = 8
-            self.toast('Contraataque enemigo: -10 casco. Reintentá en 25 s', (255, 120, 100))
+            self.toast('Ciberataque fallido. Sistemas enemigos reiniciando: 25 s', (255, 120, 100))
 
     def draw_hack_tile(self, cv, x, y, sz, tile, powered, hover, t):
         r = pygame.Rect(x + 3, y + 3, sz - 6, sz - 6)
@@ -2408,7 +2431,8 @@ class Game:
         self.panel(cv, (px - 20, 100, 330, 320), 190)
         frac = clamp(h['t'] / h['total'], 0, 1)
         self.text(cv, 'TIEMPO', self.f_s, (170, 200, 230), px, 112)
-        self.bar(cv, px, 134, 290, 24, frac, (90, 220, 255) if frac > 0.3 else (255, 90, 80), '%.1f s' % max(0, h['t']))
+        tcol = (90, 220, 255) if h['t'] > 10 else ((255, 210, 70) if h['t'] > 5 else (255, 70, 70))
+        self.bar(cv, px, 134, 290, 24, frac, tcol, 'INTENTO %d' % (h['fails'] + 1))
         left = h['nterm'] - len(h['done'])
         self.text(cv, 'FIREWALL', self.f_s, (170, 200, 230), px, 170)
         self.bar(cv, px, 192, 290, 24, left / h['nterm'], (240, 90, 120), '%d%%' % int(100 * left / h['nterm']))
@@ -2418,11 +2442,30 @@ class Game:
             self.text(cv, ln[:30], self.f_s, (90, 220, 150), px, 288 + i * 20, shadow=False)
         if int(t * 2) % 2 == 0:
             self.text(cv, '_', self.f_s, (90, 220, 150), px, 288 + min(6, len(h['log'])) * 20, shadow=False)
+        sec = max(0.0, h['t'])
+        low = h['t'] < 10 and h['phase'] == 'play'
+        pul = 0.5 + 0.5 * math.sin(t * (14 if h['t'] < 5 else 8))
+        big = (255, int(70 + 140 * (1 - pul)), 60) if low else tcol
+        self.text(cv, '%02d.%03d' % (int(sec), int((sec % 1) * 1000)), self.f_xl, big, W - 44, 8, 'r')
+        self.text(cv, 'SEG . MS', self.f_s, (150, 190, 220), W - 44, 86, 'r')
+        if low:
+            vg = pygame.Surface((W, H), pygame.SRCALPHA)
+            a = int((40 + 90 * pul) * (1.4 if h['t'] < 5 else 1.0))
+            for i in range(4):
+                pygame.draw.rect(vg, (255, 30, 30, max(0, a - i * 28)), (i * 6, i * 6, W - i * 12, H - i * 12), 6)
+            cv.blit(vg, (0, 0))
         self.text(cv, 'Clic izq.: girar  |  Clic der.: al revés  |  flechas+ESPACIO  |  TAB: abortar', self.f_s, (180, 205, 235), 96, H - 36)
         if h['phase'] != 'play':
             ok = h['phase'] == 'win'
             self.dim(cv, 90)
-            self.text(cv, 'ACCESO CONCEDIDO' if ok else 'INTRUSION DETECTADA', self.f_xl, (110, 255, 170) if ok else (255, 90, 90), W // 2, H // 2 - 60, 'c')
+            self.text(cv, 'ACCESO CONCEDIDO' if ok else 'INTRUSION DETECTADA', self.f_xl, (110, 255, 170) if ok else (255, 90, 90), W // 2, H // 2 - 80, 'c')
+            if not ok:
+                self.text(cv, 'Contraataque: -5 casco', self.f_m, (255, 160, 140), W // 2, H // 2 + 20, 'c')
+                if h['pt'] > 0.6:
+                    nt = max(18.0, h['base_total'] - 3.0 * h['fails'])
+                    if int(t * 2) % 2 == 0:
+                        self.text(cv, 'ESPACIO / CLIC: REINTENTAR con puzzle nuevo (%.0f s)' % nt, self.f_m, (255, 255, 255), W // 2, H // 2 + 60, 'c')
+                    self.text(cv, 'TAB: abandonar (reinicio de sistemas 25 s)', self.f_s, (190, 200, 220), W // 2, H // 2 + 96, 'c')
 
     # ---------------------------------------------------------- COMBATE
     def start_combat(self, en):
