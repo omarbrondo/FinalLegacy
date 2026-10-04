@@ -26,7 +26,9 @@ SKY_W = 640                   # ancho del skyline
 WIN_WAVE = 6                  # oleadas para ganar
 VMAX = 170.0                  # velocidad máx. del buque en el mapa (px/s)
 BOSS_WAVE = 3                 # cada cuántas oleadas aparece jefe final
-ANTENNA_ISLANDS = [4, 5, 6]   # índices de islas con antenas (de EXTRA_ISLANDS)
+ANTENNA_ISLANDS = [2, 3, 4]   # índices de islas con antenas (de EXTRA_ISLANDS)
+LANDING_ENEMIES = 10           # enemigos por desembarque
+MAX_LANDING_ATTEMPTS = 3       # intentos máximos por isla
 
 # (nombre, x, y, radio, semilla)
 CITY_DEFS = [
@@ -827,6 +829,7 @@ class Game:
         self.sh, self.sv = 0.0, 0.0
         self.hull, self.fuel, self.ammo = 100.0, 100.0, 30
         self.antennas = {i: False for i in ANTENNA_ISLANDS}
+        self.landing_attempts = {i: 0 for i in range(len(EXTRA_ISLANDS))}
         self.cities = []
         for (name, x, y, r, seed) in CITY_DEFS:
             c = dict(name=name, x=x, y=y, r=r, hp=100.0, dead=False, seed=seed)
@@ -937,6 +940,10 @@ class Game:
                 self.fire_interceptor()
             elif self.state == 'ground' and e.key == pygame.K_SPACE and not self.paused:
                 self.fire_cannon_g()
+            elif self.state == 'map' and e.key == pygame.K_l and not self.paused:
+                island = self.nearest_landing_island()
+                if island:
+                    self.start_landing(island[0])
             elif self.state == 'aerial' and e.key == pygame.K_SPACE and not self.paused:
                 self.fire_aerial()
             elif self.state == 'combat' and not self.paused:
@@ -1116,15 +1123,25 @@ class Game:
             self.warned = True
             self.strike_city = random.choice(alive)
             self.strike_n += 1
-            self.strike_kind = 'ground' if (self.strike_n == 2 or (self.strike_n > 2 and random.random() < 0.45)) else 'missile'
+            rand = random.random()
+            if self.strike_n == 2 or (self.strike_n > 2 and rand < 0.3):
+                self.strike_kind = 'ground'
+            elif rand < 0.35:
+                self.strike_kind = 'aerial'
+            else:
+                self.strike_kind = 'missile'
             self.audio.play('alarm')
             if self.strike_kind == 'ground':
                 self.banner('¡INVASIÓN ANFIBIA!', 'Desembarco en ' + self.strike_city['name'], (255, 150, 60), 3.8)
+            elif self.strike_kind == 'aerial':
+                self.banner('¡ATAQUE AÉREO!', 'Cazas enemigos en aproximación', (150, 100, 255), 3.8)
             else:
                 self.banner('¡ALERTA DE MISILES!', 'Objetivo: ' + self.strike_city['name'], (255, 80, 70), 3.8)
         if self.warned and self.strike_t <= 0:
             if self.strike_kind == 'ground':
                 self.start_ground(self.strike_city)
+            elif self.strike_kind == 'aerial':
+                self.start_aerial()
             else:
                 self.start_defense(self.strike_city)
             return
@@ -1143,6 +1160,40 @@ class Game:
             if not c['dead'] and dist(self.sx, self.sy, c['dock'][0], c['dock'][1]) < 120:
                 return c
         return None
+
+    def nearest_landing_island(self):
+        best_dist = 280
+        best_island = None
+        for i, (x, y, r, s) in enumerate(EXTRA_ISLANDS):
+            d = dist(self.sx, self.sy, x, y)
+            if d < best_dist and i in ANTENNA_ISLANDS and not self.antennas[i]:
+                best_dist = d
+                best_island = (i, x, y, r, s)
+        return best_island
+
+    def start_landing(self, island_idx):
+        x, y, r, s = EXTRA_ISLANDS[island_idx]
+        if self.landing_attempts[island_idx] >= MAX_LANDING_ATTEMPTS:
+            self.toast('¡Isla asegurada! No hay más enemigos aquí.', (120, 255, 160))
+            return
+        self.landing_attempts[island_idx] += 1
+        n = LANDING_ENEMIES
+        kinds = ['tank'] * max(1, n // 4) + ['inf'] * (n - max(1, n // 4))
+        random.shuffle(kinds)
+        queue = sorted([(random.uniform(0.5, 3.0 + n * 0.8), k, random.randrange(3)) for k in kinds], key=lambda q: q[0])
+        self.fx = Particles()
+        self.g = dict(city=dict(name='ISLA %d' % (island_idx - 3), x=x, y=y, r=r, hp=100.0, dead=False, seed=s),
+                      R=r, seed=s, land=self.make_ground(dict(x=x, y=y, r=r, hp=100.0, dead=False, seed=s, name=''), r),
+                      angs=[random.uniform(0, 6.28) for _ in range(3)], queue=queue, enemies=[], bullets=[], boats=[],
+                      crates=[], t=0.0, total=n, kills=0, phase='play', pt=0.0, city0=100.0, fail=False,
+                      p=dict(x=W / 2.0, y=H / 2.0 + 150, h=0.0, v=0.0, hp=100.0, cd_mg=0.0, cd_c=0.0, sink=None,
+                             dust=0.0, tur=0.0), island_idx=island_idx)
+        self.aim = [W / 2, 200.0]
+        self.go('ground')
+        attempts_left = MAX_LANDING_ATTEMPTS - self.landing_attempts[island_idx]
+        self.banner('¡DESEMBARQUE EN ISLA %d!' % (island_idx - 3),
+                   'Enemigos: %d  |  Intentos restantes: %d' % (n, attempts_left),
+                   (100, 180, 255), 3.6)
 
     def wave_clear(self):
         bonus = 1000 * self.wave
@@ -2028,17 +2079,21 @@ class Game:
     def end_ground(self):
         g = self.g
         city = g['city']
-        if g['fail'] and not city['dead']:
-            city['hp'] = max(0.0, city['hp'] - 30)
-            if city['hp'] <= 0:
-                city['dead'] = True
+        island_idx = g.get('island_idx')
+
+        if g['fail']:
+            self.hull = max(0.0, self.hull - 25)
+            self.ammo = max(0, self.ammo - 5)
+            self.toast('Desembarque fallido: -25 casco, -5 munición', (255, 140, 90))
+            if self.hull <= 0:
+                return self.game_over('Tu barco se hundió')
         else:
-            for i, (x, y, r, s) in enumerate(EXTRA_ISLANDS):
-                if dist(g['city']['x'], g['city']['y'], x, y) < 200 and i in ANTENNA_ISLANDS:
-                    if not self.antennas[i]:
-                        self.antennas[i] = True
-                        self.toast('¡ANTENA INSTALADA en isla %d!' % (i - 3), (120, 255, 160))
-                        self.banner('SISTEMA DEFENSIVO', 'Antena #%d lista. Ciberataque disponible.' % (i - 3), (120, 220, 255), 3.0)
+            if island_idx is not None and island_idx in ANTENNA_ISLANDS:
+                if not self.antennas[island_idx]:
+                    self.antennas[island_idx] = True
+                    self.toast('¡ANTENA INSTALADA en isla %d!' % (island_idx - 3), (120, 255, 160))
+                    self.banner('SISTEMA DEFENSIVO', 'Antena #%d operativa. Ciberataque disponible.' % (island_idx - 3), (120, 220, 255), 3.0)
+
         self.warned = False
         self.strike_t = max(22.0, random.uniform(30, 42) - self.wave * 2)
         if all(c['dead'] for c in self.cities):
@@ -2230,8 +2285,16 @@ class Game:
         if dk:
             self.text(cv, 'PUERTO: mantené R para reabastecer y reparar',
                       self.f_m, (140, 255, 210), W // 2, H - 60, 'c')
-        elif self.fuel <= 0:
-            self.text(cv, 'SIN COMBUSTIBLE', self.f_m, (255, 90, 80), W // 2, H - 60, 'c')
+        else:
+            island = self.nearest_landing_island()
+            if island:
+                island_idx, x, y, r, s = island
+                attempts = self.landing_attempts[island_idx]
+                self.text(cv, 'ISLA %d CERCANA: presioná L para desembarcar  |  Intentos: %d/%d' %
+                         (island_idx - 3, attempts, MAX_LANDING_ATTEMPTS),
+                         self.f_m, (100, 180, 255), W // 2, H - 60, 'c')
+            elif self.fuel <= 0:
+                self.text(cv, 'SIN COMBUSTIBLE', self.f_m, (255, 90, 80), W // 2, H - 60, 'c')
         if self.warned and int(self.t * 4) % 2 == 0:
             pygame.draw.rect(cv, (255, 40, 40), (0, 0, W, H), 8)
 
