@@ -1207,27 +1207,52 @@ def make_tank_sprites():
     return out
 
 
-# ------------------------------------------------------------------ arte del asalto (soldados pre-renderizados)
-PT_S = 4                      # supersampling de los sprites
-PT_K = 1.12                   # escala del personaje
-PT_CW, PT_CH = 128, 120       # tamaño del lienzo de cada cuadro (px a 1x)
-PT_AX, PT_AY = 64, 104        # ancla: pies del personaje
+# ------------------------------------------------------------------ soldados realistas (asalto lateral)
+PT_S = 5                      # supersampling
+PT_K = 1.15                   # escala del personaje
+PT_CW, PT_CH = 128, 120
+PT_AX, PT_AY = 64, 104
 
 PT_LOOK = {
-    # kind: (uniforme, chaleco, casco/cabeza, pantalón, mochila, piel)
-    'player': dict(body=(46, 98, 146), vest=(36, 58, 78), helm=(78, 104, 76), pants=(52, 70, 62), pack=(70, 62, 50), skin=(232, 190, 150)),
-    'rifle': dict(body=(150, 78, 60), vest=(92, 54, 46), helm=(106, 66, 54), pants=(90, 66, 56), pack=(80, 64, 48), skin=(226, 178, 140)),
-    'knife': dict(body=(188, 120, 60), vest=(96, 62, 46), helm=(200, 50, 50), pants=(74, 62, 58), pack=(70, 56, 44), skin=(222, 172, 132)),
-    'gren': dict(body=(112, 78, 140), vest=(66, 50, 82), helm=(86, 64, 104), pants=(66, 54, 80), pack=(90, 72, 56), skin=(214, 168, 134)),
-    'sniper': dict(body=(70, 92, 62), vest=(52, 70, 48), helm=(58, 80, 52), pants=(60, 78, 56), pack=(64, 60, 44), skin=(220, 176, 140)),
-    'shield': dict(body=(84, 92, 104), vest=(52, 58, 70), helm=(110, 118, 130), pants=(60, 66, 78), pack=(70, 64, 56), skin=(218, 172, 136)),
-    'flame': dict(body=(204, 120, 44), vest=(120, 70, 36), helm=(150, 90, 40), pants=(96, 70, 50), pack=(210, 70, 40), skin=(222, 176, 138)),
-    'pow': dict(body=(222, 214, 190), vest=(180, 170, 150), helm=(86, 62, 40), pants=(104, 96, 120), pack=(180, 170, 150), skin=(230, 188, 150)),
+    # uniforme, camuflaje(s), chaleco, casco, pantalón, camuflaje pantalón, piel, extra
+    'player': dict(body=(92, 100, 78), camo=[(70, 80, 60), (116, 112, 84), (54, 62, 48)], vest=(66, 62, 52), helm=(104, 96, 72), pants=(86, 92, 72),
+                   pcamo=[(66, 74, 56), (112, 108, 80)], skin=(214, 166, 130), acc=(70, 150, 200), mask=False),
+    'rifle': dict(body=(86, 88, 94), camo=[(64, 66, 74), (112, 114, 120), (46, 48, 56)], vest=(44, 46, 52), helm=(60, 62, 70), pants=(70, 72, 80),
+                  pcamo=[(54, 56, 66), (100, 102, 110)], skin=(206, 160, 126), acc=(200, 60, 56), mask=True),
+    'knife': dict(body=(112, 104, 94), camo=[], vest=(52, 44, 40), helm=(180, 52, 50), pants=(62, 58, 58),
+                  pcamo=[(52, 48, 50), (86, 80, 80)], skin=(208, 160, 124), acc=(200, 60, 56), mask=False),
+    'gren': dict(body=(62, 60, 70), camo=[(48, 46, 58), (84, 82, 96)], vest=(38, 38, 46), helm=(54, 54, 62), pants=(56, 56, 66),
+                 pcamo=[(44, 44, 54), (76, 76, 88)], skin=(200, 156, 124), acc=(220, 70, 60), mask=True),
+    'sniper': dict(body=(76, 92, 66), camo=[(58, 74, 50), (110, 120, 80), (44, 58, 40)], vest=(58, 66, 50), helm=(70, 86, 60), pants=(72, 88, 62),
+                   pcamo=[(54, 68, 46), (100, 112, 76)], skin=(206, 160, 126), acc=(90, 190, 90), mask=True),
+    'shield': dict(body=(70, 76, 88), camo=[(54, 60, 72), (96, 102, 116)], vest=(40, 44, 54), helm=(96, 104, 116), pants=(56, 62, 74),
+                   pcamo=[(46, 52, 64), (84, 90, 104)], skin=(204, 158, 124), acc=(230, 190, 60), mask=True),
+    'flame': dict(body=(176, 128, 66), camo=[], vest=(104, 76, 44), helm=(150, 104, 52), pants=(98, 76, 56),
+                  pcamo=[(84, 64, 46), (120, 94, 66)], skin=(206, 160, 126), acc=(230, 110, 50), mask=True),
+    'pow': dict(body=(188, 180, 156), camo=[], vest=(160, 150, 130), helm=(86, 62, 40), pants=(96, 92, 112),
+                pcamo=[], skin=(220, 176, 140), acc=(200, 200, 200), mask=False),
 }
 
 
 def _dk(c, d):
     return (clamp(c[0] - d, 0, 255), clamp(c[1] - d, 0, 255), clamp(c[2] - d, 0, 255))
+
+
+def _lt(c, d):
+    return (clamp(c[0] + d, 0, 255), clamp(c[1] + d, 0, 255), clamp(c[2] + d, 0, 255))
+
+
+def _capsule(a, b, r0, r1, steps=9):
+    """Polígono de un miembro que se afina de r0 (en a) a r1 (en b)."""
+    ang = math.atan2(b[1] - a[1], b[0] - a[0])
+    pts = []
+    for i in range(steps + 1):
+        t = ang + 1.5708 - 3.14159 * i / steps
+        pts.append((b[0] + math.cos(t) * r1, b[1] + math.sin(t) * r1))
+    for i in range(steps + 1):
+        t = ang - 1.5708 - 3.14159 * i / steps
+        pts.append((a[0] + math.cos(t) * r0, a[1] + math.sin(t) * r0))
+    return pts
 
 
 class _Rig:
@@ -1245,51 +1270,86 @@ class _Rig:
         yr = x * self.sa + y * self.ca
         return ((self.ax + xr * PT_K) * self.S, (self.ay - yr * PT_K) * self.S)
 
-    def poly(self, pts, col, out=None, ow=0.9):
+    def fill(self, pts, col, camo=None, seed=0, out=None, folds=0):
+        """Rellena un polígono; opcionalmente con camuflaje recortado a su forma y pliegues de tela."""
         P = [self.pt(*p) for p in pts]
-        pygame.draw.polygon(self.surf, col, P)
+        xs, ys = [q[0] for q in P], [q[1] for q in P]
+        x0, y0 = int(min(xs)) - 3, int(min(ys)) - 3
+        w, h = int(max(xs)) - x0 + 4, int(max(ys)) - y0 + 4
+        if w < 2 or h < 2:
+            return
+        sh = [(q[0] - x0, q[1] - y0) for q in P]
+        tmp = pygame.Surface((w, h), pygame.SRCALPHA)
+        pygame.draw.polygon(tmp, col, sh)
+        if camo or folds:
+            rnd = random.Random(seed * 7919 + len(pts))
+            if camo:
+                n = max(4, int(w * h / (self.S * self.S * 26)))
+                for _ in range(n):
+                    cx, cy = rnd.uniform(0, w), rnd.uniform(0, h)
+                    r = rnd.uniform(2.0, 5.0) * self.S
+                    blob = [(cx + math.cos(t) * r * rnd.uniform(0.6, 1.3), cy + math.sin(t) * r * rnd.uniform(0.4, 1.0)) for t in [k * 0.9 + rnd.uniform(0, 0.3) for k in range(7)]]
+                    pygame.draw.polygon(tmp, rnd.choice(camo), blob)
+            for _ in range(folds):
+                cx, cy = rnd.uniform(w * 0.2, w * 0.8), rnd.uniform(h * 0.2, h * 0.8)
+                L = rnd.uniform(3, 7) * self.S
+                a = rnd.uniform(-0.6, 0.6) + 1.2
+                pygame.draw.line(tmp, _dk(col, 22) + (170,), (cx, cy), (cx + math.cos(a) * L, cy + math.sin(a) * L), max(1, int(self.S * 0.35)))
+            msk = pygame.Surface((w, h), pygame.SRCALPHA)
+            pygame.draw.polygon(msk, (255, 255, 255, 255), sh)
+            tmp.blit(msk, (0, 0), special_flags=pygame.BLEND_RGBA_MIN)
+        self.surf.blit(tmp, (x0, y0))
         if out is not None:
-            pygame.draw.polygon(self.surf, out, P, max(1, int(ow * self.S)))
+            pygame.draw.polygon(self.surf, out, P, max(1, int(self.S * 0.35)))
 
-    def circ(self, c, r, col, out=None, ow=0.9):
+    def line(self, a, b, w, col):
+        A, B = self.pt(*a), self.pt(*b)
+        pygame.draw.line(self.surf, col, A, B, max(1, int(w * self.S * PT_K)))
+
+    def circ(self, c, r, col):
         x, y = self.pt(*c)
         pygame.draw.circle(self.surf, col, (x, y), r * self.S * PT_K)
-        if out is not None:
-            pygame.draw.circle(self.surf, out, (x, y), r * self.S * PT_K, max(1, int(ow * self.S)))
-
-    def ell(self, c, rx, ry, col, out=None, rot=0.0):
-        """Elipse como polígono (permite rotación)."""
-        pts = []
-        cr, sr = math.cos(rot), math.sin(rot)
-        for i in range(24):
-            t = 6.2832 * i / 24
-            ex, ey = math.cos(t) * rx, math.sin(t) * ry
-            pts.append((c[0] + ex * cr - ey * sr, c[1] + ex * sr + ey * cr))
-        self.poly(pts, col, out)
-
-    def cap(self, a, b, w, col, out=None):
-        """Cápsula (miembro) entre a y b, con brillo."""
-        if out is not None:
-            self._cap(a, b, w + 1.7, out)
-        self._cap(a, b, w, col)
-        if w > 3.0:
-            hi = (clamp(col[0] + 26, 0, 255), clamp(col[1] + 26, 0, 255), clamp(col[2] + 26, 0, 255))
-            A, B = self.pt(*a), self.pt(*b)
-            off = w * 0.2 * self.S * PT_K
-            pygame.draw.line(self.surf, hi, (A[0], A[1] - off), (B[0], B[1] - off), max(1, int(w * 0.3 * self.S * PT_K)))
-
-    def _cap(self, a, b, w, col):
-        A, B = self.pt(*a), self.pt(*b)
-        wk = w * PT_K * self.S
-        pygame.draw.line(self.surf, col, A, B, max(1, int(wk)))
-        pygame.draw.circle(self.surf, col, A, wk / 2)
-        pygame.draw.circle(self.surf, col, B, wk / 2)
 
     def finish(self):
-        return pygame.transform.smoothscale(self.surf, (self.surf.get_width() // PT_S, self.surf.get_height() // PT_S))
+        """Iluminación: contorno fino, luz cálida de atardecer por la derecha y sombra por abajo/izquierda."""
+        S = self.S
+        base = self.surf
+        w, h = base.get_size()
+        m = pygame.mask.from_surface(base, 12)
+        # degradado vertical (más claro arriba)
+        grad = pygame.Surface((w, h))
+        for y in range(h):
+            v = int(255 - 70 * (y / h) ** 1.2)
+            pygame.draw.line(grad, (v, v, v), (0, y), (w, y))
+        base.blit(grad, (0, 0), special_flags=pygame.BLEND_RGB_MULT)
+        lay = pygame.Surface((w, h), pygame.SRCALPHA)
+        t = max(1, int(S * 0.55))
+        # sombra interior (abajo / izquierda)
+        sh = pygame.mask.Mask((w, h))
+        for k in range(1, int(S * 1.6) + 1):
+            e = m.copy()
+            e.erase(m, (k, -k))
+            sh.draw(e, (0, 0))
+        lay.blit(sh.to_surface(setcolor=(18, 14, 30, 120), unsetcolor=(0, 0, 0, 0)), (0, 0))
+        # luz de borde (arriba / derecha), cálida
+        rim = pygame.mask.Mask((w, h))
+        for k in range(1, int(S * 0.8) + 1):
+            e = m.copy()
+            e.erase(m, (-k, k))
+            rim.draw(e, (0, 0))
+        lay.blit(rim.to_surface(setcolor=(255, 196, 140, 70), unsetcolor=(0, 0, 0, 0)), (0, 0))
+        # contorno fino oscuro
+        ol = pygame.mask.Mask((w, h))
+        for dx, dy in ((t, 0), (-t, 0), (0, t), (0, -t)):
+            e = m.copy()
+            e.erase(m, (-dx, -dy))
+            ol.draw(e, (0, 0))
+        lay.blit(ol.to_surface(setcolor=(16, 12, 20, 190), unsetcolor=(0, 0, 0, 0)), (0, 0))
+        base.blit(lay, (0, 0))
+        return pygame.transform.smoothscale(base, (w // S, h // S))
 
 
-def _leg(hip, th, flex, L1=15.0, L2=15.0):
+def _leg(hip, th, flex, L1=16.5, L2=16.5):
     t = math.radians(th)
     knee = (hip[0] + math.sin(t) * L1, hip[1] - math.cos(t) * L1)
     t2 = math.radians(th - flex)
@@ -1298,27 +1358,27 @@ def _leg(hip, th, flex, L1=15.0, L2=15.0):
 
 
 def _pose(pose, i):
-    """Devuelve (leg1, leg2, lean, auto_hip, hip_y, fall_ang, crouch)  con leg=(thigh°, flex°)."""
+    """(pierna1, pierna2, inclinación, cadera automática, altura de cadera, ángulo de caída)  pierna=(muslo°, flexión°)."""
     if pose == 'run':
         ph = 6.2832 * i / 8
         legs = []
         for k in (0, 1):
             pk = ph + k * 3.14159
             legs.append((46 * math.sin(pk), 10 + 78 * max(0.0, math.cos(pk))))
-        return legs[0], legs[1], 8.0, True, 30.0, 0.0
+        return legs[0], legs[1], 9.0, True, 33.0, 0.0
     if pose == 'idle':
         br = math.sin(6.2832 * i / 4)
-        return (7, 3 + br), (-7, 3), 0.0, True, 30.0, 0.0
+        return (7, 3 + br), (-7, 3), 0.0, True, 33.0, 0.0
     if pose == 'crouch':
-        return (76, 100), (22, 108), 12.0, True, 18.0, 0.0
+        return (76, 100), (22, 108), 13.0, True, 20.0, 0.0
     if pose == 'jump':
-        return (52, 84), (-14, 52), 4.0, False, 27.5, 0.0
+        return (52, 84), (-14, 52), 4.0, False, 30.0, 0.0
     if pose == 'fall':
-        return (14, 16), (-12, 8), -3.0, False, 29.5, 0.0
+        return (14, 16), (-12, 8), -3.0, False, 32.5, 0.0
     if pose == 'die':
         ang = (0, 12, 32, 58, 80, 90)[min(i, 5)]
-        return (6, 6), (-6, 6), -6.0 * min(i, 3) / 3, False, 30.0 - min(i, 5) * 1.0, float(ang)
-    return (7, 3), (-7, 3), 0.0, True, 30.0, 0.0
+        return (6, 6), (-6, 6), -6.0 * min(i, 3) / 3, False, 33.0 - min(i, 5) * 1.1, float(ang)
+    return (7, 3), (-7, 3), 0.0, True, 33.0, 0.0
 
 
 def _body_frame(kind, pose, i, t=0.0):
@@ -1326,126 +1386,158 @@ def _body_frame(kind, pose, i, t=0.0):
     look = PT_LOOK[kind]
     leg1, leg2, lean, auto, hy, fall = _pose(pose, i)
     rig = _Rig(fall)
-    line = (20, 18, 24)
-    body, vest, helm, pants, pack, skin = look['body'], look['vest'], look['helm'], look['pants'], look['pack'], look['skin']
-    heavy = kind == 'gren'
+    body, vest, helm, pants, skin = look['body'], look['vest'], look['helm'], look['pants'], look['skin']
+    camo, pcamo, acc = look['camo'], look['pcamo'], look['acc']
+    heavy = kind in ('gren', 'shield')
+    boot = (36, 32, 32)
     hip = [0.0, hy]
     if auto:
         lows = []
         for th, fl in (leg1, leg2):
             kn, an, _ = _leg((0, 0), th, fl)
             lows.append(-an[1])
-        hip[1] = max(lows) + 1.2
+        hip[1] = max(lows) + 1.4
     hip = tuple(hip)
-    # --- pierna trasera, mochila, torso, pierna delantera, cabeza
     legs = []
-    for (th, fl), shade_d in ((leg1, 26), (leg2, 0)):
+    for (th, fl), sd in ((leg1, 30), (leg2, 0)):
         kn, an, t2 = _leg(hip, th, fl)
-        legs.append((kn, an, t2, shade_d))
-    order = sorted(legs, key=lambda L: -L[3])        # primero la de atrás (más oscura)
-    leaning = math.radians(lean)
-    ux, uy = math.sin(leaning), math.cos(leaning)     # eje del torso
-    px_, py_ = uy, -ux                                # perpendicular hacia adelante
-    sh = (hip[0] + ux * 22, hip[1] + uy * 22)
+        legs.append((kn, an, t2, sd, th))
+    order = sorted(legs, key=lambda L: -L[3])
+    lr = math.radians(lean)
+    ux, uy = math.sin(lr), math.cos(lr)
+    px_, py_ = uy, -ux
+    sh = (hip[0] + ux * 24, hip[1] + uy * 24)
 
-    def torso_pt(f, a):
+    def tp(f, a):
         return (hip[0] + ux * a + px_ * f, hip[1] + uy * a + py_ * f)
 
-    def draw_leg(L):
-        kn, an, t2, sd = L
+    def draw_leg(L, idx):
+        kn, an, t2, sd, th = L
         pc = _dk(pants, sd)
-        rig.cap(hip, kn, 7.0, pc, line)
-        rig.cap(kn, an, 6.0, pc, line)
-        # rodillera y bota
-        rig.circ(kn, 3.2, _dk(vest, sd // 2), None)
-        toe = (an[0] + 7.0 + (1.2 if heavy else 0), an[1] - 1.8)
-        heel = (an[0] - 3.0, an[1] - 1.8)
-        rig.poly([(an[0] - 3, an[1] + 3), (an[0] + 3, an[1] + 3), (toe[0], toe[1] + 2.4), (toe[0], toe[1] - 2.2), (heel[0], heel[1] - 2.2)],
-                 _dk((38, 34, 36), sd // 2), line)
-        rig.poly([(heel[0], heel[1] - 2.2), (toe[0], toe[1] - 2.2), (toe[0], toe[1] - 3.2), (heel[0], heel[1] - 3.2)], (18, 16, 18), None)
-    draw_leg(order[0])
-    # mochila (atrás del torso)
-    pk = [torso_pt(-5.4, 4), torso_pt(-10.5, 6), torso_pt(-11.5, 18), torso_pt(-6, 21)]
-    rig.poly(pk, pack, line)
-    rig.poly([torso_pt(-6.5, 10), torso_pt(-10.2, 10.6), torso_pt(-10.8, 16), torso_pt(-6.5, 17)], _dk(pack, 14), None)
-    if kind == 'sniper':      # camuflaje: hojas
-        rnd = random.Random(3)
-        for _ in range(16):
-            rig.ell(torso_pt(rnd.uniform(-10, 5), rnd.uniform(1, 21)), 2.6, 1.0, rnd.choice(((92, 118, 70), (50, 70, 44), (110, 126, 78))), None, rnd.uniform(0, 3))
-    # torso
-    torso = [torso_pt(-5.4, 0), torso_pt(5.4, 0), torso_pt(6.4, 12), torso_pt(5.8, 22), torso_pt(-5.8, 22), torso_pt(-6.2, 10)]
-    rig.poly(torso, body, line)
-    rig.poly([torso_pt(-5.2, 0.5), torso_pt(-1.5, 0.5), torso_pt(-1.5, 21.5), torso_pt(-5.6, 21.5)], _dk(body, 16), None)      # sombra espalda
-    # chaleco / blindaje
+        pcm = [_dk(c, sd) for c in pcamo]
+        rig.fill(_capsule(hip, kn, 5.0, 3.7), pc, pcm, 11 + idx)
+        rig.fill(_capsule(kn, an, 3.5, 2.7), pc, pcm, 21 + idx)
+        # bolsillo cargo y rodillera
+        d = (kn[0] - hip[0], kn[1] - hip[1])
+        dl = math.hypot(*d) or 1.0
+        dx_, dy_ = d[0] / dl, d[1] / dl
+        nx_, ny_ = -dy_, dx_
+        c0 = (hip[0] + d[0] * 0.45 + nx_ * 3.0, hip[1] + d[1] * 0.45 + ny_ * 3.0)
+        rig.fill([(c0[0] - dx_ * 3.4, c0[1] - dy_ * 3.4), (c0[0] + dx_ * 3.4, c0[1] + dy_ * 3.4),
+                  (c0[0] + dx_ * 3.4 + nx_ * 2.1, c0[1] + dy_ * 3.4 + ny_ * 2.1), (c0[0] - dx_ * 3.4 + nx_ * 2.1, c0[1] - dy_ * 3.4 + ny_ * 2.1)], _dk(pc, 14))
+        rig.fill(_capsule((kn[0] + dx_ * 0.6, kn[1] + dy_ * 0.6), (kn[0] + dx_ * 1.0, kn[1] + dy_ * 1.0), 3.7, 3.7), _dk(vest, sd // 2))
+        # bota con caña, suela y cordones
+        toe = 8.4 + (1.0 if heavy else 0.0)
+        ax_, ay_ = an
+        rig.fill([(ax_ - 3.7, ay_ + 5.2), (ax_ + 3.4, ay_ + 5.2), (ax_ + 3.8, ay_ + 0.6), (ax_ + toe - 2.0, ay_ - 0.5), (ax_ + toe, ay_ - 2.6),
+                  (ax_ + toe - 0.2, ay_ - 4.4), (ax_ - 4.2, ay_ - 4.4)], _dk(boot, sd // 3))
+        rig.fill([(ax_ - 4.4, ay_ - 3.6), (ax_ + toe + 0.1, ay_ - 3.6), (ax_ + toe + 0.1, ay_ - 4.8), (ax_ - 4.4, ay_ - 4.8)], (18, 16, 16))
+        for k in range(4):
+            rig.line((ax_ + 0.2, ay_ + 3.6 - k * 1.2), (ax_ + 3.0, ay_ + 3.0 - k * 1.2), 0.35, (130, 124, 110))
+        rig.fill([(ax_ - 3.4, ay_ + 5.8), (ax_ + 3.2, ay_ + 5.8), (ax_ + 3.4, ay_ + 4.6), (ax_ - 3.6, ay_ + 4.6)], _dk(pc, 24 + sd // 3))
+
+    draw_leg(order[0], 0)
+    # mochila / camelbak
+    pk = [tp(-6.4, 3), tp(-12.4, 5), tp(-13.4, 19), tp(-7.4, 22)]
+    rig.fill(pk, look['vest'] if kind != 'pow' else (150, 140, 120))
+    rig.fill([tp(-7.0, 8), tp(-11.0, 8.6), tp(-11.6, 16), tp(-7.0, 17)], _dk(look['vest'], 16))
+    if kind == 'flame':
+        rig.fill([tp(-6.2, 4), tp(-12.6, 4), tp(-13.2, 20), tp(-6.2, 21)], (186, 70, 44))
+        rig.fill([tp(-12.2, 6), tp(-13.4, 6), tp(-13.8, 19), tp(-12.2, 19)], (130, 44, 28))
+        rig.line(tp(-9, 21), tp(-9, 24), 1.0, (210, 210, 210))
+    # torso (camisa de combate)
+    shirt = [tp(-6.4, 0), tp(6.4, 0), tp(7.2, 11), tp(6.8, 23), tp(-6.4, 23), tp(-7.4, 11)]
     if kind == 'knife':
-        rig.poly([torso_pt(-3, 4), torso_pt(5.6, 6), torso_pt(6.3, 12), torso_pt(5, 22), torso_pt(1, 22)], vest, line)
-        rig.poly([torso_pt(5.4, 6), torso_pt(6.3, 12), torso_pt(5.5, 20), torso_pt(2.8, 21)], _dk(skin, 30), None)
+        rig.fill(shirt, _dk(skin, 18), None, 5)
     else:
-        vf = 6.8 if heavy else 6.0
-        rig.poly([torso_pt(-5.6, 3), torso_pt(vf, 3), torso_pt(vf + 0.6, 12), torso_pt(vf - 0.2, 21.5), torso_pt(-5.6, 21.5)], vest, line)
-        for a_ in (6.5, 12.5):
-            rig.poly([torso_pt(1.0, a_), torso_pt(vf - 0.3, a_), torso_pt(vf - 0.3, a_ + 4.2), torso_pt(1.0, a_ + 4.2)], _dk(vest, 14), line, 0.6)
-            rig.poly([torso_pt(1.0, a_ + 3.2), torso_pt(vf - 0.3, a_ + 3.2), torso_pt(vf - 0.3, a_ + 4.2), torso_pt(1.0, a_ + 4.2)], shade(vest, 20), None)
-    # cinturón y hebilla
-    rig.poly([torso_pt(-5.6, 1.0), torso_pt(6.0, 1.0), torso_pt(6.0, 3.6), torso_pt(-5.6, 3.6)], (36, 30, 28), line, 0.6)
-    rig.poly([torso_pt(2.4, 1.2), torso_pt(4.8, 1.2), torso_pt(4.8, 3.4), torso_pt(2.4, 3.4)], (200, 180, 90), None)
-    # granadas al cinto / bandolera
-    if heavy or kind == 'player' or kind == 'gren':
-        for k_ in range(3 if heavy else 2):
-            c_ = torso_pt(3.2 - k_ * 3.0, 6.0 + (k_ % 2) * 0.6)
-            rig.circ(c_, 1.9, (70, 100, 56), line, 0.5)
-            rig.circ((c_[0], c_[1] + 2.0), 0.7, (170, 170, 170), None)
+        rig.fill(shirt, body, camo, 1, None, 3)
+    # cinturón táctico
+    rig.fill([tp(-5.8, 0.4), tp(6.0, 0.4), tp(6.0, 3.2), tp(-5.8, 3.2)], (34, 30, 28))
+    rig.fill([tp(2.2, 0.6), tp(4.4, 0.6), tp(4.4, 2.9), tp(2.2, 2.9)], (176, 160, 100))
+    # funda de pistola y bolsas
+    rig.fill([tp(-1.0, -1.6), tp(3.6, -1.6), tp(3.6, 1.4), tp(-1.0, 1.4)], (40, 38, 38))
+    # chaleco portaplacas
+    if kind == 'knife':
+        rig.fill([tp(-2.0, 5), tp(5.6, 6), tp(6.0, 12), tp(5.2, 22), tp(1.0, 22)], vest, None, 2)
+    elif kind != 'pow':
+        vf = 8.0 if heavy else 7.4
+        rig.fill([tp(-6.6, 3.5), tp(vf, 3.5), tp(vf + 0.4, 12), tp(vf - 0.4, 22.5), tp(-6.6, 22.5)], vest, None, 3, None, 2)
+        for a_ in (7.0, 12.2):
+            rig.fill([tp(1.2, a_), tp(vf - 0.2, a_), tp(vf - 0.2, a_ + 4.4), tp(1.2, a_ + 4.4)], _dk(vest, 14))
+            rig.fill([tp(1.2, a_ + 3.4), tp(vf - 0.2, a_ + 3.4), tp(vf - 0.2, a_ + 4.4), tp(1.2, a_ + 4.4)], _lt(vest, 16))
+            rig.line(tp(2.6, a_ + 0.6), tp(2.6, a_ + 3.6), 0.35, (20, 18, 20))
+            rig.line(tp(4.6, a_ + 0.6), tp(4.6, a_ + 3.6), 0.35, (20, 18, 20))
+        for k_ in range(3):                          # fila MOLLE
+            rig.line(tp(-4.4, 5.5 + k_ * 5.0), tp(-0.6, 5.5 + k_ * 5.0), 0.35, _dk(vest, 26))
+        rig.circ(tp(vf - 1.0, 19.4), 1.5, acc if kind in ('player', 'rifle', 'gren') else _dk(vest, 8))     # parche / radio
+        if kind in ('player', 'gren', 'shield'):
+            for k_ in range(2):                      # granadas
+                c_ = tp(-1.4 - k_ * 2.6, 4.6)
+                rig.circ(c_, 1.8, (74, 92, 62))
+                rig.circ((c_[0], c_[1] + 1.9), 0.6, (180, 180, 170))
+    else:
+        rig.fill([tp(-5.8, 3.5), tp(6.0, 3.5), tp(6.4, 12), tp(5.8, 22.5), tp(-5.8, 22.5)], _dk(body, 12), None, 3, None, 2)
     if heavy:
-        rig.poly([torso_pt(-6, 22), torso_pt(8.5, 21), torso_pt(8.2, 17), torso_pt(-4, 18)], _dk(vest, 6), line, 0.7)      # hombrera
-    # pierna delantera
-    draw_leg(order[1])
+        rig.fill([tp(-6.4, 23), tp(8.8, 22), tp(8.6, 18), tp(-4.4, 19.4)], _lt(vest, 6))      # hombrera blindada
+    draw_leg(order[1], 1)
     # cuello y cabeza
-    neck = torso_pt(0.6, 22.5)
-    head = (neck[0] + ux * 6.2 + px_ * 1.4, neck[1] + uy * 6.2 + py_ * 1.4)
-    rig.cap((sh[0] + px_ * 0.5, sh[1] + py_ * 0.5), neck, 3.6, _dk(skin, 24), None)
-    if kind == 'sniper':
-        hood = [(head[0] - 7.4, head[1] - 7), (head[0] + 5.8, head[1] - 6), (head[0] + 7.4, head[1] + 1), (head[0] + 4, head[1] + 8.4),
-                (head[0] - 3, head[1] + 9.6), (head[0] - 8.6, head[1] + 3)]
-        rig.poly(hood, helm, line)
-        rig.poly([(head[0] - 1, head[1] - 3), (head[0] + 6.3, head[1] - 2.6), (head[0] + 6.8, head[1] + 2), (head[0] - 0.5, head[1] + 2.4)], _dk(skin, 10), None)
-        rig.poly([(head[0] - 1.5, head[1] - 7.2), (head[0] + 5.2, head[1] - 6), (head[0] + 6, head[1] - 2.6), (head[0] - 1.5, head[1] - 3.4)], (60, 70, 56), None)
-        rnd = random.Random(8)
-        for _ in range(9):
-            rig.ell((head[0] + rnd.uniform(-8, 6), head[1] + rnd.uniform(-5, 9)), 2.4, 0.9, rnd.choice(((92, 118, 70), (50, 70, 44))), None, rnd.uniform(0, 3))
-        rig.circ((head[0] + 3.4, head[1] + 0.2), 0.9, (20, 20, 22), None)
+    neck = tp(0.8, 23)
+    head = (neck[0] + ux * 6.0 + px_ * 1.6, neck[1] + uy * 6.0 + py_ * 1.6)
+    hx, hy_ = head
+    rig.fill(_capsule((sh[0] + px_ * 0.6, sh[1] + py_ * 0.6), (neck[0], neck[1] + 2.0), 3.0, 2.7), _dk(skin, 22))
+
+    def hp_(x, y):
+        return (hx + x, hy_ + y)
+    face = [hp_(3.6, 4.4), hp_(5.0, 2.2), hp_(5.4, 0.8), hp_(6.3, -0.4), hp_(5.2, -1.4), hp_(5.2, -2.8), hp_(4.4, -5.0), hp_(1.4, -6.2),
+            hp_(-2.6, -5.0), hp_(-5.0, -1.4), hp_(-4.8, 3.0), hp_(-2.4, 5.8), hp_(1.6, 6.2)]
+    sniper = kind == 'sniper'
+    if kind == 'pow':
+        rig.fill(face, skin)
+        rig.fill([hp_(1.0, -2.6), hp_(5.2, -2.6), hp_(4.6, -6.4), hp_(0.6, -7.2), hp_(-2.6, -5.4)], (88, 66, 44))               # barba
+        rig.fill([hp_(-5.0, 1.0), hp_(-4.4, 6.0), hp_(0.6, 7.6), hp_(4.8, 5.4), hp_(5.2, 3.0), hp_(1.4, 3.8), hp_(-2.0, 1.6)], helm)          # pelo
+        rig.fill([hp_(2.2, -0.4), hp_(5.4, 0.2), hp_(5.2, 1.0), hp_(2.2, 0.6)], (230, 230, 230))                                          # venda
     else:
-        rig.circ(head, 7.0, skin, line)
-        rig.poly([(head[0] + 6.0, head[1] - 0.6), (head[0] + 8.3, head[1] - 2.0), (head[0] + 6.0, head[1] - 3.2)], skin, line, 0.5)       # nariz
-        rig.ell((head[0] - 3.6, head[1] - 1.6), 1.6, 2.2, _dk(skin, 30), None)                                                          # oreja
-        rig.circ((head[0] + 3.2, head[1] + 0.9), 0.95, (24, 22, 26), None)                                                             # ojo
-        rig.poly([(head[0] + 1.6, head[1] + 2.6), (head[0] + 5.2, head[1] + 2.9), (head[0] + 5.2, head[1] + 3.5), (head[0] + 1.6, head[1] + 3.3)], _dk(skin, 70), None)
-        if kind == 'pow':
-            rig.poly([(head[0] - 7.2, head[1] + 2.4), (head[0] - 6.8, head[1] + 7.6), (head[0] - 1, head[1] + 9.6), (head[0] + 5.6, head[1] + 7.6), (head[0] + 6.4, head[1] + 3.6),
-                      (head[0] + 1.6, head[1] + 4.6)], helm, line, 0.5)
-            rig.poly([(head[0] - 1.4, head[1] - 7.0), (head[0] + 5.6, head[1] - 5.0), (head[0] + 6.8, head[1] - 1.2), (head[0] + 1.4, head[1] - 2.4)], (96, 74, 52), None)
-            rig.poly([(head[0] + 0.6, head[1] + 3.0), (head[0] + 7.2, head[1] + 3.2), (head[0] + 7.2, head[1] + 4.6), (head[0] + 0.6, head[1] + 4.4)], (230, 230, 230), line, 0.4)
-        elif kind == 'knife':
-            # pañuelo rojo con cola ondeante
-            fl = math.sin(t * 3.0) * 1.4
-            rig.poly([(head[0] - 6.6, head[1] + 3.2), (head[0] + 6.4, head[1] + 3.8), (head[0] + 6.2, head[1] + 6.4), (head[0] - 6.4, head[1] + 6.0)], helm, line, 0.6)
-            rig.poly([(head[0] - 6.4, head[1] + 4.4), (head[0] - 12.6, head[1] + 2.4 + fl), (head[0] - 13.6, head[1] + 4.6 + fl), (head[0] - 6.4, head[1] + 6.2)], _dk(helm, 16), line, 0.5)
-            rig.poly([(head[0] - 5, head[1] + 6.2), (head[0] + 3, head[1] + 9.6), (head[0] + 5.6, head[1] + 6.4)], _dk(skin, 70), None)
-            for k_ in range(5):
-                rig.poly([(head[0] - 4 + k_ * 2.6, head[1] + 6.0), (head[0] - 3 + k_ * 2.6, head[1] + 9.6), (head[0] - 2 + k_ * 2.6, head[1] + 6.0)], (50, 34, 30), None)
+        rig.fill(face, skin)
+        # sombra de barba / mascarilla
+        if look['mask']:
+            rig.fill([hp_(0.6, -0.8), hp_(5.4, -1.2), hp_(5.6, -2.8), hp_(4.6, -5.2), hp_(1.4, -6.6), hp_(-2.8, -5.4), hp_(-5.0, -1.6), hp_(-2.0, -1.0)], (34, 32, 38))
+            rig.fill([hp_(-5.0, -1.6), hp_(-4.4, -7.2), hp_(0, -9.4), hp_(3.0, -7.4)], (34, 32, 38))
         else:
-            # casco
-            hc = helm
-            rig.poly([(head[0] - 7.8, head[1] + 1.2), (head[0] - 7.4, head[1] + 6.4), (head[0] - 3.6, head[1] + 9.8), (head[0] + 2.8, head[1] + 10.0),
-                      (head[0] + 7.0, head[1] + 6.8), (head[0] + 7.6, head[1] + 3.2), (head[0] + 1.6, head[1] + 3.2)], hc, line)
-            rig.poly([(head[0] - 6.6, head[1] + 6.0), (head[0] - 3.2, head[1] + 9.0), (head[0] + 2.0, head[1] + 9.2), (head[0] - 2.0, head[1] + 7.2)], shade(hc, 28), None)
-            rig.poly([(head[0] - 8.2, head[1] + 1.0), (head[0] + 8.2, head[1] + 2.6), (head[0] + 8.0, head[1] + 3.6), (head[0] - 8.0, head[1] + 2.4)], _dk(hc, 22), line, 0.5)
-            rig.cap((head[0] + 1.5, head[1] + 3.0), (head[0] + 1.8, head[1] - 4.4), 0.7, (30, 26, 24), None)           # correa
+            rig.fill([hp_(1.2, -2.4), hp_(5.2, -2.6), hp_(4.6, -5.0), hp_(1.4, -6.2), hp_(-1.8, -5.0)], _dk(skin, 26))
+        # ojo, ceja, oreja
+        rig.fill([hp_(2.4, 1.6), hp_(4.6, 1.6), hp_(4.6, 0.7), hp_(2.4, 0.5)], (236, 232, 224))
+        rig.circ(hp_(3.9, 1.1), 0.6, (24, 22, 28))
+        rig.line(hp_(2.0, 2.5), hp_(5.2, 2.3), 0.55, _dk(skin, 78))
+        rig.fill(_capsule(hp_(-2.6, 0.2), hp_(-2.6, -1.6), 1.1, 0.9), _dk(skin, 34))
+        if kind == 'knife':
+            fl = math.sin(t * 3.0) * 1.4
+            rig.fill([hp_(-5.2, 3.4), hp_(5.6, 4.2), hp_(5.4, 6.4), hp_(-5.0, 5.6)], helm)
+            rig.fill([hp_(-5.0, 4.0), hp_(-12.4, 2.4 + fl), hp_(-13.6, 4.8 + fl), hp_(-5.0, 5.6)], _dk(helm, 18))
+            for k_ in range(5):
+                rig.fill([hp_(-4 + k_ * 2.4, 5.4), hp_(-3 + k_ * 2.4, 9.4), hp_(-2 + k_ * 2.4, 5.4)], (36, 28, 26))
+        elif sniper:
+            hood = [hp_(-6.6, -3.8), hp_(-5.8, 5.4), hp_(0, 8.8), hp_(5.6, 6.2), hp_(6.4, 3.0), hp_(2.6, 3.4), hp_(2.6, -0.2), hp_(5.6, -1.2), hp_(5.2, -5.4), hp_(0.4, -7.6)]
+            rig.fill(hood, helm, [(50, 70, 44), (104, 120, 76), (40, 54, 36)], 5)
+            rig.fill([hp_(-6.0, 2.0), hp_(-9.6, 0), hp_(-9.0, -3.6), hp_(-6.6, -3.8)], _dk(helm, 12), [(50, 70, 44)], 6)
+        else:
+            # casco con cubierta, riel y soportes
+            shell = [hp_(5.8, 3.6), hp_(5.2, 5.8), hp_(2.6, 8.6), hp_(-2.0, 9.0), hp_(-6.0, 6.4), hp_(-7.2, 1.6), hp_(-6.6, -2.4), hp_(-4.6, -3.0), hp_(-3.6, 1.2), hp_(0.6, 3.0)]
             if kind == 'player':
-                rig.poly([(head[0] + 2.2, head[1] + 5.0), (head[0] + 6.6, head[1] + 5.4), (head[0] + 6.6, head[1] + 7.6), (head[0] + 2.2, head[1] + 7.4)], (60, 150, 210), (20, 30, 40), 0.5)
-                rig.cap((head[0] + 1, head[1] - 3.4), (head[0] + 5.2, head[1] - 4.4), 0.7, (30, 30, 34), None)                  # micrófono
-            elif heavy:
-                rig.poly([(head[0] + 1.2, head[1] - 6.2), (head[0] + 7.2, head[1] - 5.8), (head[0] + 7.0, head[1] - 0.6), (head[0] + 1.0, head[1] - 1.4)], (96, 100, 104), line, 0.6)      # máscara
-                rig.poly([(head[0] + 2.0, head[1] + 2.4), (head[0] + 7.4, head[1] + 2.6), (head[0] + 7.0, head[1] + 0.4), (head[0] + 2.0, head[1] + 0.2)], (230, 90, 70), None)      # visor
+                rig.fill(shell, helm, [(86, 80, 60), (122, 112, 86)], 8)
+            else:
+                rig.fill(shell, helm, [_dk(helm, 12), _lt(helm, 14)], 8)
+            rig.fill([hp_(5.8, 3.6), hp_(7.6, 3.2), hp_(7.4, 4.6), hp_(5.4, 5.4)], _dk(helm, 30))               # visera
+            rig.line(hp_(-6.4, 1.8), hp_(5.4, 3.4), 0.6, _dk(helm, 38))
+            rig.line(hp_(1.4, 3.2), hp_(2.0, -4.8), 0.5, (22, 20, 20))                                           # barboquejo
+            rig.fill(_capsule(hp_(-2.4, 0.4), hp_(-2.4, -1.4), 2.0, 1.8), (30, 30, 34))                          # auricular
+            if kind == 'player':
+                rig.fill([hp_(5.4, 5.4), hp_(8.4, 5.6), hp_(8.4, 8.0), hp_(5.4, 8.0)], (24, 26, 30))              # soporte de visión nocturna
+                rig.fill([hp_(5.2, 3.9), hp_(8.0, 3.7), hp_(8.0, 5.3), hp_(5.2, 5.5)], acc)                      # gafas sobre el casco
+                rig.line(hp_(-1.0, -2.0), hp_(3.6, -3.2), 0.45, (24, 24, 28))                                    # micrófono
+            elif kind in ('gren', 'shield', 'flame'):
+                rig.fill([hp_(2.2, 2.4), hp_(7.4, 2.8), hp_(7.2, 0.0), hp_(2.2, -0.2)], acc if kind != 'shield' else (130, 200, 226))
+            else:
+                rig.fill([hp_(3.0, 2.2), hp_(6.6, 2.4), hp_(6.4, 0.4), hp_(3.0, 0.2)], acc)
     surf = rig.finish()
     s_ang = math.radians(fall)
     sx_, sy_ = sh
@@ -1454,92 +1546,126 @@ def _body_frame(kind, pose, i, t=0.0):
     return surf, shx * PT_K, shy * PT_K
 
 
+def _arm(rig, sh, elbow, wrist, sleeve, camo, skin, glove, bare=False, seed=0):
+    """Brazo cónico con manga de camuflaje, coderera y guante."""
+    col = skin if bare else sleeve
+    rig.fill(_capsule(sh, elbow, 3.8, 3.0), col, None if bare else camo, seed, None, 0 if bare else 2)
+    rig.fill(_capsule(elbow, wrist, 2.9, 2.3), skin if bare else _dk(sleeve, 4), None if bare else camo, seed + 1)
+    if not bare:
+        rig.fill(_capsule((elbow[0], elbow[1]), (elbow[0] + 0.5, elbow[1] - 0.2), 3.0, 3.0), _dk(sleeve, 30))
+    rig.fill(_capsule(wrist, (wrist[0] + (wrist[0] - elbow[0]) * 0.18, wrist[1] + (wrist[1] - elbow[1]) * 0.18), 2.5, 2.2), glove)
+
+
 def _arm_layer(kind, mode):
-    """Brazos + arma apuntando a +x con el hombro en (cx, cy) del lienzo."""
+    """Brazos + arma apuntando a +x con el hombro en el centro del lienzo (pivote)."""
     look = PT_LOOK[kind]
     rig = _Rig(0.0, 170, 170, 85, 85)
-    line = (20, 18, 24)
-    body, skin = look['body'], look['skin']
-    sl = _dk(body, 22)
+    body, skin, camo = look['body'], look['skin'], look['camo']
+    bare = kind == 'knife'
+    glove = (36, 34, 36)
+    sleeve = body
     if mode == 'shield':
-        rig.cap((0, 0), (5, -7), 4.6, sl, line)
-        rig.cap((5, -7), (16, -3), 4.2, sl, line)
-        rig.poly([(14, 16), (25, 14), (25, -54), (14, -52)], (92, 102, 116), line, 0.9)
-        rig.poly([(14, 16), (17.4, 15.6), (17.4, -52), (14, -52)], (156, 166, 180), None)
-        rig.poly([(17.6, 9.4), (23.4, 9.2), (23.4, 6.2), (17.6, 6.4)], (130, 200, 226), line, 0.4)
+        _arm(rig, (0, 0), (5, -7), (16, -3), sleeve, camo, skin, glove, bare, 2)
+        plate = [(14, 17), (26, 15), (26.4, -52), (14, -55)]
+        rig.fill(plate, (74, 82, 96))
+        rig.fill([(14, 17), (17.4, 16.6), (17.4, -55), (14, -55)], (122, 132, 148))
+        rig.fill([(17.8, 10.4), (24.4, 10.0), (24.4, 5.6), (17.8, 6.0)], (120, 190, 220))
+        rig.fill([(17.8, 9.4), (24.4, 9.0), (24.4, 7.4), (17.8, 7.8)], (200, 235, 250))
         for k_ in range(3):
-            rig.poly([(17.6, -8 - k_ * 9), (23.4, -3 - k_ * 9), (23.4, -6.6 - k_ * 9), (17.6, -11.6 - k_ * 9)], (232, 196, 50), None)
-        rig.circ((16, -3), 2.6, (34, 30, 30), line, 0.5)
-    elif mode == 'gun' and kind == 'flame':
-        rig.cap((0, 0), (3.5, -7.5), 4.6, _dk(sl, 28), line)
-        rig.cap((3.5, -7.5), (13, -3.2), 4.2, _dk(sl, 28), line)
-        rig.poly([(-6, -3.2), (4, -3.6), (4, 3.4), (-6, 3.6)], (60, 56, 52), line, 0.6)
-        rig.poly([(4, -2.6), (40, -2.0), (40, 2.0), (4, 2.6)], (50, 52, 58), line, 0.6)
-        rig.poly([(40, -3.4), (48, -4.2), (48, 4.2), (40, 3.4)], (210, 90, 40), line, 0.6)
-        rig.circ((49, 0), 1.8, (255, 220, 120), None)
-        rig.cap((0, 0.8), (9, -8.8), 4.8, sl, line)
-        rig.cap((9, -8.8), (30, -2.0), 4.4, sl, line)
-        rig.circ((30, -1.4), 2.7, (34, 30, 30), line, 0.5)
-        rig.circ((13, -2.6), 2.5, (34, 30, 30), line, 0.5)
-    elif mode == 'gun':
-        long = kind == 'sniper'
-        # brazo trasero (apoyo / gatillo) detrás del arma
-        rig.cap((0, 0), (3.5, -7.5), 4.6, _dk(sl, 28), line)
-        rig.cap((3.5, -7.5), (13, -3.2), 4.2, _dk(sl, 28), line)
-        # arma
-        if kind == 'player':
-            wood, mc = (60, 64, 70), (30, 32, 36)
-        elif kind == 'sniper':
-            wood, mc = (86, 70, 50), (38, 40, 44)
-        else:
-            wood, mc = (112, 76, 44), (36, 36, 40)
-        L = 74 if long else 52
-        rig.poly([(-12, -4.2), (4, -3.0), (4, 3.2), (-12, 4.0)], wood, line, 0.6)                                         # culata
-        rig.poly([(-12, -4.2), (-9.4, -4.4), (-9.4, 4.2), (-12, 4.0)], _dk(wood, 30), None)
-        rig.poly([(4, -4), (26, -4), (26, 3.6), (4, 3.6)], mc, line, 0.6)                                                   # receptor
-        rig.poly([(7, 3.6), (20, 3.6), (20, 5.2), (7, 5.2)], (22, 22, 26), None)                                            # riel
-        rig.poly([(26, -3), (L - 6, -2.6), (L - 6, 2.0), (26, 2.4)], wood if kind != 'player' else (52, 56, 62), line, 0.6)      # guardamanos
-        rig.poly([(L - 6, -1.2), (L + 6, -1.0), (L + 6, 0.8), (L - 6, 1.0)], (24, 24, 28), line, 0.5)                      # cañón
-        rig.poly([(L + 6, -2.0), (L + 10, -2.0), (L + 10, 1.8), (L + 6, 1.8)], (20, 20, 24), None)                          # freno
-        rig.poly([(12, -4), (19, -4), (21, -14), (14.4, -13)], _dk(mc, 4), line, 0.6)                                       # cargador
-        rig.poly([(8, 5.2), (11, 5.2), (11, 8.6), (8, 8.6)], (24, 24, 30), None)                                            # mira
-        if long:
-            rig.poly([(14, 5.2), (32, 5.2), (32, 9.6), (14, 9.6)], (26, 28, 34), line, 0.6)                                 # mira telescópica
-            rig.circ((32.5, 7.4), 2.6, (90, 170, 220), (20, 20, 24), 0.5)
-            rig.cap((L - 10, 2), (L - 12, -7.5), 0.9, (30, 30, 34), None)                                                   # bípode
-            rig.cap((L - 10, 2), (L - 6, -7.5), 0.9, (30, 30, 34), None)
-        elif kind == 'player':
-            rig.circ((17, 7.4), 1.8, (240, 70, 60), None)
-        # brazo delantero sobre el arma
-        gx = L - 18 if long else 33
-        rig.cap((0, 0.8), (9, -8.8), 4.8, sl, line)
-        rig.cap((9, -8.8), (gx, -1.8), 4.4, sl, line)
-        rig.circ((gx, -1.2), 2.7, (34, 30, 30), line, 0.5)
-        rig.circ((13, -2.6), 2.5, (34, 30, 30), line, 0.5)
-    elif mode == 'knife':
-        rig.cap((0, 0), (9, -6.5), 4.6, sl, line)
-        rig.cap((9, -6.5), (22, -1.0), 4.2, sl, line)
-        rig.circ((23.4, -0.6), 2.7, skin, line, 0.5)
-        rig.poly([(24.4, -1.6), (27.6, -1.6), (27.6, 1.0), (24.4, 1.0)], (46, 36, 30), line, 0.4)
-        rig.poly([(27.4, -1.4), (45.4, -0.6), (27.4, 1.0)], (206, 212, 220), line, 0.5)
-        rig.poly([(27.4, -0.8), (42, -0.2), (27.4, 0.2)], (255, 255, 255), None)
-        rig.cap((0, 0.5), (6, -9), 4.6, _dk(sl, 24), line)
-        rig.circ((7, -9.6), 2.5, skin, line, 0.5)
-    elif mode in ('wind', 'rel'):
-        # lanzamiento de granada
+            rig.fill([(17.8, -8 - k_ * 9), (24.4, -3 - k_ * 9), (24.4, -6.8 - k_ * 9), (17.8, -11.8 - k_ * 9)], (222, 188, 50))
+        for k_ in range(6):
+            rnd = random.Random(k_ * 5)
+            rig.line((15 + rnd.uniform(0, 8), -2 - rnd.uniform(0, 40)), (18 + rnd.uniform(0, 8), -6 - rnd.uniform(0, 40)), 0.35, (50, 56, 68))
+        rig.fill(_capsule((16, -3), (16.2, -3.2), 2.6, 2.6), glove)
+        return rig.finish()
+    if mode == 'knife':
+        _arm(rig, (0, 0.4), (6, -9), (7.6, -9.4), _dk(sleeve, 16), camo, skin, glove, True, 4)
+        _arm(rig, (0, 0), (9, -6.5), (22, -1.0), sleeve, camo, skin, glove, True, 3)
+        rig.fill([(23.4, -2.2), (28, -2.2), (28, 1.2), (23.4, 1.2)], (44, 36, 32))
+        rig.fill([(27.6, -1.8), (46, -0.4), (27.6, 1.2)], (196, 202, 210))
+        rig.fill([(27.6, -0.8), (43, 0), (27.6, 0.2)], (248, 250, 252))
+        for k_ in range(5):
+            rig.line((30 + k_ * 3, 1.0), (31 + k_ * 3, 2.0), 0.4, (150, 156, 164))
+        return rig.finish()
+    if mode in ('wind', 'rel'):
         if mode == 'wind':
-            rig.cap((0, 0), (-7, 8), 4.6, sl, line)
-            rig.cap((-7, 8), (-5, 19), 4.2, sl, line)
-            hand = (-4.4, 21.2)
+            el, wr = (-7, 8), (-4.4, 20)
+            gp = (-3.4, 22.4)
         else:
-            rig.cap((0, 0), (9, 5), 4.6, sl, line)
-            rig.cap((9, 5), (19, 11), 4.2, sl, line)
-            hand = (21, 12.2)
-        rig.circ(hand, 2.8, skin, line, 0.5)
-        rig.circ((hand[0] + 1, hand[1] + 3.4), 3.2, (70, 100, 56), line, 0.5)
-        rig.cap((hand[0] + 1, hand[1] + 6.2), (hand[0] + 1, hand[1] + 7.6), 1.0, (180, 180, 180), None)
-        rig.cap((0, 0.5), (4, -8), 4.6, _dk(sl, 24), line)
-        rig.circ((5.2, -9.4), 2.4, skin, line, 0.5)
+            el, wr = (9, 5), (20, 11)
+            gp = (22, 12.6)
+        _arm(rig, (0, 0), el, wr, sleeve, camo, skin, glove, bare, 5)
+        rig.fill(_capsule(gp, (gp[0] + 0.3, gp[1] + 0.3), 2.6, 2.6), glove)
+        rig.fill(_capsule((gp[0] + 1.0, gp[1] + 3.0), (gp[0] + 1.0, gp[1] + 5.6), 3.2, 3.0), (72, 92, 60))       # granada de fragmentación
+        rig.fill(_capsule((gp[0] + 1.0, gp[1] + 7.6), (gp[0] + 1.0, gp[1] + 8.6), 1.4, 1.2), (150, 150, 146))
+        rig.line((gp[0] + 2.2, gp[1] + 8.6), (gp[0] + 5.0, gp[1] + 5.0), 0.5, (170, 170, 165))
+        _arm(rig, (0, 0.6), (4, -8), (5.4, -9.4), _dk(sleeve, 16), camo, skin, glove, bare, 6)
+        return rig.finish()
+    # ---- armas de fuego
+    if kind == 'flame':
+        _arm(rig, (0, 0), (3.5, -7.5), (13, -3.2), _dk(sleeve, 14), camo, skin, glove, bare, 7)
+        rig.fill([(-6, -3.4), (4, -3.8), (4, 3.6), (-6, 3.8)], (58, 54, 50))
+        rig.fill([(4, -2.8), (42, -2.2), (42, 2.2), (4, 2.8)], (56, 58, 64))
+        rig.fill([(4, 1.4), (42, 1.6), (42, 2.2), (4, 2.8)], (110, 114, 124))
+        rig.fill([(42, -3.8), (50, -4.6), (50, 4.6), (42, 3.8)], (200, 84, 42))
+        rig.circ((51, 0), 1.9, (255, 230, 150))
+        rig.line((-6, -2), (-14, -9), 1.3, (30, 30, 34))
+        _arm(rig, (0, 0.8), (9, -8.8), (30, -2.0), sleeve, camo, skin, glove, bare, 8)
+        return rig.finish()
+    long = kind == 'sniper'
+    ak = kind in ('rifle', 'gren', 'shield')
+    _arm(rig, (0, 0), (3.5, -7.5), (13, -3.2), _dk(sleeve, 14), camo, skin, glove, bare, 7)
+    if long:
+        L = 78
+        wood, mc = (92, 74, 54), (40, 42, 46)
+        rig.fill([(-14, -5.0), (6, -3.4), (6, 3.6), (-14, 4.6)], wood)                      # culata de madera
+        rig.fill([(-14, -5.0), (-11.4, -5.2), (-11.4, 4.8), (-14, 4.6)], _dk(wood, 34))
+        rig.fill([(6, -4.0), (30, -4.0), (30, 3.0), (6, 3.0)], mc)
+        rig.fill([(30, -3.0), (L - 12, -2.6), (L - 12, 2.0), (30, 2.4)], wood)
+        rig.fill([(L - 12, -1.4), (L - 4, -1.2), (L - 4, 1.0), (L - 12, 1.2)], (26, 26, 30))
+        rig.fill([(L - 4, -2.4), (L + 14, -2.4), (L + 14, 2.2), (L - 4, 2.2)], (30, 32, 36))     # silenciador
+        rig.fill([(L - 4, 0.6), (L + 14, 0.6), (L + 14, 2.2), (L - 4, 2.2)], (62, 64, 70))
+        rig.fill([(14, 3.0), (36, 3.0), (36, 9.6), (14, 9.6)], (30, 32, 38))                  # mira telescópica
+        rig.fill([(34, 2.4), (40, 3.0), (40, 10.2), (34, 9.8)], (22, 24, 28))
+        rig.circ((40.6, 6.4), 2.8, (86, 160, 210))
+        rig.circ((40.8, 6.8), 1.0, (210, 240, 255))
+        rig.line((L - 12, 1), (L - 15, -9), 0.8, (30, 30, 34))
+        rig.line((L - 12, 1), (L - 8, -9), 0.8, (30, 30, 34))
+        gx = L - 22
+    elif ak:
+        L = 56
+        wood, mc = (118, 78, 44), (36, 36, 40)
+        rig.fill([(-13, -5.4), (4, -3.0), (4, 3.0), (-13, 2.8)], wood)                         # culata
+        rig.fill([(-13, -5.4), (-10.6, -5.6), (-10.6, 2.8), (-13, 2.8)], _dk(wood, 34))
+        rig.fill([(4, -4.2), (26, -4.0), (26, 3.0), (4, 3.2)], mc)                            # receptor
+        rig.fill([(5, 3.0), (25, 3.0), (25, 4.4), (5, 4.4)], (28, 28, 32))
+        rig.fill([(26, -3.4), (40, -3.0), (40, 2.4), (26, 2.4)], wood)                        # guardamanos
+        rig.fill([(40, -2.4), (L - 4, -2.0), (L - 4, 1.4), (40, 1.8)], (46, 44, 40))
+        rig.fill([(26, 2.4), (L - 8, 2.2), (L - 8, 3.4), (26, 3.6)], (50, 50, 52))               # tubo de gases
+        rig.fill([(L - 4, -1.0), (L + 6, -0.8), (L + 6, 0.8), (L - 4, 1.0)], (24, 24, 28))
+        rig.fill([(L + 4, 0.8), (L + 5.4, 0.8), (L + 5.4, 3.4), (L + 4, 3.4)], (30, 30, 34))     # punto de mira
+        rig.fill([(14, -4.0), (21, -4.0), (24, -16), (16.4, -15)], (78, 52, 34))                # cargador curvo
+        rig.fill([(8, -4.0), (11.6, -4.0), (12.4, -10.4), (8.6, -10.4)], (30, 30, 34))
+        gx = 40
+    else:
+        L = 52
+        mc = (44, 46, 50)
+        rig.fill([(-15, -5.4), (2, -3.0), (2, 2.4), (-15, 1.4)], (52, 54, 58))                # culata telescópica
+        rig.fill([(-15, -5.4), (-12.4, -5.6), (-12.4, 1.4), (-15, 1.4)], (30, 30, 34))
+        rig.fill([(2, -4.6), (26, -4.6), (26, 2.8), (2, 2.8)], mc)                            # cajón
+        rig.fill([(8, 2.8), (24, 2.8), (24, 4.2), (8, 4.2)], (30, 30, 34))                    # riel superior
+        rig.fill([(26, -3.4), (44, -3.2), (44, 2.2), (26, 2.4)], (56, 58, 62))                # guardamanos
+        for k_ in range(5):
+            rig.line((28 + k_ * 3.4, -3.0), (28 + k_ * 3.4, 2.0), 0.35, (30, 32, 36))
+        rig.fill([(44, -1.4), (L, -1.2), (L, 1.0), (44, 1.2)], (28, 28, 32))
+        rig.fill([(L, -2.2), (L + 6, -2.0), (L + 6, 1.8), (L, 2.0)], (22, 22, 26))              # supresor / apagallamas
+        rig.fill([(12, -4.6), (18.6, -4.6), (20.4, -15), (14.2, -14.4)], (36, 38, 42))         # cargador
+        rig.fill([(6.2, -4.6), (9.6, -4.6), (11.2, -12.6), (8, -12.6)], (40, 42, 46))          # empuñadura
+        rig.fill([(8, 4.2), (20, 4.2), (20, 7.4), (8, 7.4)], (28, 30, 34))                    # mira
+        rig.circ((19.2, 5.9), 1.7, (230, 70, 60))
+        gx = 33
+    _arm(rig, (0, 0.8), (9, -8.8), (gx, -1.8), sleeve, camo, skin, glove, bare, 8)
+    rig.fill(_capsule((13, -2.6), (13.4, -2.8), 2.5, 2.5), glove)
     return rig.finish()
 
 
@@ -1552,8 +1678,6 @@ def build_pt_art():
             frames[pose] = [_body_frame(kind, pose, i, i * 0.5) for i in range(n)]
         art['body'][kind] = frames
         modes = {'shield': ['shield'], 'flame': ['gun'], 'pow': [], 'knife': ['knife', 'wind', 'rel']}.get(kind) or (['gun'] if kind in ('player', 'rifle', 'sniper') else ['gun', 'wind', 'rel'])
-        if kind == 'pow':
-            modes = []
         art['arm'][kind] = {m: _arm_layer(kind, m) for m in modes}
         if kind in ('shield', 'flame', 'pow'):
             continue
@@ -2065,6 +2189,7 @@ class Game:
         self.cockpit = self.make_cockpit()
         self.tk_tex = make_tk_textures()
         self.tk_spr = make_tank_sprites()
+        self.pt_art_prebuild()
         self.tk_sky_bg, self.tk_floor_bg, self.tk_moon = self.make_tk_backdrops()
 
         # ---- cielo de defensa
@@ -5378,7 +5503,7 @@ class Game:
                 b['fuse'] = 0.14
 
     def pt_box(self, e):
-        w, h = {'tank': (280, 140), 'turret': (62, 60), 'sniper': (28, 60), 'shield': (40, 64), 'flame': (34, 64)}.get(e['kind'], (28, 64))
+        w, h = {'tank': (280, 140), 'turret': (62, 60), 'sniper': (28, 66), 'shield': (40, 72), 'flame': (34, 72)}.get(e['kind'], (28, 72))
         return e['x'] - w / 2, e['y'] - h, w, h
 
     def pt_ebullet(self, x, y, ang, sp, dmg, life=1.6):
@@ -5738,7 +5863,7 @@ class Game:
             elif b['life'] <= 0 or b['y'] > self.PT_GR + 20:
                 pt['bul'].remove(b)
         # balas enemigas
-        pbox = (p['x'] - 14, p['y'] - (42 if p['crouch'] else 64), 28, 42 if p['crouch'] else 64)
+        pbox = (p['x'] - 14, p['y'] - (46 if p['crouch'] else 70), 28, 46 if p['crouch'] else 70)
         for b in pt['ebul'][:]:
             b['x'] += b['vx'] * dt
             b['y'] += b['vy'] * dt
@@ -5883,8 +6008,22 @@ class Game:
         self.go('map')
 
     # ---- dibujo del asalto
+    def pt_art_prebuild(self):
+        """Pre-renderiza el arte del asalto en segundo plano para que no haya pausa al empezar."""
+        import threading
+        if hasattr(self, '_pt_thread'):
+            return
+        self._pt_thread = threading.Thread(target=self.pt_art_init, daemon=True)
+        self._pt_thread.start()
+
     def pt_art_init(self):
-        if hasattr(self, 'pt_art'):
+        if getattr(self, '_pt_ready', False):
+            return
+        th = getattr(self, '_pt_thread', None)
+        import threading
+        if th is not None and th is not threading.current_thread() and th.is_alive():
+            th.join()
+        if getattr(self, '_pt_ready', False):
             return
         self.pt_art = build_pt_art()
         self.pt_tk = build_pt_tank()
@@ -5906,6 +6045,7 @@ class Game:
             a = int(60 * (1 - i / 60) ** 2)
             pygame.draw.rect(vg, (10, 6, 24, a), (i * 3, i * 2, W - i * 6, H - i * 4), 6)
         self.pt_vig = vg
+        self._pt_ready = True
 
     def pt_floor(self, x, y):
         """Altura de la superficie bajo (x, y): suelo o la plataforma más cercana por debajo."""
@@ -5973,7 +6113,7 @@ class Game:
         py = fy - shy
         cv.blit(rimg, (px - rimg.get_width() // 2, py - rimg.get_height() // 2))
         if flash and arm == 'gun':
-            ln = 92 if kind == 'sniper' else 72
+            ln = {'sniper': 106, 'flame': 62, 'player': 70}.get(kind, 74)
             ang = math.radians(rot if right else -rot)
             mx = px + (math.cos(ang) * ln if right else -math.cos(ang) * ln)
             my = py - math.sin(ang) * ln * (1 if right else -1) * (1 if right else 1)
