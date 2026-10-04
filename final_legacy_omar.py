@@ -25,6 +25,8 @@ HZ = 590                      # horizonte en la escena de defensa
 SKY_W = 640                   # ancho del skyline
 WIN_WAVE = 6                  # oleadas para ganar
 VMAX = 170.0                  # velocidad máx. del buque en el mapa (px/s)
+BOSS_MOUNTS = (88, 52, -84)      # torres del acorazado (distancia al centro, + hacia la proa)
+BOSS_NAMES = ('LEVIATAN', 'TIFON', 'COLOSO', 'ABISMO', 'TITAN', 'APOCALIPSIS')
 SHIELD_R = 230                 # radio del escudo digital del jefe en el mapa
 ANTENNA_ISLANDS = [0, 1, 2, 3, 4]   # islas donde se puede desembarcar e instalar antena (índices de EXTRA_ISLANDS)
 ARENA_R = 330                  # radio de la isla en el combate de infantería
@@ -451,6 +453,67 @@ def make_ship(wd, ln, hull, deck, acc, fore_static=True):
     return pygame.transform.smoothscale(s, (wd, ln))
 
 
+def make_battleship(wd, ln, hull=(46, 50, 60), deck=(88, 94, 108), acc=(226, 64, 52)):
+    """Acorazado visto desde arriba, proa al norte (las torres giratorias se dibujan aparte)."""
+    S = 3
+    w, l = wd * S, ln * S
+    s = pygame.Surface((w, l), pygame.SRCALPHA)
+
+    def P(fx, fy):
+        return (w * fx, l * fy)
+
+    outline = [(.5, 0), (.70, .07), (.86, .20), (.93, .40), (.93, .80), (.86, .95), (.70, 1.0), (.30, 1.0), (.14, .95),
+               (.07, .80), (.07, .40), (.14, .20), (.30, .07)]
+    pygame.draw.polygon(s, shade(hull, -22), [P(*q) for q in outline])
+    pygame.draw.polygon(s, hull, [P(.5 + (x - .5) * .96, .5 + (y - .5) * .985) for x, y in outline])
+    inner = [(.5, .035), (.66, .09), (.80, .21), (.855, .40), (.855, .80), (.80, .93), (.66, .975), (.34, .975), (.20, .93),
+             (.145, .80), (.145, .40), (.20, .21), (.34, .09)]
+    pygame.draw.polygon(s, deck, [P(*q) for q in inner])
+    pygame.draw.polygon(s, shade(deck, 26), [P(*q) for q in inner], max(1, S))
+    for k in range(6, 33):
+        yy = .05 + k * .028
+        if yy < .97:
+            pygame.draw.line(s, shade(deck, -14), P(.17, yy), P(.83, yy), 1)
+    pygame.draw.line(s, shade(deck, 22), P(.5, .04), P(.5, .97), max(1, S // 2))
+    for sd in (-1, 1):
+        pygame.draw.line(s, acc, P(.5 + sd * .20, .13), P(.5 + sd * .33, .30), max(2, S * 2))
+        pygame.draw.line(s, acc, P(.5 + sd * .18, .16), P(.5 + sd * .31, .33), max(2, S * 2))
+    for fy, rr in ((.175, .20), (.307, .20), (.815, .165)):
+        pygame.draw.circle(s, (20, 22, 28), P(.5, fy), int(w * (rr + .03)))
+        pygame.draw.circle(s, (48, 52, 62), P(.5, fy), int(w * rr))
+        pygame.draw.circle(s, shade((48, 52, 62), 22), P(.5, fy), int(w * rr), max(1, S))
+    pygame.draw.rect(s, (22, 24, 30), (w * .27, l * .40, w * .46, l * .24), border_radius=S * 3)
+    pygame.draw.rect(s, (66, 72, 86), (w * .29, l * .415, w * .42, l * .21), border_radius=S * 2)
+    pygame.draw.rect(s, (82, 90, 106), (w * .34, l * .44, w * .32, l * .13), border_radius=S * 2)
+    for k in range(6):
+        pygame.draw.rect(s, (130, 220, 240), (w * (.355 + k * .048), l * .452, w * .032, l * .016))
+        pygame.draw.rect(s, (130, 220, 240), (w * (.355 + k * .048), l * .50, w * .032, l * .016))
+    pygame.draw.rect(s, (96, 104, 120), (w * .43, l * .47, w * .14, l * .06), border_radius=S)
+    for sd in (-1, 1):
+        pygame.draw.rect(s, (30, 32, 38), (w * (.5 + sd * .17 - .07), l * .60, w * .14, l * .075), border_radius=S * 2)
+        pygame.draw.ellipse(s, (8, 8, 10), (w * (.5 + sd * .17 - .055), l * .605, w * .11, l * .035))
+        pygame.draw.rect(s, shade(acc, -40), (w * (.5 + sd * .17 - .07), l * .605 + l * .06, w * .14, l * .012))
+    pygame.draw.rect(s, (26, 28, 34), (w * .27, l * .68, w * .46, l * .095), border_radius=S)
+    for r_ in range(3):
+        for c_ in range(8):
+            pygame.draw.rect(s, (12, 14, 18), (w * (.295 + c_ * .052), l * (.69 + r_ * .028), w * .04, l * .02))
+            pygame.draw.rect(s, shade(acc, -20), (w * (.295 + c_ * .052), l * (.69 + r_ * .028), w * .04, l * .02), 1)
+    for sd in (-1, 1):
+        for fy in (.37, .74):
+            pygame.draw.circle(s, (30, 32, 38), P(.5 + sd * .33, fy), int(w * .045))
+            pygame.draw.circle(s, (120, 128, 142), P(.5 + sd * .33, fy), int(w * .028))
+            pygame.draw.line(s, (20, 22, 26), P(.5 + sd * .33, fy), P(.5 + sd * .33, fy - .035), S)
+    pygame.draw.circle(s, (60, 64, 72), P(.5, .905), int(w * .115))
+    pygame.draw.circle(s, (240, 200, 60), P(.5, .905), int(w * .115), max(2, S))
+    pygame.draw.line(s, (240, 200, 60), P(.45, .885), P(.45, .925), max(2, S))
+    pygame.draw.line(s, (240, 200, 60), P(.55, .885), P(.55, .925), max(2, S))
+    pygame.draw.line(s, (240, 200, 60), P(.45, .905), P(.55, .905), max(2, S))
+    for sd in (-1, 1):
+        for fy in (.12, .30, .52, .70, .88):
+            pygame.draw.circle(s, (255, 70, 60), P(.5 + sd * .43, fy), max(2, S))
+    return pygame.transform.smoothscale(s, (wd, ln))
+
+
 def make_turret(r, col):
     S = 3
     size = int(r * 6)
@@ -803,9 +866,10 @@ class Game:
         reg('e_hull', make_ship(42, 112, (150, 60, 60), (170, 90, 80), (30, 30, 30), False))
         self.tur_p = make_turret(8, (70, 140, 170))
         self.tur_e = make_turret(8, (150, 60, 60))
-        self.tur_b = make_turret(12, (110, 50, 130))
-        reg('b_map', make_ship(34, 92, (96, 44, 120), (130, 74, 154), (255, 90, 210)))
-        reg('b_hull', make_ship(64, 172, (96, 44, 120), (130, 74, 154), (255, 90, 210), False))
+        self.tur_b = make_turret(12, (150, 160, 178))
+        self.tur_b2 = make_turret(10, (150, 160, 178))
+        reg('b_map', make_battleship(46, 126))
+        reg('b_hull', make_battleship(98, 270))
         self.sol = {'p': make_soldier_frames('rifle', 'p')}
         for kd in ENEMY_TYPES:
             self.sol['e_' + kd] = make_soldier_frames(kd, 'e')
@@ -1113,10 +1177,10 @@ class Game:
             x, y = random.uniform(150, WORLD_W - 150), random.uniform(150, WORLD_H - 150)
             if dist(x, y, self.sx, self.sy) > 900 and not self.on_land(x, y, 120):
                 break
-        boss_hp = 30 + 14 * (self.wave - 1)
+        boss_hp = 36 + 16 * (self.wave - 1)
         self.enemies.append(dict(x=x, y=y, h=random.uniform(0, 360), v=0.0, hp=boss_hp, max=boss_hp,
                                  state='patrol', wp=self.rand_wp(), cool=0.0, is_boss=True, shield=True,
-                                 hack_cd=0.0, seen=False))
+                                 hack_cd=0.0, seen=False, name=BOSS_NAMES[(self.wave - 1) % len(BOSS_NAMES)]))
 
     def go(self, state):
         self.state = state
@@ -1462,10 +1526,10 @@ class Game:
             en['state'] = 'patrol'
         if en['state'] == 'chase':
             tx, ty = self.sx, self.sy
-            sp = (120 + 8 * self.wave) if is_boss else (96 + 5 * self.wave)
+            sp = (66 + 4 * self.wave) if is_boss else (96 + 5 * self.wave)
         else:
             tx, ty = en['wp']
-            sp = 60 if is_boss else 52
+            sp = 32 if is_boss else 52
             if dist(en['x'], en['y'], tx, ty) < 50:
                 en['wp'] = self.rand_wp()
         vx, vy = tx - en['x'], ty - en['y']
@@ -1473,19 +1537,19 @@ class Game:
         vx, vy = vx / n, vy / n
         for ix, iy, ir, sd in self.islands:
             dd = dist(en['x'], en['y'], ix, iy) or 1.0
-            lim = coast_r(ir, sd, math.atan2(en['y'] - iy, en['x'] - ix), 1.1) + (130 if is_boss else 110)
+            lim = coast_r(ir, sd, math.atan2(en['y'] - iy, en['x'] - ix), 1.1) + (170 if is_boss else 110)
             if dd < lim:
-                k = (lim - dd) / (130 if is_boss else 110)
+                k = (lim - dd) / (170 if is_boss else 110)
                 vx += (en['x'] - ix) / dd * k * 2.4
                 vy += (en['y'] - iy) / dd * k * 2.4
         want = bearing(vx, vy)
-        en['h'] = (en['h'] + clamp(angle_diff(en['h'], want), -30 * dt if is_boss else -45 * dt, 30 * dt if is_boss else 45 * dt)) % 360
+        en['h'] = (en['h'] + clamp(angle_diff(en['h'], want), -14 * dt if is_boss else -45 * dt, 14 * dt if is_boss else 45 * dt)) % 360
         en['v'] += (sp - en['v']) * min(1, dt * 1.5)
         dx, dy = vec(en['h'], en['v'] * dt)
         en['x'] = clamp(en['x'] + dx, 40, WORLD_W - 40)
         en['y'] = clamp(en['y'] + dy, 40, WORLD_H - 40)
         if random.random() < dt * (18 if is_boss else 14):
-            bx, by = vec(en['h'], -30 if is_boss else -24)
+            bx, by = vec(en['h'], -62 if is_boss else -24)
             self.fxm.add('foam', en['x'] + bx, en['y'] + by, life=1.3, r0=4 if is_boss else 3, r1=14 if is_boss else 10, col=(230, 245, 255))
 
     # ---------------------------------------------------------- DEFENSA
@@ -1906,20 +1970,24 @@ class Game:
         is_boss = en.get('is_boss', False)
         self.c = dict(
             p=dict(x=W / 2, y=H - 170.0, h=0.0, v=0.0, cool=0.0, wake=0.0, sink=None),
-            e=dict(x=W / 2 + random.uniform(-150, 150), y=170.0, h=180.0, v=40.0, cool=1.5 if is_boss else 2.0,
+            e=dict(x=W / 2 + random.uniform(-150, 150), y=220.0 if is_boss else 170.0, h=180.0, v=20.0 if is_boss else 40.0,
+                   cool=3.0 if is_boss else 2.0,
                    orb=random.choice([-1, 1]), orb_t=5.0, burst=[], wake=0.0, sink=None, hp=en['hp'], max=en['max']),
-            shells=[], t=0.0, is_boss=is_boss)
+            shells=[], t=0.0, is_boss=is_boss, name=en.get('name', ''))
         self.aim = [W / 2, 300.0]
         self.go('combat')
         if is_boss:
-            self.banner('¡BUQUE JEFE!', 'Escudo digital caído. Hundilo antes de que te hunda', (255, 50, 50), 3.2)
+            self.audio.play('alarm')
+            self.banner('¡ACORAZADO %s!' % en['name'], 'Escudo digital caído  |  3 baterías de misiles  |  Hundilo o te hunde', (255, 60, 60), 4.0)
         else:
             self.banner('¡COMBATE NAVAL!', 'W/S/A/D: navegar  |  Mouse+Clic: disparar misil (vuela recto)  |  E: huir', (255, 150, 90), 3.4)
 
-    def launch_missile(self, ship, ang, speed, own):
+    def launch_missile(self, ship, ang, speed, own, off=0.0, dmg=(22, 12)):
+        ox, oy = vec(ship['h'], off)
         fx_, fy_ = vec(ang, 30)
         vx, vy = vec(ang, speed)
-        self.c['shells'].append(dict(x=ship['x'] + fx_, y=ship['y'] + fy_, vx=vx, vy=vy, ang=ang, own=own, life=3.0))
+        self.c['shells'].append(dict(x=ship['x'] + ox + fx_, y=ship['y'] + oy + fy_, vx=vx, vy=vy, ang=ang, own=own,
+                                     life=3.0, dmg=dmg))
 
     def fire_shell(self):
         c = self.c
@@ -1988,9 +2056,11 @@ class Game:
         dx, dy = vec(p['h'], p['v'] * dt)
         p['x'] += dx
         p['y'] += dy
+        boss_c = c['is_boss']
         for ship in (p, e):
-            if ship['x'] < 50 or ship['x'] > W - 50 or ship['y'] < 60 or ship['y'] > H - 60:
-                ship['x'], ship['y'] = clamp(ship['x'], 50, W - 50), clamp(ship['y'], 60, H - 60)
+            mx_, my_ = (90, 150) if (ship is e and boss_c) else (50, 60)
+            if ship['x'] < mx_ or ship['x'] > W - mx_ or ship['y'] < my_ or ship['y'] > H - my_:
+                ship['x'], ship['y'] = clamp(ship['x'], mx_, W - mx_), clamp(ship['y'], my_, H - my_)
                 ship['v'] *= 0.6
         self.fuel = max(0.0, self.fuel - abs(p['v']) / 125 * 0.35 * dt)
         self.audio.engine_vol(abs(p['v']) / 125 * 0.9 + 0.1)
@@ -2004,16 +2074,19 @@ class Game:
             if e['orb_t'] <= 0:
                 e['orb'] *= -1
                 e['orb_t'] = random.uniform(4, 8)
-            if dd > 420:
+            near, far = (260, 400) if c['is_boss'] else (260, 420)
+            if dd > far:
                 want = to_p
-            elif dd < 260:
+            elif dd < near:
                 want = to_p + 180
             else:
                 want = to_p + 90 * e['orb']
-            if e['x'] < 110 or e['x'] > W - 110 or e['y'] < 110 or e['y'] > H - 110:
+            edge = 190 if c['is_boss'] else 110
+            if e['x'] < edge or e['x'] > W - edge or e['y'] < edge or e['y'] > H - edge:
                 want = bearing(W / 2 - e['x'], H / 2 - e['y'])
-            e['h'] = (e['h'] + clamp(angle_diff(e['h'], want), -48 * dt, 48 * dt)) % 360
-            e['v'] += ((62 + 5 * self.wave) - e['v']) * min(1, dt * 1.5)
+            turn_rate = 17 if c['is_boss'] else 48
+            e['h'] = (e['h'] + clamp(angle_diff(e['h'], want), -turn_rate * dt, turn_rate * dt)) % 360
+            e['v'] += (((34 + 2 * self.wave) if c['is_boss'] else (62 + 5 * self.wave)) - e['v']) * min(1, dt * (0.8 if c['is_boss'] else 1.5))
             ex, ey = vec(e['h'], e['v'] * dt)
             e['x'] += ex
             e['y'] += ey
@@ -2021,19 +2094,25 @@ class Game:
             is_boss = self.c.get('is_boss', False)
             if e['cool'] <= 0 and p['sink'] is None:
                 if is_boss:
-                    e['cool'] = random.uniform(1.7, 2.4) * max(0.6, 1 - 0.05 * self.wave)
-                    self.enemy_fire(1.0)
-                    if self.wave >= 2:
-                        e['burst'].append(0.4)
+                    e['cool'] = random.uniform(3.4, 4.4) * max(0.65, 1 - 0.05 * self.wave)
+                    self.enemy_fire(0)
+                    e['burst'] += [[0.35, 1], [0.7, 2]]
                 else:
                     e['cool'] = random.uniform(2.1, 3.0) * max(0.55, 1 - 0.07 * self.wave)
-                    self.enemy_fire(1.0)
+                    self.enemy_fire()
                     if self.wave >= 3:
-                        e['burst'].append(0.35)
-            e['burst'] = [b - dt for b in e['burst']]
-            if e['burst'] and e['burst'][0] <= 0:
-                e['burst'].pop(0)
-                self.enemy_fire(1.0)
+                        e['burst'].append([0.35, None])
+            e['burst'] = [[t_ - dt, m_] for t_, m_ in e['burst']]
+            due = [b_ for b_ in e['burst'] if b_[0] <= 0]
+            e['burst'] = [b_ for b_ in e['burst'] if b_[0] > 0]
+            for _t, m_ in due:
+                self.enemy_fire(m_)
+            if is_boss:
+                if random.random() < dt * 9:
+                    for sd in (-1, 1):
+                        lx, ly = vec(e['h'] + 90, sd * 17)
+                        fx_, fy_ = vec(e['h'], -38)
+                        self.fx.add('smoke', e['x'] + lx + fx_, e['y'] + ly + fy_, -12, -22, 2.4, 5, 24, (46, 46, 52))
         # estelas
         for ship in (p, e):
             ship['wake'] -= dt
@@ -2057,19 +2136,20 @@ class Game:
                 ship['sink'] += dt
                 ship['v'] *= 0.97
                 if int(ship['sink'] * 5) != int((ship['sink'] - dt) * 5):
-                    self.fx.explode(ship['x'] + random.uniform(-16, 16), ship['y'] + random.uniform(-40, 40), 0.9)
+                    big_ = ship is e and c['is_boss']
+                    self.fx.explode(ship['x'] + random.uniform(-30, 30) * (1.5 if big_ else 0.5), ship['y'] + random.uniform(-110, 110) if big_ else ship['y'] + random.uniform(-40, 40), 1.5 if big_ else 0.9, big_)
                     self.audio.play('boom_s', .6)
                     self.shake = max(self.shake, 7)
         if e['sink'] is None and e['hp'] <= 0:
             e['sink'] = 0.0
             self.audio.play('boom_l')
-            self.fx.explode(e['x'], e['y'], 1.8, True)
+            self.fx.explode(e['x'], e['y'], 3.0 if c['is_boss'] else 1.8, True)
         if p['sink'] is None and self.hull <= 0:
             p['sink'] = 0.0
             self.audio.play('boom_l')
             self.fx.explode(p['x'], p['y'], 1.8, True)
         self.fx.update(dt)
-        if e['sink'] is not None and e['sink'] > 2.4:
+        if e['sink'] is not None and e['sink'] > (4.0 if c['is_boss'] else 2.4):
             boss_kill = c.get('is_boss', False)
             self.add_score(500 + 100 * self.wave)
             self.ammo = min(40, self.ammo + (15 if boss_kill else 5))
@@ -2082,20 +2162,23 @@ class Game:
         elif p['sink'] is not None and p['sink'] > 2.6:
             self.game_over('Tu buque fue hundido en combate')
 
-    def enemy_fire(self, _):
+    def enemy_fire(self, mount=None):
         c = self.c
         p, e = c['p'], c['e']
-        spd = 250 + 8 * self.wave
-        T = dist(p['x'], p['y'], e['x'], e['y']) / spd
+        boss = c['is_boss']
+        spd = (232 + 7 * self.wave) if boss else (250 + 8 * self.wave)
+        off = BOSS_MOUNTS[mount] if (boss and mount is not None) else 0.0
+        ox, oy = vec(e['h'], off)
+        T = dist(p['x'], p['y'], e['x'] + ox, e['y'] + oy) / spd
         vx, vy = vec(p['h'], p['v'])
         err = max(2.0, 11 - 1.2 * self.wave)
-        ang = bearing(p['x'] + vx * T - e['x'], p['y'] + vy * T - e['y']) + random.uniform(-err, err)
-        self.launch_missile(e, ang, spd, 'e')
+        ang = bearing(p['x'] + vx * T - e['x'] - ox, p['y'] + vy * T - e['y'] - oy) + random.uniform(-err, err)
+        self.launch_missile(e, ang, spd, 'e', off, (18, 10) if boss else (22, 12))
         self.audio.play('launch', .5)
-        self.fx.add('glow', e['x'], e['y'], life=.2, r0=20, r1=40, col=(255, 160, 120))
+        self.fx.add('glow', e['x'] + ox, e['y'] + oy, life=.2, r0=22, r1=46, col=(255, 160, 120))
 
     def ship_hit(self, ship, x, y, boss):
-        L, r, core = (62, 26, 34) if boss else (44, 17, 24)
+        L, r, core = (108, 36, 56) if boss else (44, 17, 24)
         dx, dy = vec(ship['h'], 1)
         t = clamp((x - ship['x']) * dx + (y - ship['y']) * dy, -L, L)
         hit = dist(x, y, ship['x'] + dx * t, ship['y'] + dy * t) < r
@@ -2129,7 +2212,7 @@ class Game:
             c['e']['hp'] -= dmg
             self.pop('-%d' % dmg, x, y - 20, (255, 255, 160))
         else:
-            dmg = 22 if full else 12
+            dmg = s['dmg'][0] if full else s['dmg'][1]
             self.hull -= dmg
             self.pop('-%d CASCO' % dmg, x, y - 20, (255, 110, 100))
             self.shake = max(self.shake, 12)
@@ -3342,7 +3425,7 @@ class Game:
                 draw_circ(cv, sx_, sy_, SHIELD_R, (255, 90, 220), 20 + 20 * pulse)
                 draw_circ(cv, sx_, sy_, SHIELD_R, (255, 130, 235), 150 + 80 * pulse, 3)
                 draw_circ(cv, sx_, sy_, SHIELD_R - 14, (160, 90, 255), 70, 1)
-                self.text(cv, 'ESCUDO DIGITAL', self.f_s, (255, 150, 235), sx_, sy_ - SHIELD_R - 22, 'c')
+                self.text(cv, 'ACORAZADO %s' % en['name'], self.f_s, (255, 150, 235), sx_, sy_ + 78, 'c')
         self.blit_ship(cv, 'p_map', self.sx, self.sy, self.sh, cx, cy)
         # HUD
         self.draw_hud(cv)
@@ -3636,10 +3719,25 @@ class Game:
         for ship, key, tur in ((e, ekey, etur), (p, 'p_hull', self.tur_p)):
             alpha = 255
             if ship['sink'] is not None:
-                alpha = int(255 * clamp(1 - (ship['sink'] - 1.0) / 1.4, 0, 1))
+                k0, k1 = (1.8, 2.2) if (ship is e and is_boss) else (1.0, 1.4)
+                alpha = int(255 * clamp(1 - (ship['sink'] - k0) / k1, 0, 1))
             if alpha > 0:
                 self.blit_ship(cv, key, ship['x'], ship['y'], ship['h'], alpha=alpha)
-                fx_, fy_ = vec(ship['h'], {'p_hull': 124, 'e_hull': 112, 'b_hull': 172}[key] * 0.23)
+                if key == 'b_hull':
+                    for mi, off in enumerate(BOSS_MOUNTS):
+                        mx_, my_ = vec(ship['h'], off)
+                        ang = bearing(p['x'] - (ship['x'] + mx_), p['y'] - (ship['y'] + my_))
+                        self.blit_turret(cv, self.tur_b2 if mi == 2 else self.tur_b, ship['x'] + mx_, ship['y'] + my_, ang, alpha)
+                    if ship['sink'] is None:
+                        rx, ry = vec(ship['h'], 6)
+                        ra = math.radians(self.t * 130)
+                        pygame.draw.line(cv, (150, 235, 255), (ship['x'] + rx, ship['y'] + ry),
+                                         (ship['x'] + rx + math.cos(ra) * 22, ship['y'] + ry + math.sin(ra) * 22), 2)
+                        pygame.draw.circle(cv, (150, 235, 255), (int(ship['x'] + rx), int(ship['y'] + ry)), 4)
+                        if int(self.t * 2) % 2 == 0:
+                            glow(cv, ship['x'] + rx, ship['y'] + ry, 22, (255, 60, 50))
+                    continue
+                fx_, fy_ = vec(ship['h'], {'p_hull': 124, 'e_hull': 112}[key] * 0.23)
                 if ship is p:
                     tx_, ty_ = self.combat_aim()
                 else:
@@ -3669,7 +3767,7 @@ class Game:
         self.draw_hud(cv)
         self.panel(cv, (W // 2 - 230, 12, 460, 70), 170)
         if is_boss:
-            self.text(cv, '¡BUQUE JEFE!', self.f_m, (255, 110, 220), W // 2, 16, 'c')
+            self.text(cv, 'ACORAZADO %s' % c['name'], self.f_m, (255, 110, 220), W // 2, 16, 'c')
         else:
             self.text(cv, 'DESTRUCTOR ENEMIGO', self.f_m, (255, 140, 120), W // 2, 16, 'c')
         self.bar(cv, W // 2 - 210, 44, 420, 26, e['hp'] / e['max'], (240, 80, 70), 'CASCO ENEMIGO')
