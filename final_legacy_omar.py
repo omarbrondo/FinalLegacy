@@ -2037,7 +2037,7 @@ class Game:
         if is_boss and not en['seen'] and d < 700:
             en['seen'] = True
             self.audio.play('alarm')
-            self.banner('¡BUQUE JEFE DETECTADO!', 'Protegido por escudo digital: instalá antenas (L) y hackealo (H)', (255, 120, 220), 4.0)
+            self.banner('¡BUQUE JEFE DETECTADO!', 'Escudo digital: necesitás %d antenas instaladas (L) para hackearlo (H)' % self.antennas_needed(), (255, 120, 220), 4.0)
         if en['state'] == 'patrol' and d < chase_dist and en['cool'] <= 0 and not en.get('shield'):
             en['state'] = 'chase'
             self.audio.play('ping')
@@ -2304,13 +2304,17 @@ class Game:
                     best = (d, en)
         return best[1] if best else None
 
+    def antennas_needed(self):
+        """Antenas mínimas para hackear al jefe: 2 al principio, +1 cada dos oleadas."""
+        return min(len(self.antennas), 2 + (self.wave - 1) // 2)
+
     def try_hack(self):
         boss = self.nearest_shield_boss()
         n = sum(self.antennas.values())
         if boss is None:
             self.toast('No hay ningún escudo enemigo al alcance', (255, 200, 120))
-        elif n == 0:
-            self.toast('Sin antenas: desembarcá en las islas (L) para instalarlas', (255, 140, 100))
+        elif n < self.antennas_needed():
+            self.toast('Faltan antenas: tenés %d y necesitás %d (desembarcá en las islas con L)' % (n, self.antennas_needed()), (255, 140, 100))
         elif boss['hack_cd'] > 0:
             self.toast('Sistemas enemigos reiniciando: %d s' % math.ceil(boss['hack_cd']), (255, 200, 120))
         else:
@@ -3811,7 +3815,7 @@ class Game:
                 self.antennas[i] = True
                 n = sum(self.antennas.values())
                 self.toast('¡ANTENA INSTALADA en %s!' % self.isl_name(i), (120, 255, 160))
-                self.banner('ANTENA OPERATIVA', '%d/%d antenas  |  Ciberataque disponible contra el jefe' % (n, len(self.antennas)),
+                self.banner('ANTENA OPERATIVA', '%d/%d antenas  |  El jefe de esta oleada exige %d' % (n, len(self.antennas), self.antennas_needed()),
                             (120, 220, 255), 3.4)
         else:
             if g['fail'] and not city['dead']:
@@ -4996,11 +5000,14 @@ class Game:
         self.text(cv, 'AMENAZA ENEMIGA', self.f_s, (255, 190, 170), W - 296 + 8, 76)
         self.bar(cv, W - 296, 96, 282, 14, thr, (255, 90 + int(100 * (1 - thr)), 60), '')
         n_ant = sum(self.antennas.values())
-        self.text(cv, 'ANTENAS %d/%d' % (n_ant, len(self.antennas)), self.f_s, (130, 235, 255) if n_ant else (170, 170, 180), W - 296 + 8, 116)
+        need = self.antennas_needed()
+        self.text(cv, 'ANTENAS %d/%d  (jefe: %d)' % (n_ant, len(self.antennas), need), self.f_s,
+                  (130, 235, 255) if n_ant >= need else (255, 190, 120), W - 296 + 8, 116)
         bs = self.nearest_shield_boss()
         if bs:
-            if n_ant == 0:
-                self.text(cv, 'ESCUDO DEL JEFE: instalá antenas desembarcando en las islas (L)', self.f_m, (255, 150, 235), W // 2, H - 176, 'c')
+            if n_ant < self.antennas_needed():
+                self.text(cv, 'ESCUDO DEL JEFE: necesitás %d antenas (tenés %d) - desembarcá en las islas (L)' % (self.antennas_needed(), n_ant),
+                          self.f_m, (255, 150, 235), W // 2, H - 176, 'c')
             elif bs['hack_cd'] > 0:
                 self.text(cv, 'Sistemas enemigos reiniciando: %d s' % math.ceil(bs['hack_cd']), self.f_m, (255, 200, 120), W // 2, H - 176, 'c')
             else:
