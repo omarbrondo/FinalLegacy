@@ -1207,6 +1207,729 @@ def make_tank_sprites():
     return out
 
 
+# ------------------------------------------------------------------ arte del asalto (soldados pre-renderizados)
+PT_S = 4                      # supersampling de los sprites
+PT_K = 1.12                   # escala del personaje
+PT_CW, PT_CH = 128, 120       # tamaño del lienzo de cada cuadro (px a 1x)
+PT_AX, PT_AY = 64, 104        # ancla: pies del personaje
+
+PT_LOOK = {
+    # kind: (uniforme, chaleco, casco/cabeza, pantalón, mochila, piel)
+    'player': dict(body=(46, 98, 146), vest=(36, 58, 78), helm=(78, 104, 76), pants=(52, 70, 62), pack=(70, 62, 50), skin=(232, 190, 150)),
+    'rifle': dict(body=(150, 78, 60), vest=(92, 54, 46), helm=(106, 66, 54), pants=(90, 66, 56), pack=(80, 64, 48), skin=(226, 178, 140)),
+    'knife': dict(body=(188, 120, 60), vest=(96, 62, 46), helm=(200, 50, 50), pants=(74, 62, 58), pack=(70, 56, 44), skin=(222, 172, 132)),
+    'gren': dict(body=(112, 78, 140), vest=(66, 50, 82), helm=(86, 64, 104), pants=(66, 54, 80), pack=(90, 72, 56), skin=(214, 168, 134)),
+    'sniper': dict(body=(70, 92, 62), vest=(52, 70, 48), helm=(58, 80, 52), pants=(60, 78, 56), pack=(64, 60, 44), skin=(220, 176, 140)),
+    'shield': dict(body=(84, 92, 104), vest=(52, 58, 70), helm=(110, 118, 130), pants=(60, 66, 78), pack=(70, 64, 56), skin=(218, 172, 136)),
+    'flame': dict(body=(204, 120, 44), vest=(120, 70, 36), helm=(150, 90, 40), pants=(96, 70, 50), pack=(210, 70, 40), skin=(222, 176, 138)),
+    'pow': dict(body=(222, 214, 190), vest=(180, 170, 150), helm=(86, 62, 40), pants=(104, 96, 120), pack=(180, 170, 150), skin=(230, 188, 150)),
+}
+
+
+def _dk(c, d):
+    return (clamp(c[0] - d, 0, 255), clamp(c[1] - d, 0, 255), clamp(c[2] - d, 0, 255))
+
+
+class _Rig:
+    """Dibuja formas en coordenadas locales (x adelante, y arriba) sobre un lienzo supersampleado."""
+
+    def __init__(self, ang=0.0, w=PT_CW, h=PT_CH, ax=PT_AX, ay=PT_AY):
+        self.S = PT_S
+        self.surf = pygame.Surface((w * PT_S, h * PT_S), pygame.SRCALPHA)
+        self.ax, self.ay = ax, ay
+        a = math.radians(ang)
+        self.ca, self.sa = math.cos(a), math.sin(a)
+
+    def pt(self, x, y):
+        xr = x * self.ca - y * self.sa
+        yr = x * self.sa + y * self.ca
+        return ((self.ax + xr * PT_K) * self.S, (self.ay - yr * PT_K) * self.S)
+
+    def poly(self, pts, col, out=None, ow=0.9):
+        P = [self.pt(*p) for p in pts]
+        pygame.draw.polygon(self.surf, col, P)
+        if out is not None:
+            pygame.draw.polygon(self.surf, out, P, max(1, int(ow * self.S)))
+
+    def circ(self, c, r, col, out=None, ow=0.9):
+        x, y = self.pt(*c)
+        pygame.draw.circle(self.surf, col, (x, y), r * self.S * PT_K)
+        if out is not None:
+            pygame.draw.circle(self.surf, out, (x, y), r * self.S * PT_K, max(1, int(ow * self.S)))
+
+    def ell(self, c, rx, ry, col, out=None, rot=0.0):
+        """Elipse como polígono (permite rotación)."""
+        pts = []
+        cr, sr = math.cos(rot), math.sin(rot)
+        for i in range(24):
+            t = 6.2832 * i / 24
+            ex, ey = math.cos(t) * rx, math.sin(t) * ry
+            pts.append((c[0] + ex * cr - ey * sr, c[1] + ex * sr + ey * cr))
+        self.poly(pts, col, out)
+
+    def cap(self, a, b, w, col, out=None):
+        """Cápsula (miembro) entre a y b, con brillo."""
+        if out is not None:
+            self._cap(a, b, w + 1.7, out)
+        self._cap(a, b, w, col)
+        if w > 3.0:
+            hi = (clamp(col[0] + 26, 0, 255), clamp(col[1] + 26, 0, 255), clamp(col[2] + 26, 0, 255))
+            A, B = self.pt(*a), self.pt(*b)
+            off = w * 0.2 * self.S * PT_K
+            pygame.draw.line(self.surf, hi, (A[0], A[1] - off), (B[0], B[1] - off), max(1, int(w * 0.3 * self.S * PT_K)))
+
+    def _cap(self, a, b, w, col):
+        A, B = self.pt(*a), self.pt(*b)
+        wk = w * PT_K * self.S
+        pygame.draw.line(self.surf, col, A, B, max(1, int(wk)))
+        pygame.draw.circle(self.surf, col, A, wk / 2)
+        pygame.draw.circle(self.surf, col, B, wk / 2)
+
+    def finish(self):
+        return pygame.transform.smoothscale(self.surf, (self.surf.get_width() // PT_S, self.surf.get_height() // PT_S))
+
+
+def _leg(hip, th, flex, L1=15.0, L2=15.0):
+    t = math.radians(th)
+    knee = (hip[0] + math.sin(t) * L1, hip[1] - math.cos(t) * L1)
+    t2 = math.radians(th - flex)
+    ankle = (knee[0] + math.sin(t2) * L2, knee[1] - math.cos(t2) * L2)
+    return knee, ankle, t2
+
+
+def _pose(pose, i):
+    """Devuelve (leg1, leg2, lean, auto_hip, hip_y, fall_ang, crouch)  con leg=(thigh°, flex°)."""
+    if pose == 'run':
+        ph = 6.2832 * i / 8
+        legs = []
+        for k in (0, 1):
+            pk = ph + k * 3.14159
+            legs.append((46 * math.sin(pk), 10 + 78 * max(0.0, math.cos(pk))))
+        return legs[0], legs[1], 8.0, True, 30.0, 0.0
+    if pose == 'idle':
+        br = math.sin(6.2832 * i / 4)
+        return (7, 3 + br), (-7, 3), 0.0, True, 30.0, 0.0
+    if pose == 'crouch':
+        return (76, 100), (22, 108), 12.0, True, 18.0, 0.0
+    if pose == 'jump':
+        return (52, 84), (-14, 52), 4.0, False, 27.5, 0.0
+    if pose == 'fall':
+        return (14, 16), (-12, 8), -3.0, False, 29.5, 0.0
+    if pose == 'die':
+        ang = (0, 12, 32, 58, 80, 90)[min(i, 5)]
+        return (6, 6), (-6, 6), -6.0 * min(i, 3) / 3, False, 30.0 - min(i, 5) * 1.0, float(ang)
+    return (7, 3), (-7, 3), 0.0, True, 30.0, 0.0
+
+
+def _body_frame(kind, pose, i, t=0.0):
+    """Cuerpo (sin brazos) mirando a la derecha. Devuelve (surf, shoulder_dx, shoulder_dy)."""
+    look = PT_LOOK[kind]
+    leg1, leg2, lean, auto, hy, fall = _pose(pose, i)
+    rig = _Rig(fall)
+    line = (20, 18, 24)
+    body, vest, helm, pants, pack, skin = look['body'], look['vest'], look['helm'], look['pants'], look['pack'], look['skin']
+    heavy = kind == 'gren'
+    hip = [0.0, hy]
+    if auto:
+        lows = []
+        for th, fl in (leg1, leg2):
+            kn, an, _ = _leg((0, 0), th, fl)
+            lows.append(-an[1])
+        hip[1] = max(lows) + 1.2
+    hip = tuple(hip)
+    # --- pierna trasera, mochila, torso, pierna delantera, cabeza
+    legs = []
+    for (th, fl), shade_d in ((leg1, 26), (leg2, 0)):
+        kn, an, t2 = _leg(hip, th, fl)
+        legs.append((kn, an, t2, shade_d))
+    order = sorted(legs, key=lambda L: -L[3])        # primero la de atrás (más oscura)
+    leaning = math.radians(lean)
+    ux, uy = math.sin(leaning), math.cos(leaning)     # eje del torso
+    px_, py_ = uy, -ux                                # perpendicular hacia adelante
+    sh = (hip[0] + ux * 22, hip[1] + uy * 22)
+
+    def torso_pt(f, a):
+        return (hip[0] + ux * a + px_ * f, hip[1] + uy * a + py_ * f)
+
+    def draw_leg(L):
+        kn, an, t2, sd = L
+        pc = _dk(pants, sd)
+        rig.cap(hip, kn, 7.0, pc, line)
+        rig.cap(kn, an, 6.0, pc, line)
+        # rodillera y bota
+        rig.circ(kn, 3.2, _dk(vest, sd // 2), None)
+        toe = (an[0] + 7.0 + (1.2 if heavy else 0), an[1] - 1.8)
+        heel = (an[0] - 3.0, an[1] - 1.8)
+        rig.poly([(an[0] - 3, an[1] + 3), (an[0] + 3, an[1] + 3), (toe[0], toe[1] + 2.4), (toe[0], toe[1] - 2.2), (heel[0], heel[1] - 2.2)],
+                 _dk((38, 34, 36), sd // 2), line)
+        rig.poly([(heel[0], heel[1] - 2.2), (toe[0], toe[1] - 2.2), (toe[0], toe[1] - 3.2), (heel[0], heel[1] - 3.2)], (18, 16, 18), None)
+    draw_leg(order[0])
+    # mochila (atrás del torso)
+    pk = [torso_pt(-5.4, 4), torso_pt(-10.5, 6), torso_pt(-11.5, 18), torso_pt(-6, 21)]
+    rig.poly(pk, pack, line)
+    rig.poly([torso_pt(-6.5, 10), torso_pt(-10.2, 10.6), torso_pt(-10.8, 16), torso_pt(-6.5, 17)], _dk(pack, 14), None)
+    if kind == 'sniper':      # camuflaje: hojas
+        rnd = random.Random(3)
+        for _ in range(16):
+            rig.ell(torso_pt(rnd.uniform(-10, 5), rnd.uniform(1, 21)), 2.6, 1.0, rnd.choice(((92, 118, 70), (50, 70, 44), (110, 126, 78))), None, rnd.uniform(0, 3))
+    # torso
+    torso = [torso_pt(-5.4, 0), torso_pt(5.4, 0), torso_pt(6.4, 12), torso_pt(5.8, 22), torso_pt(-5.8, 22), torso_pt(-6.2, 10)]
+    rig.poly(torso, body, line)
+    rig.poly([torso_pt(-5.2, 0.5), torso_pt(-1.5, 0.5), torso_pt(-1.5, 21.5), torso_pt(-5.6, 21.5)], _dk(body, 16), None)      # sombra espalda
+    # chaleco / blindaje
+    if kind == 'knife':
+        rig.poly([torso_pt(-3, 4), torso_pt(5.6, 6), torso_pt(6.3, 12), torso_pt(5, 22), torso_pt(1, 22)], vest, line)
+        rig.poly([torso_pt(5.4, 6), torso_pt(6.3, 12), torso_pt(5.5, 20), torso_pt(2.8, 21)], _dk(skin, 30), None)
+    else:
+        vf = 6.8 if heavy else 6.0
+        rig.poly([torso_pt(-5.6, 3), torso_pt(vf, 3), torso_pt(vf + 0.6, 12), torso_pt(vf - 0.2, 21.5), torso_pt(-5.6, 21.5)], vest, line)
+        for a_ in (6.5, 12.5):
+            rig.poly([torso_pt(1.0, a_), torso_pt(vf - 0.3, a_), torso_pt(vf - 0.3, a_ + 4.2), torso_pt(1.0, a_ + 4.2)], _dk(vest, 14), line, 0.6)
+            rig.poly([torso_pt(1.0, a_ + 3.2), torso_pt(vf - 0.3, a_ + 3.2), torso_pt(vf - 0.3, a_ + 4.2), torso_pt(1.0, a_ + 4.2)], shade(vest, 20), None)
+    # cinturón y hebilla
+    rig.poly([torso_pt(-5.6, 1.0), torso_pt(6.0, 1.0), torso_pt(6.0, 3.6), torso_pt(-5.6, 3.6)], (36, 30, 28), line, 0.6)
+    rig.poly([torso_pt(2.4, 1.2), torso_pt(4.8, 1.2), torso_pt(4.8, 3.4), torso_pt(2.4, 3.4)], (200, 180, 90), None)
+    # granadas al cinto / bandolera
+    if heavy or kind == 'player' or kind == 'gren':
+        for k_ in range(3 if heavy else 2):
+            c_ = torso_pt(3.2 - k_ * 3.0, 6.0 + (k_ % 2) * 0.6)
+            rig.circ(c_, 1.9, (70, 100, 56), line, 0.5)
+            rig.circ((c_[0], c_[1] + 2.0), 0.7, (170, 170, 170), None)
+    if heavy:
+        rig.poly([torso_pt(-6, 22), torso_pt(8.5, 21), torso_pt(8.2, 17), torso_pt(-4, 18)], _dk(vest, 6), line, 0.7)      # hombrera
+    # pierna delantera
+    draw_leg(order[1])
+    # cuello y cabeza
+    neck = torso_pt(0.6, 22.5)
+    head = (neck[0] + ux * 6.2 + px_ * 1.4, neck[1] + uy * 6.2 + py_ * 1.4)
+    rig.cap((sh[0] + px_ * 0.5, sh[1] + py_ * 0.5), neck, 3.6, _dk(skin, 24), None)
+    if kind == 'sniper':
+        hood = [(head[0] - 7.4, head[1] - 7), (head[0] + 5.8, head[1] - 6), (head[0] + 7.4, head[1] + 1), (head[0] + 4, head[1] + 8.4),
+                (head[0] - 3, head[1] + 9.6), (head[0] - 8.6, head[1] + 3)]
+        rig.poly(hood, helm, line)
+        rig.poly([(head[0] - 1, head[1] - 3), (head[0] + 6.3, head[1] - 2.6), (head[0] + 6.8, head[1] + 2), (head[0] - 0.5, head[1] + 2.4)], _dk(skin, 10), None)
+        rig.poly([(head[0] - 1.5, head[1] - 7.2), (head[0] + 5.2, head[1] - 6), (head[0] + 6, head[1] - 2.6), (head[0] - 1.5, head[1] - 3.4)], (60, 70, 56), None)
+        rnd = random.Random(8)
+        for _ in range(9):
+            rig.ell((head[0] + rnd.uniform(-8, 6), head[1] + rnd.uniform(-5, 9)), 2.4, 0.9, rnd.choice(((92, 118, 70), (50, 70, 44))), None, rnd.uniform(0, 3))
+        rig.circ((head[0] + 3.4, head[1] + 0.2), 0.9, (20, 20, 22), None)
+    else:
+        rig.circ(head, 7.0, skin, line)
+        rig.poly([(head[0] + 6.0, head[1] - 0.6), (head[0] + 8.3, head[1] - 2.0), (head[0] + 6.0, head[1] - 3.2)], skin, line, 0.5)       # nariz
+        rig.ell((head[0] - 3.6, head[1] - 1.6), 1.6, 2.2, _dk(skin, 30), None)                                                          # oreja
+        rig.circ((head[0] + 3.2, head[1] + 0.9), 0.95, (24, 22, 26), None)                                                             # ojo
+        rig.poly([(head[0] + 1.6, head[1] + 2.6), (head[0] + 5.2, head[1] + 2.9), (head[0] + 5.2, head[1] + 3.5), (head[0] + 1.6, head[1] + 3.3)], _dk(skin, 70), None)
+        if kind == 'pow':
+            rig.poly([(head[0] - 7.2, head[1] + 2.4), (head[0] - 6.8, head[1] + 7.6), (head[0] - 1, head[1] + 9.6), (head[0] + 5.6, head[1] + 7.6), (head[0] + 6.4, head[1] + 3.6),
+                      (head[0] + 1.6, head[1] + 4.6)], helm, line, 0.5)
+            rig.poly([(head[0] - 1.4, head[1] - 7.0), (head[0] + 5.6, head[1] - 5.0), (head[0] + 6.8, head[1] - 1.2), (head[0] + 1.4, head[1] - 2.4)], (96, 74, 52), None)
+            rig.poly([(head[0] + 0.6, head[1] + 3.0), (head[0] + 7.2, head[1] + 3.2), (head[0] + 7.2, head[1] + 4.6), (head[0] + 0.6, head[1] + 4.4)], (230, 230, 230), line, 0.4)
+        elif kind == 'knife':
+            # pañuelo rojo con cola ondeante
+            fl = math.sin(t * 3.0) * 1.4
+            rig.poly([(head[0] - 6.6, head[1] + 3.2), (head[0] + 6.4, head[1] + 3.8), (head[0] + 6.2, head[1] + 6.4), (head[0] - 6.4, head[1] + 6.0)], helm, line, 0.6)
+            rig.poly([(head[0] - 6.4, head[1] + 4.4), (head[0] - 12.6, head[1] + 2.4 + fl), (head[0] - 13.6, head[1] + 4.6 + fl), (head[0] - 6.4, head[1] + 6.2)], _dk(helm, 16), line, 0.5)
+            rig.poly([(head[0] - 5, head[1] + 6.2), (head[0] + 3, head[1] + 9.6), (head[0] + 5.6, head[1] + 6.4)], _dk(skin, 70), None)
+            for k_ in range(5):
+                rig.poly([(head[0] - 4 + k_ * 2.6, head[1] + 6.0), (head[0] - 3 + k_ * 2.6, head[1] + 9.6), (head[0] - 2 + k_ * 2.6, head[1] + 6.0)], (50, 34, 30), None)
+        else:
+            # casco
+            hc = helm
+            rig.poly([(head[0] - 7.8, head[1] + 1.2), (head[0] - 7.4, head[1] + 6.4), (head[0] - 3.6, head[1] + 9.8), (head[0] + 2.8, head[1] + 10.0),
+                      (head[0] + 7.0, head[1] + 6.8), (head[0] + 7.6, head[1] + 3.2), (head[0] + 1.6, head[1] + 3.2)], hc, line)
+            rig.poly([(head[0] - 6.6, head[1] + 6.0), (head[0] - 3.2, head[1] + 9.0), (head[0] + 2.0, head[1] + 9.2), (head[0] - 2.0, head[1] + 7.2)], shade(hc, 28), None)
+            rig.poly([(head[0] - 8.2, head[1] + 1.0), (head[0] + 8.2, head[1] + 2.6), (head[0] + 8.0, head[1] + 3.6), (head[0] - 8.0, head[1] + 2.4)], _dk(hc, 22), line, 0.5)
+            rig.cap((head[0] + 1.5, head[1] + 3.0), (head[0] + 1.8, head[1] - 4.4), 0.7, (30, 26, 24), None)           # correa
+            if kind == 'player':
+                rig.poly([(head[0] + 2.2, head[1] + 5.0), (head[0] + 6.6, head[1] + 5.4), (head[0] + 6.6, head[1] + 7.6), (head[0] + 2.2, head[1] + 7.4)], (60, 150, 210), (20, 30, 40), 0.5)
+                rig.cap((head[0] + 1, head[1] - 3.4), (head[0] + 5.2, head[1] - 4.4), 0.7, (30, 30, 34), None)                  # micrófono
+            elif heavy:
+                rig.poly([(head[0] + 1.2, head[1] - 6.2), (head[0] + 7.2, head[1] - 5.8), (head[0] + 7.0, head[1] - 0.6), (head[0] + 1.0, head[1] - 1.4)], (96, 100, 104), line, 0.6)      # máscara
+                rig.poly([(head[0] + 2.0, head[1] + 2.4), (head[0] + 7.4, head[1] + 2.6), (head[0] + 7.0, head[1] + 0.4), (head[0] + 2.0, head[1] + 0.2)], (230, 90, 70), None)      # visor
+    surf = rig.finish()
+    s_ang = math.radians(fall)
+    sx_, sy_ = sh
+    shx = sx_ * math.cos(s_ang) - sy_ * math.sin(s_ang)
+    shy = sx_ * math.sin(s_ang) + sy_ * math.cos(s_ang)
+    return surf, shx * PT_K, shy * PT_K
+
+
+def _arm_layer(kind, mode):
+    """Brazos + arma apuntando a +x con el hombro en (cx, cy) del lienzo."""
+    look = PT_LOOK[kind]
+    rig = _Rig(0.0, 170, 170, 85, 85)
+    line = (20, 18, 24)
+    body, skin = look['body'], look['skin']
+    sl = _dk(body, 22)
+    if mode == 'shield':
+        rig.cap((0, 0), (5, -7), 4.6, sl, line)
+        rig.cap((5, -7), (16, -3), 4.2, sl, line)
+        rig.poly([(14, 16), (25, 14), (25, -54), (14, -52)], (92, 102, 116), line, 0.9)
+        rig.poly([(14, 16), (17.4, 15.6), (17.4, -52), (14, -52)], (156, 166, 180), None)
+        rig.poly([(17.6, 9.4), (23.4, 9.2), (23.4, 6.2), (17.6, 6.4)], (130, 200, 226), line, 0.4)
+        for k_ in range(3):
+            rig.poly([(17.6, -8 - k_ * 9), (23.4, -3 - k_ * 9), (23.4, -6.6 - k_ * 9), (17.6, -11.6 - k_ * 9)], (232, 196, 50), None)
+        rig.circ((16, -3), 2.6, (34, 30, 30), line, 0.5)
+    elif mode == 'gun' and kind == 'flame':
+        rig.cap((0, 0), (3.5, -7.5), 4.6, _dk(sl, 28), line)
+        rig.cap((3.5, -7.5), (13, -3.2), 4.2, _dk(sl, 28), line)
+        rig.poly([(-6, -3.2), (4, -3.6), (4, 3.4), (-6, 3.6)], (60, 56, 52), line, 0.6)
+        rig.poly([(4, -2.6), (40, -2.0), (40, 2.0), (4, 2.6)], (50, 52, 58), line, 0.6)
+        rig.poly([(40, -3.4), (48, -4.2), (48, 4.2), (40, 3.4)], (210, 90, 40), line, 0.6)
+        rig.circ((49, 0), 1.8, (255, 220, 120), None)
+        rig.cap((0, 0.8), (9, -8.8), 4.8, sl, line)
+        rig.cap((9, -8.8), (30, -2.0), 4.4, sl, line)
+        rig.circ((30, -1.4), 2.7, (34, 30, 30), line, 0.5)
+        rig.circ((13, -2.6), 2.5, (34, 30, 30), line, 0.5)
+    elif mode == 'gun':
+        long = kind == 'sniper'
+        # brazo trasero (apoyo / gatillo) detrás del arma
+        rig.cap((0, 0), (3.5, -7.5), 4.6, _dk(sl, 28), line)
+        rig.cap((3.5, -7.5), (13, -3.2), 4.2, _dk(sl, 28), line)
+        # arma
+        if kind == 'player':
+            wood, mc = (60, 64, 70), (30, 32, 36)
+        elif kind == 'sniper':
+            wood, mc = (86, 70, 50), (38, 40, 44)
+        else:
+            wood, mc = (112, 76, 44), (36, 36, 40)
+        L = 74 if long else 52
+        rig.poly([(-12, -4.2), (4, -3.0), (4, 3.2), (-12, 4.0)], wood, line, 0.6)                                         # culata
+        rig.poly([(-12, -4.2), (-9.4, -4.4), (-9.4, 4.2), (-12, 4.0)], _dk(wood, 30), None)
+        rig.poly([(4, -4), (26, -4), (26, 3.6), (4, 3.6)], mc, line, 0.6)                                                   # receptor
+        rig.poly([(7, 3.6), (20, 3.6), (20, 5.2), (7, 5.2)], (22, 22, 26), None)                                            # riel
+        rig.poly([(26, -3), (L - 6, -2.6), (L - 6, 2.0), (26, 2.4)], wood if kind != 'player' else (52, 56, 62), line, 0.6)      # guardamanos
+        rig.poly([(L - 6, -1.2), (L + 6, -1.0), (L + 6, 0.8), (L - 6, 1.0)], (24, 24, 28), line, 0.5)                      # cañón
+        rig.poly([(L + 6, -2.0), (L + 10, -2.0), (L + 10, 1.8), (L + 6, 1.8)], (20, 20, 24), None)                          # freno
+        rig.poly([(12, -4), (19, -4), (21, -14), (14.4, -13)], _dk(mc, 4), line, 0.6)                                       # cargador
+        rig.poly([(8, 5.2), (11, 5.2), (11, 8.6), (8, 8.6)], (24, 24, 30), None)                                            # mira
+        if long:
+            rig.poly([(14, 5.2), (32, 5.2), (32, 9.6), (14, 9.6)], (26, 28, 34), line, 0.6)                                 # mira telescópica
+            rig.circ((32.5, 7.4), 2.6, (90, 170, 220), (20, 20, 24), 0.5)
+            rig.cap((L - 10, 2), (L - 12, -7.5), 0.9, (30, 30, 34), None)                                                   # bípode
+            rig.cap((L - 10, 2), (L - 6, -7.5), 0.9, (30, 30, 34), None)
+        elif kind == 'player':
+            rig.circ((17, 7.4), 1.8, (240, 70, 60), None)
+        # brazo delantero sobre el arma
+        gx = L - 18 if long else 33
+        rig.cap((0, 0.8), (9, -8.8), 4.8, sl, line)
+        rig.cap((9, -8.8), (gx, -1.8), 4.4, sl, line)
+        rig.circ((gx, -1.2), 2.7, (34, 30, 30), line, 0.5)
+        rig.circ((13, -2.6), 2.5, (34, 30, 30), line, 0.5)
+    elif mode == 'knife':
+        rig.cap((0, 0), (9, -6.5), 4.6, sl, line)
+        rig.cap((9, -6.5), (22, -1.0), 4.2, sl, line)
+        rig.circ((23.4, -0.6), 2.7, skin, line, 0.5)
+        rig.poly([(24.4, -1.6), (27.6, -1.6), (27.6, 1.0), (24.4, 1.0)], (46, 36, 30), line, 0.4)
+        rig.poly([(27.4, -1.4), (45.4, -0.6), (27.4, 1.0)], (206, 212, 220), line, 0.5)
+        rig.poly([(27.4, -0.8), (42, -0.2), (27.4, 0.2)], (255, 255, 255), None)
+        rig.cap((0, 0.5), (6, -9), 4.6, _dk(sl, 24), line)
+        rig.circ((7, -9.6), 2.5, skin, line, 0.5)
+    elif mode in ('wind', 'rel'):
+        # lanzamiento de granada
+        if mode == 'wind':
+            rig.cap((0, 0), (-7, 8), 4.6, sl, line)
+            rig.cap((-7, 8), (-5, 19), 4.2, sl, line)
+            hand = (-4.4, 21.2)
+        else:
+            rig.cap((0, 0), (9, 5), 4.6, sl, line)
+            rig.cap((9, 5), (19, 11), 4.2, sl, line)
+            hand = (21, 12.2)
+        rig.circ(hand, 2.8, skin, line, 0.5)
+        rig.circ((hand[0] + 1, hand[1] + 3.4), 3.2, (70, 100, 56), line, 0.5)
+        rig.cap((hand[0] + 1, hand[1] + 6.2), (hand[0] + 1, hand[1] + 7.6), 1.0, (180, 180, 180), None)
+        rig.cap((0, 0.5), (4, -8), 4.6, _dk(sl, 24), line)
+        rig.circ((5.2, -9.4), 2.4, skin, line, 0.5)
+    return rig.finish()
+
+
+def build_pt_art():
+    """Pre-renderiza todos los cuadros de los soldados (lado derecho; el izquierdo se espeja)."""
+    art = {'body': {}, 'arm': {}, 'rot': {}}
+    for kind in PT_LOOK:
+        frames = {}
+        for pose, n in (('run', 8), ('idle', 4), ('crouch', 1), ('jump', 1), ('fall', 1), ('die', 6)):
+            frames[pose] = [_body_frame(kind, pose, i, i * 0.5) for i in range(n)]
+        art['body'][kind] = frames
+        modes = {'shield': ['shield'], 'flame': ['gun'], 'pow': [], 'knife': ['knife', 'wind', 'rel']}.get(kind) or (['gun'] if kind in ('player', 'rifle', 'sniper') else ['gun', 'wind', 'rel'])
+        if kind == 'pow':
+            modes = []
+        art['arm'][kind] = {m: _arm_layer(kind, m) for m in modes}
+        if kind in ('shield', 'flame', 'pow'):
+            continue
+        if 'wind' not in art['arm'][kind]:
+            art['arm'][kind]['wind'] = _arm_layer(kind, 'wind')
+            art['arm'][kind]['rel'] = _arm_layer(kind, 'rel')
+    return art
+
+
+# ------------------------------------------------------------------ arte del asalto, parte 2: tanque, torreta, contenedores y decorado
+def _smooth(surf, k):
+    return pygame.transform.smoothscale(surf, (surf.get_width() // k, surf.get_height() // k))
+
+
+def _lin_poly(s, pts, col, out=None, ow=2):
+    pygame.draw.polygon(s, col, pts)
+    if out is not None:
+        pygame.draw.polygon(s, out, pts, ow)
+
+
+def build_pt_tank():
+    """Tanque lateral mirando a la derecha: 8 cuadros de orugas, torreta y cañón por separado."""
+    K = 3
+    TW, TH = 360, 190
+    gx, gy = 190, 176                     # centro y suelo
+    out = (16, 20, 16)
+    base, dark, light = (88, 104, 80), (60, 74, 56), (122, 140, 106)
+    tan = (150, 138, 96)
+    hulls = []
+    for fi in range(8):
+        s = pygame.Surface((TW * K, TH * K), pygame.SRCALPHA)
+        P = lambda x, y: ((gx + x) * K, (gy - y) * K)
+        # sombra
+        pygame.draw.ellipse(s, (0, 0, 0, 90), ((gx - 150) * K, (gy - 8) * K, 300 * K, 18 * K))
+        # orugas: cuerpo
+        tr = [P(-136, 14), P(-118, 2), P(118, 2), P(140, 14), P(140, 40), P(120, 52), P(-120, 52), P(-138, 40)]
+        _lin_poly(s, tr, (30, 32, 30), out, 3 * K // 2)
+        # eslabones animados
+        off = fi * (14 / 8)
+        for k in range(-20, 21):
+            x = -140 + (k * 14 + off) % 280
+            pygame.draw.line(s, (62, 66, 60), P(x, 4), P(x, 14), 2 * K)
+            pygame.draw.line(s, (62, 66, 60), P(x, 40), P(x, 50), 2 * K)
+        # ruedas
+        for i in range(7):
+            wx = -100 + i * 33
+            pygame.draw.circle(s, (20, 22, 20), P(wx, 28), 17 * K)
+            pygame.draw.circle(s, (54, 60, 54), P(wx, 28), 15 * K)
+            pygame.draw.circle(s, (84, 92, 82), P(wx, 28), 8 * K)
+            for a in range(6):
+                ang = 1.0472 * a + fi * 0.18
+                pygame.draw.circle(s, (30, 34, 30), (P(wx, 28)[0] + math.cos(ang) * 5 * K, P(wx, 28)[1] + math.sin(ang) * 5 * K), 1.6 * K)
+        for wx in (-130, 128):          # rueda guía y motriz
+            pygame.draw.circle(s, (20, 22, 20), P(wx, 30), 14 * K)
+            pygame.draw.circle(s, (70, 76, 68), P(wx, 30), 9 * K)
+            pygame.draw.circle(s, (30, 34, 30), P(wx, 30), 4 * K)
+        for rx in (-70, 0, 70):         # rodillos superiores
+            pygame.draw.circle(s, (46, 50, 46), P(rx, 50), 6 * K)
+        # faldones
+        sk = [P(-132, 52), P(124, 52), P(136, 60), P(-120, 64)]
+        _lin_poly(s, sk, dark, out, K)
+        # casco inferior y superior
+        hull = [P(-134, 52), P(-126, 78), P(80, 84), P(132, 70), P(142, 56), P(130, 50)]
+        _lin_poly(s, hull, base, out, 3 * K // 2)
+        glacis = [P(80, 84), P(132, 70), P(140, 58), P(100, 62)]
+        _lin_poly(s, glacis, light, out, K)
+        deck = [P(-126, 78), P(80, 84), P(70, 90), P(-110, 88)]
+        _lin_poly(s, deck, light, None)
+        # camuflaje
+        rnd = random.Random(4)
+        for _ in range(9):
+            cx, cy = rnd.uniform(-110, 100), rnd.uniform(58, 78)
+            pygame.draw.ellipse(s, tan if rnd.random() < 0.6 else dark, (P(cx - 16, cy + 4)[0], P(cx, cy + 4)[1], 32 * K, 8 * K))
+        # remaches y líneas de panel
+        for rx in range(-120, 120, 18):
+            pygame.draw.circle(s, shade(base, -34), P(rx, 64), 1.5 * K)
+        pygame.draw.line(s, shade(base, -40), P(-60, 54), P(-56, 80), K)
+        pygame.draw.line(s, shade(base, -40), P(40, 56), P(48, 82), K)
+        # rejilla del motor y escapes (atrás = izquierda)
+        for gxx in range(-118, -78, 7):
+            pygame.draw.line(s, (26, 30, 26), P(gxx, 68), P(gxx + 3, 80), 2 * K)
+        pygame.draw.rect(s, (36, 40, 36), (P(-142, 76)[0], P(-142, 76)[1], 12 * K, 8 * K))
+        pygame.draw.rect(s, (36, 40, 36), (P(-142, 66)[0], P(-142, 66)[1], 12 * K, 8 * K))
+        # eslabones de repuesto y faro
+        for k in range(4):
+            pygame.draw.rect(s, (46, 50, 44), (P(96 + k * 9, 74 - k * 3)[0], P(0, 74 - k * 3)[1], 7 * K, 5 * K))
+        pygame.draw.circle(s, (255, 236, 160), P(136, 66), 3.5 * K)
+        pygame.draw.circle(s, out, P(136, 66), 3.5 * K, K)
+        # ametralladora del casco
+        pygame.draw.line(s, (24, 26, 24), P(124, 72), P(150, 76), 3 * K)
+        hulls.append(_smooth(s, K))
+    # torreta
+    s = pygame.Surface((TW * K, TH * K), pygame.SRCALPHA)
+    P = lambda x, y: ((gx + x) * K, (gy - y) * K)
+    tur = [P(-62, 86), P(-70, 100), P(-52, 126), P(-6, 138), P(40, 134), P(70, 120), P(84, 104), P(80, 88)]
+    _lin_poly(s, tur, base, out, 3 * K // 2)
+    top = [P(-52, 126), P(-6, 138), P(40, 134), P(70, 120), P(40, 124), P(-6, 130), P(-48, 120)]
+    _lin_poly(s, top, light, None)
+    low = [P(-62, 86), P(80, 88), P(84, 104), P(-70, 100)]
+    _lin_poly(s, low, dark, out, K)
+    pygame.draw.line(s, shade(base, -44), P(-66, 94), P(82, 96), 2 * K)
+    for rx in range(-56, 76, 14):
+        pygame.draw.circle(s, shade(base, -34), P(rx, 112), 1.4 * K)
+    # cúpula del comandante + ametralladora
+    pygame.draw.ellipse(s, dark, (P(-44, 150)[0], P(0, 150)[1], 36 * K, 14 * K))
+    pygame.draw.rect(s, base, (P(-42, 144)[0], P(0, 144)[1], 32 * K, 12 * K), border_radius=3 * K)
+    pygame.draw.rect(s, out, (P(-42, 144)[0], P(0, 144)[1], 32 * K, 12 * K), K, border_radius=3 * K)
+    for bx in range(-40, -12, 7):
+        pygame.draw.rect(s, (110, 180, 200), (P(bx, 142)[0], P(0, 142)[1], 4 * K, 4 * K))
+    pygame.draw.line(s, (24, 26, 24), P(-20, 152), P(6, 158), 3 * K)
+    pygame.draw.circle(s, (24, 26, 24), P(-22, 152), 3 * K)
+    # escotilla del cargador, antena, lanzahumos
+    pygame.draw.rect(s, shade(base, -10), (P(18, 138)[0], P(0, 138)[1], 26 * K, 6 * K), border_radius=2 * K)
+    pygame.draw.line(s, (30, 30, 30), P(-58, 124), P(-62, 190 - 2), K)
+    pygame.draw.polygon(s, (220, 60, 50), [P(-62, 180), P(-84, 175), P(-62, 170)])
+    for k in range(3):
+        pygame.draw.rect(s, (36, 40, 36), (P(-76, 118 - k * 5)[0], P(0, 118 - k * 5)[1], 7 * K, 3 * K))
+    # mantelete
+    man = [P(66, 94), P(92, 98), P(94, 124), P(66, 124)]
+    _lin_poly(s, man, shade(base, -14), out, 2 * K)
+    # compartimento de equipaje trasero
+    bag = [P(-86, 90), P(-62, 90), P(-62, 108), P(-90, 106)]
+    _lin_poly(s, bag, shade(tan, -20), out, K)
+    turret = _smooth(s, K)
+    # cañón
+    s = pygame.Surface((TW * K, 60 * K), pygame.SRCALPHA)
+    cy = 30 * K
+    pygame.draw.rect(s, out, (0, cy - 8 * K, 150 * K, 16 * K), border_radius=2 * K)
+    pygame.draw.rect(s, (62, 68, 62), (2 * K, cy - 6 * K, 146 * K, 12 * K))
+    pygame.draw.rect(s, (96, 104, 94), (2 * K, cy - 6 * K, 146 * K, 4 * K))
+    pygame.draw.rect(s, (46, 52, 46), (60 * K, cy - 10 * K, 28 * K, 20 * K), border_radius=3 * K)              # extractor de humos
+    pygame.draw.rect(s, (80, 88, 78), (60 * K, cy - 10 * K, 28 * K, 6 * K), border_radius=3 * K)
+    pygame.draw.rect(s, (30, 34, 30), (136 * K, cy - 11 * K, 24 * K, 22 * K), border_radius=2 * K)             # freno de boca
+    for k in range(3):
+        pygame.draw.line(s, (60, 66, 60), ((140 + k * 6) * K, cy - 11 * K), ((140 + k * 6) * K, cy + 11 * K), 2 * K)
+    barrel = _smooth(s, K)
+    return dict(hull=hulls, turret=turret, barrel=barrel, gx=gx, gy=gy, pivot=(gx + 80, gy - 111))
+
+
+def build_pt_bunker():
+    """Torreta de ametralladora tras sacos de arena; el cañón se rota aparte."""
+    K = 3
+    s = pygame.Surface((110 * K, 70 * K), pygame.SRCALPHA)
+    out = (28, 22, 16)
+    pygame.draw.ellipse(s, (0, 0, 0, 90), (4 * K, 58 * K, 102 * K, 10 * K))
+    # base de hormigón
+    pygame.draw.rect(s, (110, 112, 112), (22 * K, 40 * K, 66 * K, 22 * K), border_radius=3 * K)
+    pygame.draw.rect(s, out, (22 * K, 40 * K, 66 * K, 22 * K), K, border_radius=3 * K)
+    # sacos de arena
+    rnd = random.Random(2)
+    for row in range(3):
+        for i in range(5 - row):
+            x = 8 * K + (i * 20 + row * 10) * K
+            y = (60 - row * 11) * K
+            col = rnd.choice(((186, 160, 108), (172, 146, 96), (196, 170, 118)))
+            pygame.draw.ellipse(s, col, (x, y - 10 * K, 22 * K, 12 * K))
+            pygame.draw.ellipse(s, out, (x, y - 10 * K, 22 * K, 12 * K), K)
+            pygame.draw.line(s, shade(col, -30), (x + 4 * K, y - 4 * K), (x + 18 * K, y - 4 * K), K)
+    base = _smooth(s, K)
+    s = pygame.Surface((70 * K, 24 * K), pygame.SRCALPHA)
+    pygame.draw.rect(s, out, (0, 6 * K, 66 * K, 12 * K), border_radius=2 * K)
+    pygame.draw.rect(s, (64, 68, 64), (2 * K, 8 * K, 62 * K, 8 * K))
+    pygame.draw.rect(s, (112, 118, 110), (2 * K, 8 * K, 62 * K, 3 * K))
+    pygame.draw.rect(s, (26, 28, 26), (54 * K, 4 * K, 14 * K, 16 * K), border_radius=2 * K)
+    pygame.draw.rect(s, (84, 90, 82), (-1 * K + 1, 3 * K, 20 * K, 18 * K), border_radius=3 * K)
+    pygame.draw.rect(s, out, (0, 3 * K, 20 * K, 18 * K), K, border_radius=3 * K)
+    gun = _smooth(s, K)
+    return dict(base=base, gun=gun)
+
+
+def build_pt_containers():
+    """Contenedores de carga con ondulado, puertas y óxido (varios colores y largos)."""
+    out = {}
+    cols = [(176, 70, 56), (62, 112, 168), (214, 168, 56), (74, 140, 100), (150, 90, 60)]
+    for ci, col in enumerate(cols):
+        for w in (150, 225):
+            K = 2
+            s = pygame.Surface((w * K, 64 * K), pygame.SRCALPHA)
+            rnd = random.Random(ci * 7 + w)
+            for y in range(64 * K):
+                f = y / (64 * K)
+                c = shade(col, int(26 - 62 * f))
+                pygame.draw.line(s, c, (0, y), (w * K, y))
+            for x in range(8 * K, (w - 4) * K, 7 * K):          # ondulado
+                pygame.draw.line(s, shade(col, -40), (x, 8 * K), (x, 58 * K), K)
+                pygame.draw.line(s, shade(col, 26), (x + K, 8 * K), (x + K, 58 * K), K)
+            pygame.draw.rect(s, shade(col, -52), (0, 0, w * K, 64 * K), 3 * K)
+            pygame.draw.rect(s, shade(col, 34), (0, 0, w * K, 6 * K))
+            pygame.draw.rect(s, shade(col, -64), (0, 58 * K, w * K, 6 * K))
+            for cx in (0, w * K - 12 * K):                        # esquineros
+                pygame.draw.rect(s, shade(col, -70), (cx, 0, 12 * K, 64 * K))
+                pygame.draw.rect(s, (200, 200, 190), (cx + 3 * K, 5 * K, 6 * K, 5 * K))
+            for hx in ((w - 40) * K, (w - 28) * K):               # manijas
+                pygame.draw.line(s, (40, 40, 44), (hx, 14 * K), (hx, 52 * K), 2 * K)
+            for _ in range(5):                                    # óxido
+                rx = rnd.randint(14, w - 20) * K
+                pygame.draw.line(s, (110, 62, 36), (rx, 8 * K), (rx + rnd.randint(-3, 3) * K, rnd.randint(20, 40) * K), 2 * K)
+            pygame.draw.rect(s, (236, 236, 226), (18 * K, 16 * K, 36 * K, 10 * K))
+            pygame.draw.rect(s, (30, 30, 34), (18 * K, 16 * K, 36 * K, 10 * K), K)
+            out[(ci, w)] = _smooth(s, K)
+    return out
+
+
+def build_pt_decor():
+    """Barriles, cajas, bolardos, farolas, vallas: elementos de decorado del muelle."""
+    D = {}
+    K = 3
+    # barril
+    s = pygame.Surface((34 * K, 46 * K), pygame.SRCALPHA)
+    pygame.draw.ellipse(s, (0, 0, 0, 80), (2 * K, 42 * K, 30 * K, 4 * K))
+    pygame.draw.rect(s, (150, 60, 40), (4 * K, 6 * K, 26 * K, 36 * K), border_radius=4 * K)
+    pygame.draw.rect(s, (200, 96, 60), (6 * K, 6 * K, 7 * K, 36 * K))
+    for y in (12, 24, 34):
+        pygame.draw.line(s, (90, 36, 26), (4 * K, y * K), (30 * K, y * K), 2 * K)
+    pygame.draw.ellipse(s, (170, 70, 46), (4 * K, 2 * K, 26 * K, 9 * K))
+    pygame.draw.ellipse(s, (90, 36, 26), (4 * K, 2 * K, 26 * K, 9 * K), K)
+    pygame.draw.rect(s, (240, 220, 80), (12 * K, 18 * K, 10 * K, 8 * K))
+    D['barrel'] = _smooth(s, K)
+    # cajas de madera apiladas
+    s = pygame.Surface((70 * K, 66 * K), pygame.SRCALPHA)
+    pygame.draw.ellipse(s, (0, 0, 0, 80), (0, 62 * K, 70 * K, 4 * K))
+    for (bx, by, bw, bh) in ((0, 30, 36, 34), (34, 30, 36, 34), (14, 0, 38, 32)):
+        pygame.draw.rect(s, (156, 116, 70), (bx * K, by * K, bw * K, bh * K))
+        pygame.draw.rect(s, (96, 66, 38), (bx * K, by * K, bw * K, bh * K), 2 * K)
+        pygame.draw.line(s, (110, 78, 46), (bx * K, by * K), ((bx + bw) * K, (by + bh) * K), 2 * K)
+        pygame.draw.line(s, (110, 78, 46), (bx * K, (by + bh) * K), ((bx + bw) * K, by * K), 2 * K)
+        pygame.draw.rect(s, (190, 150, 100), (bx * K, by * K, bw * K, 3 * K))
+    D['crates'] = _smooth(s, K)
+    # farola
+    s = pygame.Surface((60 * K, 190 * K), pygame.SRCALPHA)
+    pygame.draw.rect(s, (46, 48, 54), (28 * K, 20 * K, 5 * K, 168 * K))
+    pygame.draw.rect(s, (70, 72, 80), (28 * K, 20 * K, 2 * K, 168 * K))
+    pygame.draw.rect(s, (46, 48, 54), (22 * K, 180 * K, 17 * K, 8 * K))
+    pygame.draw.polygon(s, (46, 48, 54), [(30 * K, 22 * K), (12 * K, 14 * K), (12 * K, 20 * K), (30 * K, 28 * K)])
+    pygame.draw.ellipse(s, (255, 230, 150), (4 * K, 14 * K, 18 * K, 8 * K))
+    D['lamp'] = _smooth(s, K)
+    # bolardo / amarre
+    s = pygame.Surface((30 * K, 28 * K), pygame.SRCALPHA)
+    pygame.draw.rect(s, (60, 62, 66), (8 * K, 6 * K, 14 * K, 20 * K), border_radius=4 * K)
+    pygame.draw.rect(s, (240, 200, 40), (8 * K, 10 * K, 14 * K, 5 * K))
+    pygame.draw.ellipse(s, (84, 86, 92), (4 * K, 2 * K, 22 * K, 8 * K))
+    D['bollard'] = _smooth(s, K)
+    # valla con alambre de púas
+    s = pygame.Surface((160 * K, 60 * K), pygame.SRCALPHA)
+    for x in range(0, 161, 40):
+        pygame.draw.rect(s, (60, 62, 64), (x * K - K, 6 * K, 3 * K, 54 * K))
+    for y in range(12, 54, 9):
+        pygame.draw.line(s, (120, 124, 130), (0, y * K), (160 * K, y * K), K)
+    for x in range(0, 160, 10):
+        pygame.draw.line(s, (90, 94, 100), (x * K, 12 * K), ((x + 10) * K, 54 * K), K)
+    for x in range(4, 160, 12):
+        pygame.draw.line(s, (170, 174, 180), (x * K, 3 * K), ((x + 4) * K, 8 * K), K)
+        pygame.draw.line(s, (170, 174, 180), (x * K, 8 * K), ((x + 4) * K, 3 * K), K)
+    pygame.draw.line(s, (160, 164, 170), (0, 5 * K), (160 * K, 5 * K), 2 * K)
+    D['fence'] = _smooth(s, K)
+    # sacos de arena (muro bajo)
+    s = pygame.Surface((90 * K, 38 * K), pygame.SRCALPHA)
+    rnd = random.Random(5)
+    for row in range(2):
+        for i in range(4 - row):
+            x = (i * 22 + row * 11) * K
+            y = (24 - row * 12) * K
+            col = rnd.choice(((186, 160, 108), (172, 146, 96), (196, 170, 118)))
+            pygame.draw.ellipse(s, col, (x, y, 24 * K, 14 * K))
+            pygame.draw.ellipse(s, (60, 46, 30), (x, y, 24 * K, 14 * K), K)
+    D['sandbags'] = _smooth(s, K)
+    return D
+
+
+def build_pt_bg(W, GR, L):
+    """Capas del fondo: cielo, mar, siluetas lejanas, almacenes y grúas (con paralaje)."""
+    rnd = random.Random(8)
+    sky = pygame.Surface((W, GR))
+    for y in range(GR):
+        f = y / GR
+        pygame.draw.line(sky, (int(lerp(34, 250, f ** 1.7)), int(lerp(26, 150, f ** 1.6)), int(lerp(80, 128, f))), (0, y), (W, y))
+    for _ in range(70):
+        pygame.draw.circle(sky, (255, 255, 255), (rnd.randrange(W), rnd.randrange(0, 280)), rnd.choice((1, 1, 2)))
+    cl = pygame.Surface((W, GR), pygame.SRCALPHA)
+    for _ in range(9):
+        cx, cy = rnd.randrange(-100, W), rnd.randrange(120, 420)
+        for k in range(6):
+            pygame.draw.ellipse(cl, (255, 168, 140, 40), (cx + k * 30, cy + rnd.randint(-6, 6), rnd.randint(120, 260), rnd.randint(14, 26)))
+    sky.blit(cl, (0, 0))
+    glow_s = pygame.Surface((420, 420), pygame.SRCALPHA)
+    for r in range(210, 0, -6):
+        pygame.draw.circle(glow_s, (255, 190, 120, int(60 * (1 - r / 210) ** 1.5)), (210, 210), r)
+    sky.blit(glow_s, (760 - 210, 392 - 210))
+    pygame.draw.circle(sky, (255, 224, 170), (760, 392), 72)
+    pygame.draw.circle(sky, (255, 244, 214), (760, 392), 52)
+    sea = pygame.Surface((W, 230))
+    for y in range(230):
+        f = y / 230
+        pygame.draw.line(sea, (int(lerp(168, 22, f ** 0.8)), int(lerp(112, 50, f ** 0.8)), int(lerp(126, 96, f))), (0, y), (W, y))
+    # reflejo del sol (columna)
+    for k in range(28):
+        w = int(60 - k * 1.6)
+        pygame.draw.line(sea, (255, 206, 150), (760 - w // 2, 8 + k * 7), (760 + w // 2, 8 + k * 7), 2)
+    # capa lejana: montañas, barcos y faro
+    fw = int(L * 0.18) + W
+    far = pygame.Surface((fw, 230), pygame.SRCALPHA)
+    for i in range(0, fw, 220):
+        h = rnd.randint(40, 120)
+        pygame.draw.polygon(far, (86, 62, 104, 255), [(i - 30, 230), (i + 90, 230 - h), (i + 230, 230)])
+    for i in range(80, fw, 560):
+        hw = rnd.randint(150, 220)
+        pygame.draw.polygon(far, (52, 46, 76, 255), [(i, 176), (i + hw, 176), (i + hw - 30, 204), (i + 20, 204)])
+        pygame.draw.rect(far, (62, 56, 88, 255), (i + hw // 2 - 30, 150, 60, 26))
+        pygame.draw.rect(far, (72, 66, 98, 255), (i + hw // 2 - 14, 128, 28, 22))
+        for wx in range(i + 20, i + hw - 20, 24):
+            pygame.draw.rect(far, (250, 210, 130, 255), (wx, 188, 5, 4))
+        pygame.draw.line(far, (62, 56, 88, 255), (i + hw // 2, 128), (i + hw // 2, 108), 2)
+    for i in range(300, fw, 900):          # faro
+        pygame.draw.polygon(far, (110, 90, 120, 255), [(i, 230), (i + 14, 230), (i + 11, 140), (i + 3, 140)])
+        pygame.draw.rect(far, (255, 220, 130, 255), (i + 2, 130, 10, 10))
+    # capa media: almacenes, tanques, grúas y pilas de contenedores
+    mw = int(L * 0.5) + W
+    mid = pygame.Surface((mw, 330), pygame.SRCALPHA)
+    x = 0
+    while x < mw:
+        kind = rnd.choice(('wh', 'wh', 'crane', 'tank', 'stack'))
+        if kind == 'wh':
+            w, h = rnd.randint(220, 380), rnd.randint(100, 170)
+            for y in range(h):
+                c = int(lerp(98, 66, y / h))
+                pygame.draw.line(mid, (c, int(c * 0.78), int(c * 1.1), 255), (x, 330 - h + y), (x + w, 330 - h + y))
+            pygame.draw.polygon(mid, (70, 54, 88, 255), [(x - 8, 330 - h), (x + w + 8, 330 - h), (x + w - 14, 330 - h - 22), (x + 14, 330 - h - 22)])
+            for wx in range(x + 16, x + w - 24, 40):
+                lit = rnd.random() < 0.7
+                pygame.draw.rect(mid, (252, 204, 116, 255) if lit else (46, 38, 62, 255), (wx, 330 - h + 26, 20, 16))
+                pygame.draw.rect(mid, (40, 32, 56, 255), (wx, 330 - h + 26, 20, 16), 1)
+            dw = min(80, w // 2)
+            pygame.draw.rect(mid, (52, 42, 68, 255), (x + w // 2 - dw // 2, 330 - 64, dw, 64))
+            for k in range(1, 8):
+                pygame.draw.line(mid, (70, 58, 88, 255), (x + w // 2 - dw // 2, 330 - 64 + k * 8), (x + w // 2 + dw // 2, 330 - 64 + k * 8))
+            pygame.draw.rect(mid, (60, 50, 78, 255), (x + w - 34, 330 - h - 40, 8, 40))
+            x += w + rnd.randint(30, 110)
+        elif kind == 'crane':
+            pygame.draw.polygon(mid, (130, 78, 76, 255), [(x, 330), (x + 12, 330), (x + 18, 60), (x + 8, 60)])
+            pygame.draw.polygon(mid, (130, 78, 76, 255), [(x + 90, 330), (x + 102, 330), (x + 96, 60), (x + 86, 60)])
+            for yy in range(80, 320, 36):
+                pygame.draw.line(mid, (110, 66, 64, 255), (x + 10, yy), (x + 94, yy + 36), 3)
+                pygame.draw.line(mid, (110, 66, 64, 255), (x + 94, yy), (x + 10, yy + 36), 3)
+            pygame.draw.rect(mid, (150, 92, 84, 255), (x - 90, 46, 330, 16))
+            pygame.draw.rect(mid, (210, 100, 70, 255), (x + 36, 62, 34, 22))
+            pygame.draw.line(mid, (220, 220, 230, 255), (x + 180, 62), (x + 180, 170), 2)
+            pygame.draw.rect(mid, (220, 110, 70, 255), (x + 166, 170, 30, 22))
+            pygame.draw.circle(mid, (255, 70, 60, 255), (x + 240, 46), 4)
+            x += 280
+        elif kind == 'tank':
+            pygame.draw.ellipse(mid, (92, 76, 110, 255), (x, 190, 140, 120))
+            pygame.draw.rect(mid, (92, 76, 110, 255), (x, 250, 140, 80))
+            for k in range(1, 5):
+                pygame.draw.line(mid, (70, 58, 88, 255), (x, 250 + k * 16), (x + 140, 250 + k * 16))
+            pygame.draw.line(mid, (70, 58, 88, 255), (x + 70, 190), (x + 70, 160), 3)
+            x += 190
+        else:
+            for row in range(3):
+                for i in range(3 - row // 2):
+                    col = rnd.choice(((130, 70, 66), (62, 86, 130), (150, 120, 62), (70, 110, 90)))
+                    pygame.draw.rect(mid, (*col, 255), (x + i * 64 + row * 0, 330 - (row + 1) * 40, 62, 38))
+                    pygame.draw.rect(mid, (30, 26, 40, 255), (x + i * 64, 330 - (row + 1) * 40, 62, 38), 2)
+            x += 220
+    fog = pygame.Surface((mw, 330), pygame.SRCALPHA)
+    for y in range(330):
+        a = int(70 * (y / 330) ** 2)
+        pygame.draw.line(fog, (200, 120, 130, a), (0, y), (mw, y))
+    mid.blit(fog, (0, 0))
+    return dict(sky=sky, sea=sea, far=far, mid=mid)
+
+
+def build_pt_wreck_fx():
+    """Casquillos y destellos pequeños."""
+    return {}
+
+
 def make_shadow(surf):
     sh = surf.copy()
     sh.fill((0, 0, 0, 255), special_flags=pygame.BLEND_RGBA_MULT)
@@ -4269,43 +4992,56 @@ class Game:
         x = 700
         while x < L - 1800:
             hh = rnd.choice((1, 1, 2))
-            plats.append(dict(x=x, w=rnd.choice((150, 150, 225)), top=GR - 64 * hh, h=64 * hh,
-                              col=rnd.choice(((176, 70, 56), (62, 112, 168), (214, 168, 56), (74, 140, 100), (150, 90, 60)))))
+            plats.append(dict(x=x, w=rnd.choice((150, 150, 225)), top=GR - 64 * hh, h=64 * hh, ci=rnd.randrange(5)))
             x += rnd.randint(520, 780)
         ex = w // 2
         groups = []
 
         def grp(xt, spec, lock=False):
             groups.append(dict(x=xt, spec=spec, lock=lock, done=False, lx=0.0))
-        grp(500, [('rifle', 'R'), ('rifle', 'R')] + [('rifle', 'R')] * ex)
-        grp(1450, [('rifle', 'R'), ('knife', 'R'), ('rifle', 'L')] + [('knife', 'R')] * ex)
-        grp(2350, [('gren', 'R'), ('rifle', 'R'), ('rifle', 'R'), ('knife', 'L')] + [('rifle', 'R')] * ex)
-        grp(3250, [('knife', 'R'), ('knife', 'R'), ('gren', 'R'), ('rifle', 'L'), ('sniper', 'P')] + [('rifle', 'R')] * ex, True)
-        grp(4200, [('rifle', 'R'), ('rifle', 'R'), ('gren', 'R'), ('gren', 'L'), ('sniper', 'P'), ('knife', 'R')] + [('knife', 'L')] * ex, True)
+        grp(500, [('rifle', 'R'), ('rifle', 'R'), ('rifle', 'S')] + [('rifle', 'R')] * ex)
+        grp(1450, [('rifle', 'R'), ('knife', 'R'), ('rifle', 'L'), ('shield', 'R')] + [('knife', 'R')] * ex)
+        grp(2350, [('gren', 'R'), ('rifle', 'R'), ('rifle', 'S'), ('rifle', 'S'), ('knife', 'L')] + [('shield', 'R')] * (1 + ex // 2))
+        grp(3250, [('knife', 'R'), ('flame', 'R'), ('gren', 'R'), ('rifle', 'L'), ('sniper', 'P')] + [('flame', 'R')] * (ex // 2) + [('rifle', 'R')] * ex, True)
+        grp(4200, [('shield', 'R'), ('rifle', 'S'), ('rifle', 'S'), ('gren', 'R'), ('gren', 'L'), ('sniper', 'P'), ('flame', 'R')] + [('knife', 'L')] * ex, True)
         grp(L - 1500, [('tank', 'R')], True)
         self.pt = dict(
             plats=plats, groups=groups, cam=0.0, lock=None, t=0.0, phase='play', pt=0.0, fail=False, kills=0,
             p=dict(x=120.0, y=float(GR), vx=0.0, vy=0.0, ground=True, hp=PLAYER_HP, face=1, cd=0.0, gren=6, hmg=0.0, inv=0.0,
-                   ph=0.0, crouch=False, dead=False, gcd=0.0, flash=0.0),
-            enemies=[], bul=[], ebul=[], nades=[], items=[], go_t=0.0, boss=None, hurt=0.0, score0=self.score)
+                   ph=0.0, crouch=False, dead=False, gcd=0.0, flash=0.0, thr=0.0, dead_t=0.0, dust=0.0),
+            enemies=[], bul=[], ebul=[], nades=[], items=[], go_t=0.0, boss=None, hurt=0.0, score0=self.score,
+            cas=[], corpses=[], wrecks=[], decor=[], puddles=[], barrels=[], pows=[], mort=[], freeze=0.0, taken=0, pow_n=0, rank=None)
+        drnd = random.Random(self.wave * 31 + 5)
+        dec = self.pt['decor']
+        for lx in range(300, L, 640):
+            dec.append(dict(kind='lamp', x=float(lx + drnd.randint(-60, 60))))
+        for _ in range(46):
+            kind = drnd.choice(('crates', 'bollard', 'sandbags', 'fence', 'fence'))
+            dec.append(dict(kind=kind, x=float(drnd.randint(200, L - 200))))
+        dec.sort(key=lambda d: {'fence': 0, 'lamp': 1}.get(d['kind'], 2))
+        self.pt['puddles'] = [(float(drnd.randint(100, L - 100)), drnd.randint(70, 140)) for _ in range(26)]
+        self.pt['barrels'] = [dict(x=float(bx), y=float(GR), hp=2, fuse=-1.0) for bx in sorted(drnd.sample(range(900, L - 1700, 60), 10))]
+        for bx_, kind_ in zip((1250, 2900, 4500), ('hmg', 'gren', 'med')):
+            self.pt['pows'].append(dict(x=float(bx_), state='tied', t=0.0, item=kind_))
+        self.pt_art_init()
         for xi, kind in ((1000, 'med'), (1900, 'gren'), (2750, 'hmg'), (3700, 'med'), (4600, 'gren'), (5100, 'med')):
             self.pt['items'].append(dict(x=float(xi), y=float(GR - 30), kind=kind, t=0.0))
         for xt in (2650, 3900, 4800):
             self.pt['enemies'].append(self.pt_enemy('turret', xt, GR, -1))
         self.fx = Particles()
-        self.make_pt_bg()
         self.aim = [W / 2, 300.0]
         self.go('port')
         self.banner('¡ASALTO AL PUERTO ENEMIGO!', 'A/D mover | W/ESPACIO saltar | S agacharse | Clic: disparar | G/clic der.: granada',
                     (255, 120, 90), 4.4)
 
     def pt_enemy(self, kind, x, y, face):
-        hp = {'rifle': 3, 'knife': 2, 'gren': 3, 'sniper': 4, 'turret': 12, 'tank': 70 + 24 * self.wave}[kind]
-        if kind in ('rifle', 'knife', 'gren'):
+        hp = {'rifle': 3, 'knife': 2, 'gren': 3, 'sniper': 4, 'shield': 6, 'flame': 5, 'turret': 12, 'tank': 70 + 24 * self.wave}[kind]
+        if kind in ('rifle', 'knife', 'gren', 'shield', 'flame'):
             hp += self.wave // 3
         return dict(kind=kind, x=float(x), y=float(y), vx=0.0, vy=0.0, hp=float(hp), max=float(hp), face=face, cd=random.uniform(0.6, 1.8),
                     burst=0, bcd=0.0, tele=0.0, ph=random.uniform(0, 6), hit=0.0, ground=True, plat=None, state='walk',
-                    st=0.0, atk=0, mcd=0.0)
+                    st=0.0, atk=0, mcd=0.0, ph0=random.uniform(0, 6), kneel=random.random() < 0.4, thr=0.0, slash=0.0, flash=0.0,
+                    moving=False, recoil=0.0, fire=0.0, fcd=0.0, para=False, stag=0.0)
 
     def pt_spawn_group(self, g):
         pt = self.pt
@@ -4324,6 +5060,9 @@ class Game:
                 pl = random.choice(ahead)
                 e = self.pt_enemy('sniper', pl['x'] + pl['w'] / 2, pl['top'], -1)
                 e['plat'] = pl
+            elif side == 'S':
+                e = self.pt_enemy(kind, cam + random.uniform(160, W - 160), -70.0, -1)
+                e['para'] = True
             else:
                 sx = cam + W + 40 + random.uniform(0, 160) if side == 'R' else cam - 40 - random.uniform(0, 120)
                 e = self.pt_enemy(kind, sx, self.PT_GR, -1 if side == 'R' else 1)
@@ -4344,10 +5083,11 @@ class Game:
             return
         p['gren'] -= 1
         p['gcd'] = 0.5
+        p['thr'] = 0.32
         sx = p['x'] - pt['cam']
         a = math.atan2(self.aim[1] - (p['y'] - 50), self.aim[0] - sx)
         sp = clamp(dist(sx, p['y'] - 50, self.aim[0], self.aim[1]) * 1.45, 260, 640)
-        pt['nades'].append(dict(x=p['x'], y=p['y'] - 50, vx=math.cos(a) * sp, vy=math.sin(a) * sp - 120, t=0.0, own='p'))
+        pt['nades'].append(dict(x=p['x'], y=p['y'] - 56, vx=math.cos(a) * sp, vy=math.sin(a) * sp - 120, t=0.0, own='p'))
         self.audio.play('blip', .8)
 
     def pt_hurt(self, dmg):
@@ -4356,6 +5096,7 @@ class Game:
         if p['dead'] or p['inv'] > 0 or pt['phase'] != 'play':
             return
         p['hp'] -= dmg
+        pt['taken'] += dmg
         p['inv'] = 0.55
         pt['hurt'] = 0.4
         self.shake = max(self.shake, 4 + dmg * 0.3)
@@ -4378,37 +5119,77 @@ class Game:
                     o['y'], o['vy'], o['ground'] = float(pl['top']), 0.0, True
                     return
 
-    def pt_kill(self, e):
+    def pt_kill(self, e, blast=False):
         pt = self.pt
         if e not in pt['enemies']:
             return
         pt['enemies'].remove(e)
         pt['kills'] += 1
         big = e['kind'] in ('tank', 'turret')
-        self.fx.explode(e['x'], e['y'] - (50 if e['kind'] == 'tank' else 24), 2.0 if e['kind'] == 'tank' else (1.1 if big else 0.7), big)
+        pts = {'rifle': 100, 'knife': 100, 'gren': 150, 'sniper': 200, 'shield': 150, 'flame': 200, 'turret': 250, 'tank': 2000}[e['kind']]
+        if e['kind'] == 'tank':
+            pt['wrecks'].append(dict(kind='tank', x=e['x'], y=e['y']))
+            pt['freeze'] = 0.9
+        elif e['kind'] == 'turret':
+            pt['wrecks'].append(dict(kind='turret', x=e['x'], y=e['y']))
+        else:
+            c = dict(kind=e['kind'], x=e['x'], y=e['y'], face=e['face'], t=0.0, vx=-e['face'] * random.uniform(60, 150), air=False, vy=0.0, spin=0.0)
+            if blast or e['kind'] == 'flame':
+                c.update(air=True, vy=-random.uniform(380, 520), vx=(1 if e['x'] > pt['p']['x'] else -1) * random.uniform(120, 280), spin=random.uniform(-560, 560))
+            pt['corpses'].append(c)
+        if not blast or e['kind'] != 'tank':
+            self.fx.explode(e['x'], e['y'] - (50 if e['kind'] == 'tank' else 24), 2.0 if e['kind'] == 'tank' else (1.1 if big else (0.7 if blast else 0.45)), big or blast)
         self.audio.play('boom_s', .6 if not big else .9)
-        self.add_score({'rifle': 100, 'knife': 100, 'gren': 150, 'sniper': 200, 'turret': 250, 'tank': 2000}[e['kind']])
-        if e['kind'] in ('rifle', 'gren', 'knife') and random.random() < 0.22:
+        self.add_score(pts)
+        self.pop('+%d' % pts, e['x'] - pt['cam'], e['y'] - 78, (255, 232, 150))
+        if e['kind'] in ('rifle', 'gren', 'knife', 'shield', 'flame') and random.random() < 0.22:
             pt['items'].append(dict(x=e['x'], y=e['y'] - 30, kind=random.choice(('med', 'gren', 'gren')), t=0.0))
+        if e['kind'] == 'flame':
+            self.pt_blast(e['x'], e['y'] - 30, 80, 4, 14, 'b')
         if e['kind'] == 'tank':
             pt['boss'] = None
             self.shake = 22
             for _ in range(6):
                 self.fx.explode(e['x'] + random.uniform(-110, 110), e['y'] - random.uniform(10, 90), 1.4, True)
 
-    def pt_hit_enemy(self, e, dmg):
+    def pt_hit_enemy(self, e, dmg, blast=False):
         e['hp'] -= dmg
         e['hit'] = 0.1
+        e['stag'] = 0.1
+        if e['kind'] not in ('tank', 'turret') and not blast:
+            e['x'] += (1 if e['x'] > self.pt['p']['x'] else -1) * 3
         if e['hp'] <= 0:
-            self.pt_kill(e)
+            self.pt_kill(e, blast)
+
+    def pt_blast(self, x, y, R, dmg_e, dmg_p, own='p'):
+        """Explosión: daña a enemigos (si no es de ellos), al jugador y enciende barriles cercanos."""
+        pt = self.pt
+        p = pt['p']
+        self.fx.explode(x, y, R / 95.0, True)
+        self.audio.play('boom_s', .8)
+        self.shake = max(self.shake, 7)
+        if own != 'm':
+            for e in pt['enemies'][:]:
+                d = dist(x, y, e['x'], e['y'] - 28) - (60 if e['kind'] == 'tank' else 0)
+                if d < R and (own != 'e'):
+                    self.pt_hit_enemy(e, dmg_e * (1.3 if e['kind'] == 'tank' else 1.0) * (1 - 0.35 * max(0.0, d) / R), True)
+        d = dist(x, y, p['x'], p['y'] - 28)
+        if not p['dead'] and d < R * (0.75 if own == 'p' else 1.0):
+            self.pt_hurt(int(dmg_p * (1 - 0.5 * d / R)))
+        for b in pt['barrels']:
+            if b['fuse'] < 0 and dist(x, y, b['x'], b['y'] - 20) < R * 0.95:
+                b['fuse'] = 0.14
 
     def pt_box(self, e):
-        w, h = {'tank': (250, 100), 'turret': (46, 52), 'sniper': (26, 56)}.get(e['kind'], (26, 56))
+        w, h = {'tank': (280, 140), 'turret': (62, 60), 'sniper': (28, 60), 'shield': (40, 64), 'flame': (34, 64)}.get(e['kind'], (28, 64))
         return e['x'] - w / 2, e['y'] - h, w, h
 
     def pt_ebullet(self, x, y, ang, sp, dmg, life=1.6):
         a = math.radians(ang)
         self.pt['ebul'].append(dict(x=x, y=y, vx=math.cos(a) * sp, vy=math.sin(a) * sp, dmg=dmg, life=life, big=dmg >= 20))
+
+    def pt_casing(self, x, y, face):
+        self.pt['cas'].append(dict(x=x, y=y, vx=-face * random.uniform(40, 120), vy=-random.uniform(140, 240), rot=random.uniform(0, 6), vr=random.uniform(-14, 14), t=0.0))
 
     def pt_ai(self, e, dt):
         pt = self.pt
@@ -4418,58 +5199,120 @@ class Game:
         k = e['kind']
         e['cd'] -= dt
         e['hit'] = max(0.0, e['hit'] - dt)
-        e['ph'] += dt * 9
+        e['flash'] = max(0.0, e['flash'] - dt)
+        e['slash'] = max(0.0, e['slash'] - dt)
+        e['recoil'] = max(0.0, e['recoil'] - 70 * dt)
         dx = p['x'] - e['x']
         ad = abs(dx)
         if alive and k != 'tank':
             e['face'] = 1 if dx > 0 else -1
-        # fuera de la pantalla lejos: no actúan (excepto caminar hacia el jugador)
+        # fuera de la pantalla actúan poco (solo caminan hacia el jugador)
         onscreen = cam - 60 < e['x'] < cam + W + 60
         py = p['y'] - 30
-        if k in ('rifle', 'knife', 'gren'):
+        if e['para']:
+            e['y'] += 150 * dt
+            e['x'] += math.sin(pt['t'] * 1.7 + e['ph0']) * 22 * dt
+            fl_ = self.pt_floor(e['x'], e['y'] - 4)
+            if e['y'] >= fl_:
+                e['y'], e['vy'], e['para'] = float(fl_), 0.0, False
+                for _ in range(6):
+                    self.fx.add('smoke', e['x'] + random.uniform(-16, 16), e['y'] - 3, random.uniform(-60, 60), random.uniform(-26, -6), 0.6, 4, 12, (190, 170, 150), drag=2)
+            return
+        e['stag'] = max(0.0, e['stag'] - dt)
+        if k in ('rifle', 'knife', 'gren', 'shield', 'flame'):
             self.pt_land(e, dt)
-            sp = 0.0
             if k == 'knife':
                 sp = 215.0
+            elif k == 'shield':
+                sp = 78.0 if ad > 70 else 0.0
+            elif k == 'flame':
+                sp = 88.0 if ad > 215 else (-60.0 if ad < 130 else 0.0)
+                if e['fire'] > 0:
+                    sp = 0.0
             elif k == 'rifle':
                 sp = 95.0 if ad > 440 else (-70.0 if ad < 230 else 0.0)
             else:
                 sp = 80.0 if ad > 560 else (-90.0 if ad < 330 else 0.0)
+            if e['thr'] > 0:
+                sp = 0.0
             if not onscreen:
                 sp = 110.0
             e['x'] += sp * (1 if dx > 0 else -1) * dt
             if pt['lock'] is not None:
                 e['x'] = clamp(e['x'], cam - 30, cam + W - 40)
             e['moving'] = sp != 0
+            e['ph'] += abs(sp) * dt / 12.7
             if k == 'knife':
                 if ad < 46 and abs(p['y'] - e['y']) < 50 and e['cd'] <= 0 and alive:
                     e['cd'] = 0.9
+                    e['slash'] = 0.3
                     self.pt_hurt(14)
+            elif k == 'shield':
+                if ad < 84 and abs(p['y'] - e['y']) < 60 and e['cd'] <= 0 and alive:
+                    e['cd'] = 1.1
+                    e['slash'] = 0.3
+                    self.pt_hurt(16)
+                    p['vx'] += 0
+                    self.audio.play('hit', .4)
+            elif k == 'flame':
+                if onscreen and alive:
+                    if e['fire'] > 0:
+                        e['fire'] -= dt
+                        e['fcd'] -= dt
+                        gy = e['y'] - 44
+                        ang = math.atan2((p['y'] - 40) - gy, dx)
+                        ang = clamp(ang, -0.6, 0.6) if dx > 0 else (ang if abs(ang) > 2.54 else math.copysign(2.54, ang))
+                        for _ in range(3):
+                            sp_ = random.uniform(200, 330)
+                            a_ = ang + random.uniform(-0.12, 0.12)
+                            self.fx.add('glow', e['x'] + math.cos(ang) * 44, gy + math.sin(ang) * 44, math.cos(a_) * sp_, math.sin(a_) * sp_ - 20, 0.42, 9, 26,
+                                        random.choice(((255, 170, 60), (255, 120, 40), (255, 220, 120))), drag=1.4)
+                        if random.random() < 0.3:
+                            self.fx.add('smoke', e['x'] + e['face'] * 150, gy - 20, e['face'] * 40, -50, 0.9, 8, 22, (40, 36, 36))
+                        if e['fcd'] <= 0:
+                            e['fcd'] = 0.2
+                            if ad < 240 and abs((p['y'] - 36) - gy) < 46:
+                                self.pt_hurt(4)
+                        e['flash'] = 0.06
+                        if e['fire'] <= 0:
+                            e['cd'] = random.uniform(1.8, 2.6)
+                    elif e['cd'] <= 0 and ad < 280:
+                        e['fire'] = 1.4
+                        self.audio.play('launch', .3)
             elif onscreen and alive:
-                if e['burst'] > 0:
+                if e['thr'] > 0:
+                    e['thr'] -= dt
+                    if e['thr'] <= 0:
+                        T = clamp(ad / 380.0, 0.8, 1.5)
+                        vx = dx / T
+                        vy = (py - (e['y'] - 56) - 0.5 * 900 * T * T) / T
+                        pt['nades'].append(dict(x=e['x'], y=e['y'] - 56, vx=vx, vy=vy, t=0.0, own='e'))
+                elif e['burst'] > 0:
                     e['bcd'] -= dt
                     if e['bcd'] <= 0:
                         e['burst'] -= 1
                         e['bcd'] = 0.13
-                        ang = math.degrees(math.atan2(py - (e['y'] - 40), dx)) + random.uniform(-6, 6)
-                        self.pt_ebullet(e['x'] + 22 * e['face'], e['y'] - 40, ang, 560, 7)
+                        gy = e['y'] - (28 if (e['kneel'] and not e['moving']) else 44)
+                        ang = math.degrees(math.atan2(py - gy, dx)) + random.uniform(-6, 6)
+                        self.pt_ebullet(e['x'] + 30 * e['face'], gy, ang, 560, 7)
+                        e['flash'] = 0.06
+                        self.pt_casing(e['x'] + 14 * e['face'], gy, e['face'])
                         self.audio.play('mg', .15)
                 elif e['cd'] <= 0 and k == 'rifle' and ad < 700:
                     e['cd'] = random.uniform(1.3, 2.3)
                     e['burst'], e['bcd'] = random.choice((2, 3)), 0.0
                 elif e['cd'] <= 0 and k == 'gren' and 250 < ad < 760:
                     e['cd'] = random.uniform(2.6, 3.6)
-                    T = clamp(ad / 380.0, 0.8, 1.5)
-                    vx = dx / T
-                    vy = (py - (e['y'] - 50) - 0.5 * 900 * T * T) / T
-                    pt['nades'].append(dict(x=e['x'], y=e['y'] - 50, vx=vx, vy=vy, t=0.0, own='e'))
+                    e['thr'] = 0.45
         elif k == 'sniper':
             if onscreen and alive:
                 if e['tele'] > 0:
                     e['tele'] -= dt
                     if e['tele'] <= 0:
-                        ang = math.degrees(math.atan2(py - (e['y'] - 44), dx))
-                        self.pt_ebullet(e['x'], e['y'] - 44, ang, 1100, 20, 2.0)
+                        ang = math.degrees(math.atan2(py - (e['y'] - 34), dx))
+                        self.pt_ebullet(e['x'] + 40 * e['face'], e['y'] - 34, ang, 1100, 20, 2.0)
+                        e['flash'] = 0.08
+                        self.pt_casing(e['x'] + 14 * e['face'], e['y'] - 34, e['face'])
                         self.audio.play('cannon', .35)
                         e['cd'] = random.uniform(2.2, 3.0)
                 elif e['cd'] <= 0:
@@ -4481,8 +5324,8 @@ class Game:
                     if e['bcd'] <= 0:
                         e['burst'] -= 1
                         e['bcd'] = 0.11
-                        ang = math.degrees(math.atan2(py - (e['y'] - 36), dx)) + random.uniform(-5, 5)
-                        self.pt_ebullet(e['x'], e['y'] - 36, ang, 520, 7)
+                        ang = math.degrees(math.atan2(py - (e['y'] - 50), dx)) + random.uniform(-5, 5)
+                        self.pt_ebullet(e['x'] + (62 if dx > 0 else -62), e['y'] - 50, ang, 520, 7)
                         self.audio.play('mg', .15)
                 elif e['cd'] <= 0:
                     e['cd'] = random.uniform(2.2, 3.2)
@@ -4498,6 +5341,7 @@ class Game:
         home = (pt['lock'] if pt['lock'] is not None else cam) + W - 260
         e['st'] += dt
         ratio = e['hp'] / e['max']
+        e['flash'] = max(0.0, e['flash'] - dt)
         if e['state'] == 'enter':
             e['x'] -= 140 * dt
             if e['x'] <= home:
@@ -4505,6 +5349,13 @@ class Game:
                 e['st'] = 0.0
                 e['cd'] = 1.4
         elif e['state'] == 'fight':
+            e['mcd'] = e['mcd'] - dt if e['mcd'] > 0 else (e['mcd'] if ratio >= 0.6 else 0.0)
+            if ratio < 0.6 and e['mcd'] <= 0 and e['burst'] == 0 and e['tele'] <= 0 and alive:
+                e['mcd'] = 6.5
+                for off in (-190, 0, 190):
+                    pt['mort'].append(dict(x=p['x'] + off + random.uniform(-40, 40), t=0.0))
+                self.pop('¡MORTEROS!', W / 2, 300, (255, 160, 60))
+                self.audio.play('ping', .6)
             e['x'] = home + math.sin(e['st'] * 0.7) * 80
             e['x'] = max(e['x'], (pt['lock'] or cam) + 520)
             if e['burst'] > 0:
@@ -4512,15 +5363,17 @@ class Game:
                 if e['bcd'] <= 0:
                     e['burst'] -= 1
                     e['bcd'] = 0.1
-                    ang = math.degrees(math.atan2(p['y'] - 36 - (e['y'] - 70), p['x'] - (e['x'] - 130))) + random.uniform(-7, 7)
-                    self.pt_ebullet(e['x'] - 128, e['y'] - 70, ang, 600, 7)
+                    ang = math.degrees(math.atan2(p['y'] - 36 - (e['y'] - 74), p['x'] - (e['x'] - 152))) + random.uniform(-7, 7)
+                    self.pt_ebullet(e['x'] - 152, e['y'] - 74, ang, 600, 7)
                     self.audio.play('mg', .2)
             if e['tele'] > 0:
                 e['tele'] -= dt
                 if e['tele'] <= 0:
-                    self.pt_ebullet(e['x'] - 150, e['y'] - 62, 180, 640, 24, 2.4)
+                    self.pt_ebullet(e['x'] - 226, e['y'] - 111, 180, 640, 24, 2.4)
                     self.audio.play('cannon', .6)
-                    self.fx.explode(e['x'] - 150, e['y'] - 62, 0.7)
+                    e['recoil'] = 20.0
+                    e['flash'] = 0.1
+                    self.fx.explode(e['x'] - 230, e['y'] - 111, 0.6)
                     self.shake = max(self.shake, 6)
             elif e['burst'] == 0 and e['cd'] <= 0 and alive:
                 e['atk'] += 1
@@ -4548,6 +5401,9 @@ class Game:
     def upd_port(self, dt):
         pt = self.pt
         p = pt['p']
+        if pt['freeze'] > 0:
+            pt['freeze'] -= dt
+            dt *= 0.25
         keys = pygame.key.get_pressed()
         pt['t'] += dt
         pt['hurt'] = max(0.0, pt['hurt'] - dt)
@@ -4558,6 +5414,7 @@ class Game:
         p['gcd'] = max(0.0, p['gcd'] - dt)
         p['flash'] = max(0.0, p['flash'] - dt)
         p['hmg'] = max(0.0, p['hmg'] - dt)
+        p['thr'] = max(0.0, p['thr'] - dt)
         pt['go_t'] = max(0.0, pt['go_t'] - dt)
         cam = pt['cam']
         if alive and pt['phase'] == 'play':
@@ -4567,12 +5424,56 @@ class Game:
             p['vx'] = mv * sp
             p['x'] += p['vx'] * dt
             if mv:
-                p['ph'] += dt * 11
+                p['ph'] += abs(p['vx']) * dt / 12.7
             sx = p['x'] - cam
             p['face'] = 1 if self.aim[0] >= sx else -1
             if pygame.mouse.get_pressed()[0] or keys[pygame.K_j]:
                 self.pt_shoot()
+        was_air = not p['ground']
+        vy0 = p['vy']
         self.pt_land(p, dt)
+        if was_air and p['ground'] and vy0 > 380 and alive:
+            for _ in range(7):
+                self.fx.add('smoke', p['x'] + random.uniform(-14, 14), p['y'] - 3, random.uniform(-70, 70), random.uniform(-30, -6), 0.6, 5, 15, (190, 170, 150), drag=2)
+        if alive and p['ground'] and abs(p['vx']) > 1:
+            p['dust'] -= dt
+            if p['dust'] <= 0:
+                p['dust'] = 0.13
+                self.fx.add('smoke', p['x'] - p['face'] * 14, p['y'] - 3, random.uniform(-20, 20) - p['vx'] * 0.2, random.uniform(-26, -8), 0.5, 3, 11, (190, 170, 150), drag=2)
+        if p['dead']:
+            p['dead_t'] += dt
+        for c in pt['cas'][:]:
+            c['t'] += dt
+            c['vy'] += 1400 * dt
+            c['x'] += c['vx'] * dt
+            c['y'] += c['vy'] * dt
+            c['rot'] += c['vr'] * dt
+            if c['y'] > self.PT_GR - 2:
+                c['y'] = self.PT_GR - 2
+                c['vy'] *= -0.35
+                c['vx'] *= 0.5
+            if c['t'] > 1.6:
+                pt['cas'].remove(c)
+        for c in pt['corpses'][:]:
+            if c['air']:
+                c['vy'] += 1500 * dt
+                c['y'] += c['vy'] * dt
+                c['x'] += c['vx'] * dt
+                c['spin'] *= 0.995
+                fl_ = self.pt_floor(c['x'], c['y'] - 10)
+                if c['y'] >= fl_ and c['vy'] > 0:
+                    c['y'], c['air'], c['t'] = float(fl_), False, 0.0
+                    self.fx.add('smoke', c['x'], c['y'] - 4, 0, -20, 0.6, 5, 16, (190, 170, 150), drag=2)
+                continue
+            c['t'] += dt
+            c['x'] += c['vx'] * dt
+            c['vx'] *= max(0.0, 1 - 5 * dt)
+            if c['t'] > 4.8:
+                pt['corpses'].remove(c)
+        for w_ in pt['wrecks']:
+            if random.random() < dt * 9:
+                self.fx.add('smoke', w_['x'] + random.uniform(-40, 40) * (3 if w_['kind'] == 'tank' else 0.7), w_['y'] - (110 if w_['kind'] == 'tank' else 50),
+                            random.uniform(-8, 8), -45, 2.2, 8, 30, (34, 34, 38))
         lo = cam + 24
         hi = (pt['lock'] + W - 30) if pt['lock'] is not None else min(L - 30, cam + W - 30)
         p['x'] = clamp(p['x'], lo, hi)
@@ -4617,14 +5518,30 @@ class Game:
                 if x0 <= b['x'] <= x0 + w and y0 <= b['y'] <= y0 + h:
                     hit = e
                     break
-            if hit is not None:
+            brl = None
+            for br in pt['barrels']:
+                if abs(b['x'] - br['x']) < 17 and br['y'] - 44 <= b['y'] <= br['y'] and br['fuse'] < 0:
+                    brl = br
+                    break
+            if brl is not None:
+                pt['bul'].remove(b)
+                brl['hp'] -= 1
+                self.fx.add('spark', b['x'], b['y'], random.uniform(-90, 90), random.uniform(-120, 0), 0.25, col=(255, 230, 150), drag=2, grav=300)
+                if brl['hp'] <= 0:
+                    brl['fuse'] = 0.1
+            elif hit is not None and hit['kind'] == 'shield' and b['vx'] * hit['face'] < 0 and abs(b['vy']) < 0.8 * abs(b['vx']) and b['y'] > hit['y'] - 58:
+                pt['bul'].remove(b)
+                for _ in range(3):
+                    self.fx.add('spark', b['x'], b['y'], hit['face'] * random.uniform(60, 200), random.uniform(-160, 40), 0.3, col=(200, 230, 255), drag=2, grav=500)
+                self.audio.play('ping', .25)
+            elif hit is not None:
                 pt['bul'].remove(b)
                 self.fx.add('spark', b['x'], b['y'], random.uniform(-90, 90), random.uniform(-120, 0), 0.25, col=(255, 230, 150), drag=2, grav=300)
                 self.pt_hit_enemy(hit, b['dmg'])
             elif b['life'] <= 0 or b['y'] > self.PT_GR + 20:
                 pt['bul'].remove(b)
         # balas enemigas
-        pbox = (p['x'] - 14, p['y'] - (36 if p['crouch'] else 58), 28, 36 if p['crouch'] else 58)
+        pbox = (p['x'] - 14, p['y'] - (42 if p['crouch'] else 64), 28, 42 if p['crouch'] else 64)
         for b in pt['ebul'][:]:
             b['x'] += b['vx'] * dt
             b['y'] += b['vy'] * dt
@@ -4632,6 +5549,11 @@ class Game:
             if alive and pbox[0] <= b['x'] <= pbox[0] + pbox[2] and pbox[1] <= b['y'] <= pbox[1] + pbox[3]:
                 pt['ebul'].remove(b)
                 self.pt_hurt(int(b['dmg']))
+            elif any(abs(b['x'] - br['x']) < 17 and br['y'] - 44 <= b['y'] <= br['y'] and br['fuse'] < 0 for br in pt['barrels']):
+                pt['ebul'].remove(b)
+                for br in pt['barrels']:
+                    if abs(b['x'] - br['x']) < 17 and br['fuse'] < 0:
+                        br['fuse'] = 0.1
             elif b['life'] <= 0 or b['y'] > self.PT_GR + 10 or b['x'] < pt['cam'] - 100 or b['x'] > pt['cam'] + W + 100:
                 pt['ebul'].remove(b)
         # granadas
@@ -4652,20 +5574,38 @@ class Game:
                             boom = True
             if boom:
                 pt['nades'].remove(n)
-                self.fx.explode(n['x'], min(n['y'], self.PT_GR - 4), 1.0, True)
-                self.audio.play('boom_s', .7)
-                self.shake = max(self.shake, 6)
-                R = 95
                 if n['own'] == 'p':
-                    for e in pt['enemies'][:]:
-                        d = dist(n['x'], n['y'], e['x'], e['y'] - 28)
-                        if d < R + (60 if e['kind'] == 'tank' else 0):
-                            self.pt_hit_enemy(e, 8 if e['kind'] == 'tank' else 6)
-                d = dist(n['x'], n['y'], p['x'], p['y'] - 28)
-                if alive and d < R and n['own'] == 'e':
-                    self.pt_hurt(int(28 * (1 - 0.5 * d / R)))
-                elif alive and d < R * 0.7:
-                    self.pt_hurt(10)
+                    self.pt_blast(n['x'], min(n['y'], self.PT_GR - 4), 95, 6, 10, 'p')
+                else:
+                    self.pt_blast(n['x'], min(n['y'], self.PT_GR - 4), 95, 0, 28, 'e')
+        # barriles explosivos
+        for br in pt['barrels'][:]:
+            if br['fuse'] >= 0:
+                br['fuse'] -= dt
+                if br['fuse'] < 0:
+                    pt['barrels'].remove(br)
+                    self.pt_blast(br['x'], br['y'] - 22, 110, 7, 26, 'b')
+            elif br['hp'] <= 1 and random.random() < dt * 8:
+                self.fx.add('smoke', br['x'] + random.uniform(-6, 6), br['y'] - 44, 0, -50, 0.9, 4, 12, (40, 40, 44))
+        # prisioneros
+        for pw in pt['pows']:
+            pw['t'] += dt
+            if pw['state'] == 'tied' and alive and abs(p['x'] - pw['x']) < 46 and abs(p['y'] - self.PT_GR) < 80:
+                pw['state'] = 'free'
+                pw['t'] = 0.0
+                pt['pow_n'] += 1
+                self.add_score(500)
+                self.audio.play('win', .6)
+                self.pop('¡GRACIAS! +500', pw['x'] - pt['cam'], self.PT_GR - 110, (140, 255, 170))
+                pt['items'].append(dict(x=pw['x'] + 30, y=float(self.PT_GR - 30), kind=pw['item'], t=0.0))
+            elif pw['state'] == 'free':
+                pw['x'] += 190 * dt
+        # morteros del jefe
+        for m in pt['mort'][:]:
+            m['t'] += dt
+            if m['t'] >= 1.45:
+                pt['mort'].remove(m)
+                self.pt_blast(m['x'], self.PT_GR - 4, 90, 0, 24, 'm')
         # objetos
         for it in pt['items'][:]:
             it['t'] += dt
@@ -4693,13 +5633,18 @@ class Game:
         boss_dead = pt['boss'] is None and pt['groups'][-1]['done'] and not any(e['kind'] == 'tank' for e in pt['enemies'])
         if pt['phase'] == 'play' and boss_dead:
             pt['phase'], pt['pt'] = 'result', 0.0
-            bonus = 1500 + 300 * self.wave
+            hpf = p['hp'] / PLAYER_HP
+            pts_ = (hpf >= 0.6) + (pt['t'] < 150) + (pt['pow_n'] >= 3) + (pt['taken'] < 80)
+            rank = 'S' if pts_ >= 4 else ('A' if pts_ == 3 else ('B' if pts_ == 2 else 'C'))
+            pt['rank'] = rank
+            bonus = 1500 + 300 * self.wave + {'S': 1500, 'A': 800, 'B': 300, 'C': 0}[rank]
+            pt['bonus'] = bonus
             self.add_score(bonus)
             self.audio.play('win', .8)
-            self.banner('¡PUERTO TOMADO!', 'Bajas: %d   Bonus +%d' % (pt['kills'], bonus), (120, 255, 160), 3.4)
+            self.banner('¡PUERTO TOMADO!', 'Rango %s  |  Bonus +%d' % (rank, bonus), (120, 255, 160), 3.4)
         if pt['phase'] == 'result':
             pt['pt'] += dt
-            if pt['pt'] > 3.4:
+            if pt['pt'] > (3.4 if pt['fail'] else 6.0):
                 self.end_port()
 
     def pt_shoot(self):
@@ -4717,6 +5662,8 @@ class Game:
         pt['bul'].append(dict(x=p['x'] + math.cos(a) * 34, y=oy + math.sin(a) * 34, vx=math.cos(a) * 980, vy=math.sin(a) * 980,
                               dmg=1.0, life=0.9))
         self.audio.play('mg', .3)
+        if random.random() < 0.7:
+            self.pt_casing(p['x'] + 10 * p['face'], oy, p['face'])
 
     def end_port(self):
         pt = self.pt
@@ -4739,108 +5686,130 @@ class Game:
         self.go('map')
 
     # ---- dibujo del asalto
-    def make_pt_bg(self):
-        if hasattr(self, 'pt_bg'):
+    def pt_art_init(self):
+        if hasattr(self, 'pt_art'):
             return
-        GR = self.PT_GR
-        L = self.PT_LEN
-        sky = pygame.Surface((W, GR))
-        for y in range(GR):
-            f = y / GR
-            sky.set_at((0, y), (0, 0, 0))
-            pygame.draw.line(sky, (int(lerp(40, 236, f ** 1.6)), int(lerp(30, 140, f ** 1.5)), int(lerp(84, 120, f))), (0, y), (W, y))
-        pygame.draw.circle(sky, (255, 220, 160), (760, 380), 70)
-        pygame.draw.circle(sky, (255, 240, 200), (760, 380), 46)
-        rnd = random.Random(8)
-        for _ in range(60):
-            pygame.draw.circle(sky, (255, 255, 255), (rnd.randrange(W), rnd.randrange(0, 260)), 1)
-        sea = pygame.Surface((W, 220))
-        for y in range(220):
-            f = y / 220
-            pygame.draw.line(sea, (int(lerp(150, 24, f)), int(lerp(104, 56, f)), int(lerp(120, 100, f))), (0, y), (W, y))
-        # capa lejana (barcos y montañas)
-        fw = int(L * 0.18) + W
-        far = pygame.Surface((fw, 200), pygame.SRCALPHA)
-        for i in range(0, fw, 260):
-            h = rnd.randint(40, 110)
-            pygame.draw.polygon(far, (70, 52, 92, 230), [(i, 200), (i + 130, 200 - h), (i + 260, 200)])
-        for i in range(120, fw, 520):
-            pygame.draw.rect(far, (46, 40, 70, 255), (i, 150, 150, 26))
-            pygame.draw.polygon(far, (46, 40, 70, 255), [(i - 20, 150), (i + 170, 150), (i + 130, 176), (i + 10, 176)])
-            pygame.draw.rect(far, (60, 52, 88, 255), (i + 70, 124, 24, 26))
-        # capa media (almacenes y grúas)
-        mw = int(L * 0.5) + W
-        mid = pygame.Surface((mw, 300), pygame.SRCALPHA)
-        x = 0
-        while x < mw:
-            kind = rnd.choice(('wh', 'wh', 'crane', 'tank'))
-            if kind == 'wh':
-                w, h = rnd.randint(200, 360), rnd.randint(90, 150)
-                pygame.draw.rect(mid, (74, 58, 92, 255), (x, 300 - h, w, h))
-                pygame.draw.rect(mid, (96, 76, 112, 255), (x, 300 - h, w, 8))
-                for wx in range(x + 14, x + w - 20, 38):
-                    pygame.draw.rect(mid, (250, 200, 110, 255), (wx, 300 - h + 24, 18, 14))
-                x += w + rnd.randint(30, 120)
-            elif kind == 'crane':
-                pygame.draw.rect(mid, (110, 70, 70, 255), (x, 40, 14, 260))
-                pygame.draw.rect(mid, (110, 70, 70, 255), (x + 60, 40, 14, 260))
-                pygame.draw.rect(mid, (140, 90, 80, 255), (x - 60, 34, 260, 14))
-                pygame.draw.line(mid, (200, 200, 210, 255), (x + 160, 48), (x + 160, 150), 2)
-                pygame.draw.rect(mid, (210, 90, 60, 255), (x + 148, 150, 26, 18))
-                x += 210
-            else:
-                pygame.draw.ellipse(mid, (88, 72, 104, 255), (x, 190, 130, 110))
-                pygame.draw.rect(mid, (88, 72, 104, 255), (x, 250, 130, 50))
-                x += 170
-        self.pt_bg = dict(sky=sky, sea=sea, far=far, mid=mid)
+        self.pt_art = build_pt_art()
+        self.pt_tk = build_pt_tank()
+        self.pt_bk = build_pt_bunker()
+        self.pt_ct = build_pt_containers()
+        self.pt_dc = build_pt_decor()
+        self.pt_bg = build_pt_bg(W, self.PT_GR, self.PT_LEN)
+        self.pt_cache = {}
+        g = self.pt_bk['gun']
+        pad = pygame.Surface((g.get_width() * 2, g.get_height() * 2), pygame.SRCALPHA)
+        pad.blit(g, (pad.get_width() // 2 - 8, pad.get_height() // 2 - 12))
+        self.pt_bk['gunpad'] = pad
+        sh = pygame.Surface((56, 14), pygame.SRCALPHA)
+        pygame.draw.ellipse(sh, (0, 0, 0, 70), (0, 0, 56, 14))
+        pygame.draw.ellipse(sh, (0, 0, 0, 50), (8, 3, 40, 8))
+        self.pt_shadow = sh
+        vg = pygame.Surface((W, H), pygame.SRCALPHA)
+        for i in range(60):
+            a = int(60 * (1 - i / 60) ** 2)
+            pygame.draw.rect(vg, (10, 6, 24, a), (i * 3, i * 2, W - i * 6, H - i * 4), 6)
+        self.pt_vig = vg
 
-    def pt_soldier(self, cv, sx, fy, face, ph, col, aim, moving=False, crouch=False, hit=0.0, flash=False):
-        body, helmet, pants = col
-        if hit > 0:
-            body = (255, 255, 255)
-        hh = 38 if crouch else 56
-        sw = math.sin(ph) * 9 if moving else 0.0
-        hip = (sx, fy - (18 if crouch else 24))
-        for s, c in ((1, shade(pants, -25)), (-1, pants)):
-            foot = (sx + s * sw * face + (3 * face if crouch else 0), fy)
-            pygame.draw.line(cv, c, hip, (foot[0], foot[1] - 3), 6)
-            pygame.draw.line(cv, (30, 30, 34), (foot[0], foot[1] - 2), (foot[0] + 7 * face, foot[1] - 2), 4)
-        pygame.draw.rect(cv, body, (sx - 9, fy - hh + 14, 18, 20 if not crouch else 14), border_radius=4)
-        pygame.draw.circle(cv, (232, 190, 150), (sx, fy - hh + 8), 7)
-        pygame.draw.arc(cv, helmet, (sx - 9, fy - hh - 2, 18, 16), 0, 3.14159, 6)
-        pygame.draw.rect(cv, helmet, (sx - 9, fy - hh + 4, 18, 4))
-        sh = (sx, fy - hh + 20)
-        ca, sa = math.cos(aim), math.sin(aim)
-        pygame.draw.line(cv, shade(body, -25), sh, (sh[0] + ca * 14, sh[1] + sa * 14), 5)
-        gx, gy = sh[0] + ca * 12, sh[1] + sa * 12
-        pygame.draw.line(cv, (28, 28, 32), (gx - ca * 6, gy - sa * 6), (gx + ca * 26, gy + sa * 26), 4)
-        pygame.draw.line(cv, (90, 90, 96), (gx + ca * 6, gy + sa * 6), (gx + ca * 24, gy + sa * 24), 2)
-        if flash:
-            glow(cv, gx + ca * 30, gy + sa * 30, 18, (255, 220, 120))
+    def pt_floor(self, x, y):
+        """Altura de la superficie bajo (x, y): suelo o la plataforma más cercana por debajo."""
+        best = self.PT_GR
+        for pl in self.pt['plats']:
+            if pl['x'] - 8 < x < pl['x'] + pl['w'] + 8 and y - 6 <= pl['top'] < best:
+                best = pl['top']
+        return best
 
-    def pt_tank(self, cv, sx, fy, tele, hit, st):
-        c1, c2 = (88, 100, 84), (62, 74, 60)
-        if hit > 0:
-            c1 = (240, 240, 240)
-        pygame.draw.rect(cv, (30, 32, 30), (sx - 125, fy - 36, 250, 36), border_radius=16)
-        for i in range(7):
-            wx = sx - 100 + i * 33
-            pygame.draw.circle(cv, (52, 56, 52), (wx, fy - 18), 15)
-            pygame.draw.circle(cv, (90, 96, 88), (wx, fy - 18), 6)
-            pygame.draw.circle(cv, (120, 126, 118), (wx + int(math.cos(st * 8 + i) * 4), fy - 18 + int(math.sin(st * 8 + i) * 4)), 2)
-        pygame.draw.polygon(cv, c2, [(sx - 130, fy - 40), (sx - 100, fy - 76), (sx + 112, fy - 76), (sx + 130, fy - 40)])
-        pygame.draw.polygon(cv, c1, [(sx - 110, fy - 46), (sx - 92, fy - 70), (sx + 100, fy - 70), (sx + 114, fy - 46)])
-        pygame.draw.polygon(cv, c1, [(sx - 70, fy - 74), (sx - 40, fy - 108), (sx + 56, fy - 108), (sx + 78, fy - 74)])
-        pygame.draw.polygon(cv, c2, [(sx - 70, fy - 74), (sx - 40, fy - 108), (sx + 56, fy - 108), (sx + 78, fy - 74)], 3)
-        pygame.draw.rect(cv, (40, 44, 40), (sx - 200, fy - 70, 130, 12), border_radius=4)
-        pygame.draw.rect(cv, (60, 64, 58), (sx - 218, fy - 74, 28, 20), border_radius=4)
-        pygame.draw.line(cv, (34, 38, 34), (sx - 10, fy - 108), (sx - 10, fy - 130), 3)
-        pygame.draw.rect(cv, (60, 64, 58), (sx + 20, fy - 124, 36, 18), border_radius=4)
-        pygame.draw.line(cv, (30, 30, 30), (sx - 56, fy - 112), (sx - 100, fy - 118), 4)
-        for k in range(5):
-            pygame.draw.circle(cv, (50, 56, 50), (sx - 60 + k * 36, fy - 56), 3)
-        if tele > 0:
-            glow(cv, sx - 218, fy - 64, 26 + 10 * math.sin(st * 30), (255, 150, 60))
+    def pt_char(self, cv, kind, sx, fy, face, pose, fi, aim=None, arm='gun', hit=0.0, alpha=255, shadow=True, flash=False, rot_deg=0.0):
+        """Dibuja un soldado pre-renderizado (cuerpo + brazos/arma rotados). aim=(dx, dy) hacia donde apunta."""
+        art = self.pt_art
+        frames = art['body'][kind][pose]
+        fi %= len(frames)
+        spr, shx, shy = frames[fi]
+        if shadow:
+            fl_ = self.pt_floor(sx + self.pt['cam'], fy)
+            if fl_ - fy < 200:
+                sh_ = self.pt_shadow
+                if fl_ - fy > 4:
+                    k_ = max(0.45, 1 - (fl_ - fy) / 260)
+                    sh_ = pygame.transform.smoothscale(sh_, (int(56 * k_), int(14 * k_)))
+                cv.blit(sh_, (sx - sh_.get_width() // 2, fl_ - 8 * sh_.get_height() // 14))
+        right = face > 0
+        key = (kind, pose, fi, right)
+        img = self.pt_cache.get(key)
+        if img is None:
+            img = spr if right else pygame.transform.flip(spr, True, False)
+            self.pt_cache[key] = img
+        if hit > 0 or alpha < 255:
+            img = img.copy()
+            if hit > 0:
+                img.fill((90, 90, 90, 0), special_flags=pygame.BLEND_RGB_ADD)
+            if alpha < 255:
+                img.set_alpha(alpha)
+        if rot_deg:
+            th = math.radians(rot_deg)
+            rim = pygame.transform.rotate(img, rot_deg)
+            cx_, cy_ = sx - 14 * math.sin(th), fy - 30 - 14 * math.cos(th)
+            cv.blit(rim, (cx_ - rim.get_width() // 2, cy_ - rim.get_height() // 2))
+            return None
+        cv.blit(img, (sx - PT_AX, fy - PT_AY))
+        if not arm or arm not in art['arm'][kind] or pose == 'die':
+            return None
+        layer = art['arm'][kind][arm]
+        if aim is not None and arm in ('gun', 'knife'):
+            dx, dy = aim
+            rot = -math.degrees(math.atan2(dy, dx)) if right else math.degrees(math.atan2(dy, -dx))
+            rot = clamp(rot, -80, 80)
+        else:
+            rot = 0.0
+        rk = (kind, arm, right, int(rot / 3))
+        rimg = self.pt_cache.get(rk)
+        if rimg is None:
+            base = layer if right else pygame.transform.flip(layer, True, False)
+            rimg = pygame.transform.rotate(base, rot)
+            self.pt_cache[rk] = rimg
+        if hit > 0 or alpha < 255:
+            rimg = rimg.copy()
+            if hit > 0:
+                rimg.fill((90, 90, 90, 0), special_flags=pygame.BLEND_RGB_ADD)
+            if alpha < 255:
+                rimg.set_alpha(alpha)
+        px = sx + (shx if right else -shx)
+        py = fy - shy
+        cv.blit(rimg, (px - rimg.get_width() // 2, py - rimg.get_height() // 2))
+        if flash and arm == 'gun':
+            ln = 92 if kind == 'sniper' else 72
+            ang = math.radians(rot if right else -rot)
+            mx = px + (math.cos(ang) * ln if right else -math.cos(ang) * ln)
+            my = py - math.sin(ang) * ln * (1 if right else -1) * (1 if right else 1)
+            my = py - math.sin(math.radians(rot)) * ln
+            self.pt_flash(cv, mx, my, -rot if right else rot, right)
+        return px, py
+
+    def pt_flash(self, cv, x, y, ang, right):
+        a = math.radians(ang)
+        d = 1 if right else -1
+        glow(cv, x, y, 26, (255, 200, 110), 0.8)
+        pts = []
+        for i in range(10):
+            r = random.uniform(16, 26) if i % 2 == 0 else 5
+            t = -1.2 + 2.4 * i / 9
+            pts.append((x + d * math.cos(a + t * d) * r, y + math.sin(a + t * d) * r))
+        pygame.draw.polygon(cv, (255, 236, 160), pts)
+        pygame.draw.circle(cv, (255, 255, 235), (int(x), int(y)), 5)
+
+    def pt_tank_img(self, e):
+        """Compone el tanque (mirando a la izquierda): orugas animadas, torreta y cañón con retroceso."""
+        T = self.pt_tk
+        hull = T['hull'][int((e['x'] % 14) / 14 * 8) % 8]
+        comp = pygame.Surface((520, 190), pygame.SRCALPHA)
+        ox = 70
+        comp.blit(hull, (ox, 0))
+        comp.blit(T['turret'], (ox, 0))
+        px, py = T['pivot']
+        comp.blit(T['barrel'], (ox + px - 6 - int(e.get('recoil', 0)), py - 30))
+        img = pygame.transform.flip(comp, True, False)
+        if e['hit'] > 0:
+            img.fill((44, 44, 44, 0), special_flags=pygame.BLEND_RGB_ADD)
+        return img
 
     def draw_port(self, cv):
         pt = self.pt
@@ -4850,36 +5819,57 @@ class Game:
         GR = self.PT_GR
         t = self.t
         cv.blit(bg['sky'], (0, 0))
-        cv.blit(bg['sea'], (0, 430))
-        for i in range(8):
-            yy = 450 + i * 22
-            xx = (i * 211 + t * (10 + i * 2)) % (W + 160) - 80
-            pygame.draw.line(cv, (255, 200, 150), (xx, yy), (xx + 50 + i * 4, yy), 2)
-        cv.blit(bg['far'], (0, 330), area=pygame.Rect(int(cam * 0.18), 0, W, 200))
-        cv.blit(bg['mid'], (0, GR - 300), area=pygame.Rect(int(cam * 0.5), 0, W, 300))
+        cv.blit(bg['sea'], (0, 410))
+        for i in range(10):
+            yy = 430 + i * 20
+            xx = (i * 191 + t * (9 + i * 2)) % (W + 160) - 80
+            pygame.draw.line(cv, (255, 206, 160), (xx, yy), (xx + 40 + i * 5, yy), 2)
+        cv.blit(bg['far'], (0, 330), area=pygame.Rect(int(cam * 0.18), 0, W, 230))
+        cv.blit(bg['mid'], (0, GR - 330), area=pygame.Rect(int(cam * 0.5), 0, W, 330))
         # muelle
-        pygame.draw.rect(cv, (88, 84, 96), (0, GR, W, H - GR))
-        pygame.draw.rect(cv, (122, 118, 128), (0, GR, W, 10))
-        pygame.draw.rect(cv, (60, 58, 68), (0, GR + 10, W, 3))
+        for y in range(GR, H, 4):
+            f = (y - GR) / (H - GR)
+            pygame.draw.rect(cv, (int(lerp(112, 66, f)), int(lerp(108, 62, f)), int(lerp(122, 78, f))), (0, y, W, 4))
+        pygame.draw.rect(cv, (150, 146, 156), (0, GR, W, 6))
+        pygame.draw.rect(cv, (60, 58, 70), (0, GR + 6, W, 3))
         for x in range(-int(cam) % 130, W, 130):
-            pygame.draw.line(cv, (70, 68, 78), (x, GR + 14), (x - 20, H), 2)
+            pygame.draw.line(cv, (62, 60, 72), (x, GR + 10), (x - 22, H), 2)
+        for y in (GR + 56, GR + 112):
+            pygame.draw.line(cv, (62, 60, 72), (0, y), (W, y), 1)
         for x in range(-int(cam) % 260, W, 260):
-            pygame.draw.rect(cv, (240, 200, 50), (x, GR + 4, 70, 4))
-        for y in (GR + 70, GR + 130):
-            pygame.draw.line(cv, (70, 68, 78), (0, y), (W, y), 1)
+            pygame.draw.rect(cv, (240, 200, 50), (x, GR + 3, 70, 3))
+        for px_, pw_ in pt['puddles']:
+            xx = px_ - cam
+            if -80 < xx < W:
+                pygame.draw.ellipse(cv, (190, 130, 120), (xx, GR + 26, pw_, 12))
+                pygame.draw.ellipse(cv, (240, 170, 130), (xx + pw_ * 0.2, GR + 29, pw_ * 0.4, 4))
+        # decorado de fondo
+        D = self.pt_dc
+        for d in pt['decor']:
+            sx = d['x'] - cam
+            if not (-200 < sx < W + 200):
+                continue
+            spr = D[d['kind']]
+            if d['kind'] == 'lamp':
+                cv.blit(spr, (sx - 30, GR - 186))
+            elif d['kind'] == 'fence':
+                cv.blit(spr, (sx, GR - 56))
+            else:
+                cv.blit(spr, (sx - spr.get_width() // 2, GR - spr.get_height() + 4))
         # plataformas (contenedores)
         for pl in pt['plats']:
             x0 = pl['x'] - cam
             if x0 > W or x0 + pl['w'] < 0:
                 continue
+            spr = self.pt_ct[(pl['ci'], pl['w'])]
             for row in range(pl['h'] // 64):
                 y0 = pl['top'] + row * 64
-                col = shade(pl['col'], -18 * row)
-                pygame.draw.rect(cv, col, (x0, y0, pl['w'], 64))
-                pygame.draw.rect(cv, shade(col, -50), (x0, y0, pl['w'], 64), 3)
-                for rx in range(int(x0) + 14, int(x0 + pl['w'] - 8), 22):
-                    pygame.draw.line(cv, shade(col, -30), (rx, y0 + 6), (rx, y0 + 58), 2)
-                pygame.draw.rect(cv, shade(col, 40), (x0, y0, pl['w'], 5))
+                cv.blit(spr, (x0, y0))
+                if row:
+                    sh_ = pygame.Surface((pl['w'], 64), pygame.SRCALPHA)
+                    sh_.fill((0, 0, 20, 40))
+                    cv.blit(sh_, (x0, y0))
+            pygame.draw.rect(cv, (0, 0, 0), (x0, GR - 3, pl['w'], 3))
         # objetos
         for it in pt['items']:
             sx = it['x'] - cam
@@ -4887,69 +5877,225 @@ class Game:
                 continue
             bob = math.sin(it['t'] * 5) * 3
             col = {'med': (236, 240, 236), 'gren': (96, 120, 70), 'hmg': (250, 170, 70)}[it['kind']]
-            glow(cv, sx, it['y'] + bob, 30, (120, 255, 160) if it['kind'] == 'med' else (255, 210, 80), 0.5)
-            pygame.draw.rect(cv, col, (sx - 14, it['y'] - 14 + bob, 28, 28), border_radius=4)
-            pygame.draw.rect(cv, (30, 36, 40), (sx - 14, it['y'] - 14 + bob, 28, 28), 2, border_radius=4)
+            glow(cv, sx, it['y'] + bob, 32, (120, 255, 160) if it['kind'] == 'med' else (255, 210, 80), 0.5)
+            pygame.draw.rect(cv, (24, 26, 30), (sx - 15, it['y'] - 15 + bob, 30, 30), border_radius=5)
+            pygame.draw.rect(cv, col, (sx - 13, it['y'] - 13 + bob, 26, 26), border_radius=4)
             if it['kind'] == 'med':
                 pygame.draw.rect(cv, (220, 50, 50), (sx - 8, it['y'] - 3 + bob, 16, 6))
                 pygame.draw.rect(cv, (220, 50, 50), (sx - 3, it['y'] - 8 + bob, 6, 16))
             elif it['kind'] == 'gren':
-                pygame.draw.circle(cv, (50, 70, 40), (sx, int(it['y'] + 2 + bob)), 7)
+                pygame.draw.circle(cv, (50, 70, 40), (sx, int(it['y'] + 2 + bob)), 8)
+                pygame.draw.circle(cv, (150, 180, 110), (sx - 2, int(it['y'] + bob)), 2)
             else:
                 self.text(cv, 'H', self.f_m, (60, 30, 10), sx, it['y'] - 12 + bob, 'c', shadow=False)
+        # restos
+        for w_ in pt['wrecks']:
+            sx = w_['x'] - cam
+            if not (-300 < sx < W + 300):
+                continue
+            if w_['kind'] == 'tank':
+                img = self.pt_tank_img(dict(x=w_['x'], hit=0.0, recoil=0))
+                img.fill((70, 64, 62, 255), special_flags=pygame.BLEND_RGBA_MULT)
+                cv.blit(img, (sx - 260, w_['y'] - 176))
+                for k in range(4):
+                    ph = (t * 1.6 + k * 0.27) % 1
+                    glow(cv, sx - 60 + k * 44, w_['y'] - 110 - ph * 40, 26 - 10 * ph, (255, 150, 60), 1 - ph)
+            else:
+                spr = self.pt_bk['base'].copy()
+                spr.fill((60, 56, 54, 255), special_flags=pygame.BLEND_RGBA_MULT)
+                cv.blit(spr, (sx - 55, w_['y'] - 66))
+                ph = (t * 1.4 + w_['x']) % 1
+                glow(cv, sx, w_['y'] - 50 - ph * 30, 18, (255, 140, 60), 1 - ph)
+        for c in pt['corpses']:
+            sx = c['x'] - cam
+            if not (-100 < sx < W + 100):
+                continue
+            if c['air']:
+                c['rot'] = c.get('rot', 0.0) + c['spin'] * 0.016
+                self.pt_char(cv, c['kind'], int(sx), int(c['y']), c['face'], 'die', 1, None, None, 0.0, 255, False, False, c['rot'])
+                continue
+            fi = min(5, int(c['t'] * 12))
+            al = 255 if c['t'] < 3.5 else int(255 * clamp(1 - (c['t'] - 3.5) / 1.2, 0, 1))
+            self.pt_char(cv, c['kind'], int(sx), int(c['y']), c['face'], 'die', fi, None, None, 0.0, al)
+        # barriles explosivos
+        brl = D['barrel']
+        for br in pt['barrels']:
+            sx = br['x'] - cam
+            if -40 < sx < W + 40:
+                cv.blit(brl, (sx - brl.get_width() // 2, br['y'] - brl.get_height() + 4))
+                pygame.draw.polygon(cv, (250, 210, 40), [(sx, br['y'] - 54), (sx - 9, br['y'] - 40), (sx + 9, br['y'] - 40)])
+                self.text(cv, '!', self.f_s, (40, 30, 10), sx, br['y'] - 52, 'c', shadow=False)
+                if br['fuse'] >= 0 and int(t * 30) % 2 == 0:
+                    glow(cv, sx, br['y'] - 22, 34, (255, 230, 150), 0.9)
+        # prisioneros de guerra
+        for pw in pt['pows']:
+            sx = pw['x'] - cam
+            if not (-60 < sx < W + 60):
+                continue
+            if pw['state'] == 'tied':
+                self.pt_char(cv, 'pow', int(sx), self.PT_GR, -1, 'crouch', 0, None, None)
+                pygame.draw.line(cv, (140, 100, 56), (sx - 8, self.PT_GR - 36), (sx + 8, self.PT_GR - 30), 3)
+                pygame.draw.line(cv, (140, 100, 56), (sx - 8, self.PT_GR - 30), (sx + 8, self.PT_GR - 36), 3)
+                if int(t * 2.5) % 2 == 0:
+                    self.text(cv, '¡AYUDA!', self.f_s, (255, 240, 150), sx, self.PT_GR - 82, 'c')
+            elif pw['state'] == 'free' and pw['t'] < 2.4:
+                self.pt_char(cv, 'pow', int(sx), self.PT_GR, 1, 'run', int(pw['t'] * 14), None, None, 0.0, int(255 * clamp(1 - (pw['t'] - 1.6) / 0.8, 0, 1)))
+        # morteros
+        for m in pt['mort']:
+            sx = m['x'] - cam
+            k_ = m['t'] / 1.45
+            rr = 78 - 28 * k_
+            pygame.draw.ellipse(cv, (255, 70, 60), (sx - rr, GR - 8, rr * 2, 16), 3)
+            pygame.draw.ellipse(cv, (255, 70, 60, 90), (sx - 6, GR - 3, 12, 6))
+            if m['t'] > 1.1:
+                y = lerp(-70, GR, (m['t'] - 1.1) / 0.35)
+                pygame.draw.line(cv, (255, 220, 160), (sx, y - 80), (sx, y), 5)
+                pygame.draw.circle(cv, (255, 250, 220), (int(sx), int(y)), 7)
+                glow(cv, sx, y, 24, (255, 170, 80), 0.8)
+            else:
+                self.text(cv, 'v', self.f_m, (255, 90, 70), sx, GR - 70 - (int(t * 6) % 2) * 6, 'c')
         # enemigos
         pcx = p['x'] - cam
         for e in pt['enemies']:
             sx = e['x'] - cam
-            if not (-300 < sx < W + 300):
+            if not (-340 < sx < W + 340):
                 continue
             k = e['kind']
             fy = int(e['y'])
             if k == 'tank':
-                self.pt_tank(cv, int(sx), fy, e['tele'], e['hit'], e['st'])
+                img = self.pt_tank_img(e)
+                cv.blit(self.pt_shadow, (sx - 150, fy - 8)) if False else None
+                cv.blit(img, (sx - 260, fy - 176))
+                if e['tele'] > 0:
+                    glow(cv, sx - 224, fy - 111, 30 + 12 * math.sin(e['st'] * 30), (255, 160, 70))
+                if e['flash'] > 0:
+                    self.pt_flash(cv, sx - 224, fy - 111, 0, False)
+                if e['burst'] > 0 and e['bcd'] > 0.05:
+                    self.pt_flash(cv, sx - 152, fy - 74, 0, False)
+                if e['hp'] < e['max'] * 0.5 and random.random() < 0.3:
+                    self.fx.add('smoke', e['x'] - 20 + random.uniform(-30, 30), fy - 140, random.uniform(-10, 10), -40, 1.6, 8, 26, (40, 40, 44))
                 continue
             if k == 'turret':
-                pygame.draw.rect(cv, (70, 74, 70), (sx - 22, fy - 20, 44, 20), border_radius=4)
-                pygame.draw.rect(cv, (96, 102, 96), (sx - 14, fy - 40, 28, 22), border_radius=6)
-                a = math.atan2((p['y'] - 40) - (fy - 36), p['x'] - e['x'])
-                pygame.draw.line(cv, (30, 32, 30), (sx, fy - 32), (sx + math.cos(a) * 36, fy - 32 + math.sin(a) * 36), 6)
+                bk = self.pt_bk
+                cv.blit(bk['base'], (sx - 55, fy - 66))
+                right = p['x'] > e['x']
+                dx, dy = p['x'] - e['x'], (p['y'] - 40) - (fy - 50)
+                ang = clamp(-math.degrees(math.atan2(dy, abs(dx))), -60, 60)
+                pad = bk['gunpad'] if right else pygame.transform.flip(bk['gunpad'], True, False)
+                rimg = pygame.transform.rotate(pad, ang if right else -ang)
+                gx, gy = sx + (6 if right else -6), fy - 50
                 if e['hit'] > 0:
-                    pygame.draw.rect(cv, (255, 255, 255), (sx - 14, fy - 40, 28, 22), border_radius=6)
+                    rimg = rimg.copy()
+                    rimg.fill((90, 90, 90, 0), special_flags=pygame.BLEND_RGB_ADD)
+                cv.blit(rimg, (gx - rimg.get_width() // 2, gy - rimg.get_height() // 2))
+                if e['burst'] > 0 and e['bcd'] > 0.05:
+                    a_ = math.radians(ang)
+                    self.pt_flash(cv, gx + (66 * math.cos(a_)) * (1 if right else -1), gy - 66 * math.sin(a_), ang if right else -ang, right)
                 continue
-            col = {'rifle': ((150, 64, 60), (96, 60, 56), (84, 60, 56)), 'knife': ((190, 110, 50), (120, 70, 40), (84, 60, 56)),
-                   'gren': ((120, 76, 140), (80, 56, 100), (70, 56, 80)), 'sniper': ((60, 80, 70), (40, 60, 50), (50, 60, 56))}[k]
-            aim = math.atan2((p['y'] - 40) - (fy - 40), p['x'] - e['x']) if k != 'knife' else (0 if e['face'] > 0 else math.pi)
-            self.pt_soldier(cv, int(sx), fy, e['face'], e['ph'], col, aim, e.get('moving', False), False, e['hit'], e['burst'] > 0 and e['bcd'] > 0.06)
+            moving = e.get('moving', False)
+            if e['stag'] > 0:
+                sx -= e['face'] * 2
+            if e['para']:
+                self.pt_char(cv, 'rifle', int(sx), fy, e['face'], 'fall', 0, None, None, 0.0, 255, False)
+                top = fy - 168
+                pygame.draw.arc(cv, (236, 236, 226), (sx - 54, top, 108, 70), 0, 3.14159, 40)
+                pygame.draw.polygon(cv, (226, 90, 70), [(sx - 54, top + 35), (sx - 18, top + 4), (sx - 6, top + 4), (sx - 22, top + 38)])
+                pygame.draw.polygon(cv, (236, 236, 226), [(sx - 22, top + 38), (sx - 6, top + 4), (sx + 6, top + 4), (sx + 22, top + 38)])
+                pygame.draw.polygon(cv, (226, 90, 70), [(sx + 22, top + 38), (sx + 6, top + 4), (sx + 18, top + 4), (sx + 54, top + 35)])
+                pygame.draw.arc(cv, (40, 36, 40), (sx - 54, top, 108, 70), 0, 3.14159, 3)
+                for ox in (-52, -20, 20, 52):
+                    pygame.draw.line(cv, (40, 36, 40), (sx + ox, top + 36), (sx, fy - 54), 1)
+                continue
+            if k == 'shield':
+                pose = 'run' if moving else 'idle'
+                fi = int(e['ph']) if moving else int(t * 3 + e['ph0'])
+                self.pt_char(cv, 'shield', int(sx + (e['face'] * 6 if e['slash'] > 0.15 else 0)), fy, e['face'], pose, fi, None, 'shield', e['hit'])
+                if e['hp'] < e['max']:
+                    pygame.draw.rect(cv, (8, 12, 24), (sx - 15, fy - 86, 30, 5))
+                    pygame.draw.rect(cv, (240, 80, 70), (sx - 14, fy - 85, int(28 * e['hp'] / e['max']), 3))
+                continue
+            if k == 'knife':
+                pose = 'run' if moving else 'idle'
+                arm = 'knife'
+                aim = (e['face'] * 1.0, -0.15 + (0.5 - e['slash'] / 0.3) * 1.6 if e['slash'] > 0 else 0.1)
+            elif k == 'gren':
+                pose = 'run' if moving else 'idle'
+                arm = 'gun'
+                aim = (p['x'] - e['x'], (p['y'] - 40) - (fy - 40))
+                if e['thr'] > 0:
+                    arm = 'wind' if e['thr'] > 0.14 else 'rel'
+            elif k == 'sniper':
+                pose = 'crouch'
+                arm = 'gun'
+                aim = (p['x'] - e['x'], (p['y'] - 40) - (fy - 30))
+            else:
+                pose = 'run' if moving else ('crouch' if e['kneel'] else 'idle')
+                arm = 'gun'
+                aim = (p['x'] - e['x'], (p['y'] - 40) - (fy - (28 if e['kneel'] and not moving else 40)))
+            if k == 'flame':
+                pose = 'run' if moving else 'idle'
+                arm = 'gun'
+                aim = (p['x'] - e['x'], (p['y'] - 40) - (fy - 44))
+            fi = int(e['ph']) if pose == 'run' else int(t * 3 + e['ph0'])
+            self.pt_char(cv, k, int(sx), fy, e['face'], pose, fi, aim, arm, e['hit'], 255, True, e['flash'] > 0 and k != 'flame')
             if k == 'sniper' and e['tele'] > 0:
-                ay = e['y'] - 44
+                ay = e['y'] - 34
                 pygame.draw.line(cv, (255, 40, 40), (sx, ay), (p['x'] - cam, p['y'] - 36), 1)
-                self.text(cv, '!', self.f_m, (255, 70, 60), sx, fy - 82, 'c')
+                self.text(cv, '!', self.f_m, (255, 70, 60), sx, fy - 92, 'c')
             if e['hp'] < e['max']:
-                pygame.draw.rect(cv, (8, 12, 24), (sx - 14, fy - 74, 28, 5))
-                pygame.draw.rect(cv, (240, 80, 70), (sx - 13, fy - 73, int(26 * e['hp'] / e['max']), 3))
+                pygame.draw.rect(cv, (8, 12, 24), (sx - 15, fy - 84, 30, 5))
+                pygame.draw.rect(cv, (240, 80, 70), (sx - 14, fy - 83, int(28 * e['hp'] / e['max']), 3))
         # jugador
-        if not p['dead'] or pt['t'] % 0.2 < 0.15:
+        if not p['dead']:
             if not (p['inv'] > 0 and int(t * 20) % 2 == 0):
-                sy_ = p['y'] - (28 if p['crouch'] else 46)
-                aim = math.atan2(self.aim[1] - sy_, self.aim[0] - pcx)
-                self.pt_soldier(cv, int(pcx), int(p['y']), p['face'], p['ph'], ((52, 110, 150), (60, 88, 70), (50, 70, 60)), aim,
-                                abs(p['vx']) > 1 and p['ground'], p['crouch'], 0.0, p['flash'] > 0)
-        # proyectiles
+                oy = 28 if p['crouch'] else 48
+                aim = (self.aim[0] - pcx, self.aim[1] - (p['y'] - oy))
+                if not p['ground']:
+                    pose, fi = ('jump' if p['vy'] < 0 else 'fall'), 0
+                elif p['crouch']:
+                    pose, fi = 'crouch', 0
+                elif abs(p['vx']) > 1:
+                    pose, fi = 'run', int(p['ph'])
+                else:
+                    pose, fi = 'idle', int(t * 3)
+                arm = 'gun'
+                if p['thr'] > 0:
+                    arm = 'wind' if p['thr'] > 0.16 else 'rel'
+                self.pt_char(cv, 'player', int(pcx - (p['face'] * 2 if p['flash'] > 0 else 0)), int(p['y']), p['face'], pose, fi, aim, arm, 0.0, 255, True, p['flash'] > 0)
+        else:
+            fi = min(5, int(p['dead_t'] * 12))
+            self.pt_char(cv, 'player', int(pcx), int(p['y']), p['face'], 'die', fi, None, None)
+        # proyectiles y casquillos
+        for c in pt['cas']:
+            sx, sy = c['x'] - cam, c['y']
+            pygame.draw.line(cv, (240, 200, 90), (sx, sy), (sx + math.cos(c['rot']) * 4, sy + math.sin(c['rot']) * 4), 2)
         for b in pt['bul']:
             sx, sy = b['x'] - cam, b['y']
-            pygame.draw.line(cv, (255, 240, 160), (sx, sy), (sx - b['vx'] * 0.02, sy - b['vy'] * 0.02), 3)
+            ex, ey = sx - b['vx'] * 0.03, sy - b['vy'] * 0.03
+            pygame.draw.line(cv, (255, 200, 90), (sx, sy), (ex, ey), 5)
+            pygame.draw.line(cv, (255, 250, 210), (sx, sy), (sx - b['vx'] * 0.018, sy - b['vy'] * 0.018), 2)
         for b in pt['ebul']:
             sx, sy = b['x'] - cam, b['y']
             col = (255, 90, 70) if not b['big'] else (255, 170, 60)
-            r = 4 if not b['big'] else 8
-            glow(cv, sx, sy, 12 if not b['big'] else 22, col, 0.7)
+            r = 4 if not b['big'] else 9
+            glow(cv, sx, sy, 14 if not b['big'] else 26, col, 0.7)
+            pygame.draw.line(cv, col, (sx, sy), (sx - b['vx'] * 0.03, sy - b['vy'] * 0.03), 3 if not b['big'] else 8)
             pygame.draw.circle(cv, col, (int(sx), int(sy)), r)
             pygame.draw.circle(cv, (255, 240, 220), (int(sx), int(sy)), max(1, r - 2))
         for n in pt['nades']:
             sx, sy = n['x'] - cam, n['y']
-            pygame.draw.circle(cv, (50, 70, 40), (int(sx), int(sy)), 6)
-            pygame.draw.circle(cv, (250, 220, 90) if n['own'] == 'p' else (255, 90, 70), (int(sx), int(sy)), 6, 2)
+            pygame.draw.circle(cv, (24, 30, 20), (int(sx), int(sy)), 7)
+            pygame.draw.circle(cv, (70, 100, 56), (int(sx), int(sy)), 6)
+            pygame.draw.circle(cv, (250, 220, 90) if n['own'] == 'p' else (255, 90, 70), (int(sx), int(sy)), 7, 2)
+            pygame.draw.circle(cv, (160, 190, 120), (int(sx - 2), int(sy - 2)), 2)
         self.fx.draw(cv, cam, 0)
+        # luces de las farolas
+        for d in pt['decor']:
+            if d['kind'] == 'lamp':
+                sx = d['x'] - cam
+                if -120 < sx < W + 120:
+                    glow(cv, sx - 18, GR - 170, 70, (255, 214, 140), 0.55)
+        cv.blit(self.pt_vig, (0, 0))
         # HUD
         self.panel(cv, (14, 12, 250, 56), 160)
         self.text(cv, 'PUNTOS %07d' % self.score, self.f_m, (255, 255, 255), 26, 18)
@@ -4963,22 +6109,34 @@ class Game:
             self.bar(cv, W // 2 - 210, 44, 420, 26, clamp(p['x'] / (self.PT_LEN - 1500), 0, 1), (255, 190, 90), 'AVANCE')
         self.panel(cv, (14, H - 126, 330, 112), 190)
         hp = clamp(p['hp'] / PLAYER_HP, 0, 1)
-        self.bar(cv, 26, 692, 306, 22, hp, (80, 230, 110) if hp > 0.5 else ((255, 200, 70) if hp > 0.25 else (240, 80, 70)), 'SOLDADO %d' % max(0, p['hp']))
-        self.text(cv, 'GRANADAS %d' % p['gren'], self.f_s, (255, 230, 150), 26, 724)
+        self.bar(cv, 26, H - 114, 306, 22, hp, (80, 230, 110) if hp > 0.5 else ((255, 200, 70) if hp > 0.25 else (240, 80, 70)), 'SOLDADO %d' % max(0, p['hp']))
+        self.text(cv, 'GRANADAS %d' % p['gren'], self.f_s, (255, 230, 150), 26, H - 84)
         if p['hmg'] > 0:
-            self.bar(cv, 26, 750, 306, 16, p['hmg'] / 14.0, (255, 160, 80), 'AMETRALLADORA %.1f' % p['hmg'])
-        if pt['go_t'] > 0 and int(t * 3) % 2 == 0:
+            self.bar(cv, 26, H - 56, 306, 16, p['hmg'] / 14.0, (255, 160, 80), 'AMETRALLADORA %.1f' % p['hmg'])
+        if pt['go_t'] > 0 and pt['phase'] == 'play' and int(t * 3) % 2 == 0:
             self.text(cv, 'ADELANTE  >>>', self.f_l, (255, 230, 120), W - 180, 330, 'c')
         if pt['hurt'] > 0:
             hs = pygame.Surface((W, H), pygame.SRCALPHA)
             hs.fill((255, 30, 30, int(110 * pt['hurt'] / 0.4)))
             cv.blit(hs, (0, 0))
         ax, ay = int(self.aim[0]), int(self.aim[1])
+        pygame.draw.circle(cv, (20, 20, 24), (ax, ay), 15, 4)
         pygame.draw.circle(cv, (255, 230, 120), (ax, ay), 14, 2)
         for dx_, dy_ in ((-22, 0), (22, 0), (0, -22), (0, 22)):
             pygame.draw.line(cv, (255, 230, 120), (ax + dx_ // 2, ay + dy_ // 2), (ax + dx_, ay + dy_), 2)
         if pt['phase'] == 'result' and pt['fail']:
             self.dim(cv, 60)
+        elif pt['phase'] == 'result' and pt['rank'] and pt['pt'] > 0.8:
+            k_ = clamp((pt['pt'] - 0.8) / 0.5, 0, 1)
+            self.panel(cv, (W // 2 - 220, 230, 440, 250), int(215 * k_))
+            self.text(cv, 'MISIÓN CUMPLIDA', self.f_l, (120, 255, 160), W // 2, 240, 'c', alpha=int(255 * k_))
+            rows = [('Bajas', '%d' % pt['kills']), ('Prisioneros', '%d / 3' % pt['pow_n']), ('Tiempo', '%d s' % pt['t']),
+                    ('Daño recibido', '%d' % pt['taken']), ('Bonus', '+%d' % pt.get('bonus', 0))]
+            for i, (a_, b_) in enumerate(rows):
+                self.text(cv, a_, self.f_m, (200, 215, 235), W // 2 - 190, 292 + i * 30, alpha=int(255 * k_))
+                self.text(cv, b_, self.f_m, (255, 240, 170), W // 2 + 190, 292 + i * 30, 'r', alpha=int(255 * k_))
+            rc = {'S': (255, 220, 90), 'A': (140, 255, 170), 'B': (150, 200, 255), 'C': (200, 200, 210)}[pt['rank']]
+            self.text(cv, 'RANGO  %s' % pt['rank'], self.f_l, rc, W // 2, 440, 'c', alpha=int(255 * k_))
 
     # ---------------------------------------------------------- COMBATE URBANO CON TANQUES (estilo Battlezone)
     TK_EYE, TK_F, TK_NEAR, TK_A = 2.3, 560.0, 0.5, 125.0
