@@ -1,0 +1,250 @@
+"""Batallas navales a gran escala: escoltas enemigas, ataques aéreos, escolta aliada y fortaleza costera con artillería."""
+import math
+import pygame
+import random
+from .common import H, W, angle_diff, bearing, clamp, dist, draw_circ, glow, vec
+
+
+class NavalFleetMixin:
+    def nf_init(self):
+        c = self.c
+        w = self.wave
+        c.update(boats=[], planes=[], bombs=[], barrage=[], ally=None, air_t=random.uniform(9, 14), bar_t=random.uniform(5, 8))
+        if not self.ships.get('g_boat'):
+            for key, src, k in (('g_boat', 'e_map', 1.55), ('a_ally', 'p_map', 1.5)):
+                s, sh = self.ships[src]
+                self.ships[key] = (pygame.transform.rotozoom(s, 0, k).convert_alpha(), pygame.transform.rotozoom(sh, 0, k).convert_alpha())
+        e = c['e']
+        n_boats = 0
+        if c['nest']:
+            if w >= 2:
+                for sd in (-1, 1):
+                    c['boats'].append(dict(kind='gun', x=e['x'] + sd * 165, y=e['y'] + 28, h=180.0, v=0.0, hp=7.0 + w, max=7.0 + w,
+                                           cd=random.uniform(2, 4), orb=0.0))
+                self.call_out('¡CAÑONES DE FLANCO!', (255, 170, 110), 'flank', 9)
+        elif c['is_boss']:
+            n_boats = 2 if w >= 3 else (1 if w >= 2 else 0)
+        elif not c['sub']:
+            n_boats = 0 if w < 2 else min(3, 1 + (w >= 4) + (w >= 6))
+        for i in range(n_boats):
+            c['boats'].append(dict(kind='boat', x=random.choice((90, W - 90)), y=random.uniform(60, 220), h=180.0, v=60.0, hp=6.0 + 1.5 * w,
+                                   max=6.0 + 1.5 * w, cd=random.uniform(1.5, 3.5), orb=random.uniform(0, 360)))
+        if n_boats:
+            self.call_out('¡ESCOLTAS ENEMIGAS!', (255, 150, 120), 'escorts', 9)
+        if not c['nest'] and ((c['is_boss'] and w >= 2) or (w >= 3 and random.random() < 0.7)):
+            side = random.choice((-1, 1))
+            c['ally'] = dict(x=c['p']['x'] + side * 150, y=c['p']['y'] + 30, h=0.0, v=0.0, hp=34.0, max=34.0, cd=2.0, side=side, sink=None)
+            self.call_out('ESCOLTA ALIADA', (130, 255, 190), 'ally', 9)
+
+    # ------------------------------------------------------------ actualización
+    def nf_update(self, dt):
+        c = self.c
+        p, e = c['p'], c['e']
+        w = self.wave
+        over = e['sink'] is not None
+        # --- botes enemigos / cañones de flanco
+        for b in c['boats'][:]:
+            if over:
+                c['boats'].remove(b)
+                self.fx.explode(b['x'], b['y'], 1.0, True)
+                continue
+            b['cd'] -= dt
+            if b['kind'] == 'boat':
+                b['orb'] = (b['orb'] + 22 * dt) % 360
+                tx, ty = vec(b['orb'], 300)
+                want = bearing(p['x'] + tx - b['x'], p['y'] + ty - b['y'])
+                b['h'] = (b['h'] + clamp(angle_diff(b['h'], want), -80 * dt, 80 * dt)) % 360
+                b['v'] += (115 - b['v']) * min(1, dt * 1.5)
+                dx, dy = vec(b['h'], b['v'] * dt)
+                b['x'] = clamp(b['x'] + dx, 40, W - 40)
+                b['y'] = clamp(b['y'] + dy, 40, H - 40)
+                if random.random() < dt * 20:
+                    bx, by = vec(b['h'], -26)
+                    self.fx.add('foam', b['x'] + bx, b['y'] + by, life=1.0, r0=4, r1=12, col=(230, 245, 255))
+            if b['cd'] <= 0 and p['sink'] is None:
+                b['cd'] = random.uniform(2.6, 3.8) * max(0.6, 1 - 0.05 * w)
+                spd = 235 + 6 * w
+                T = dist(p['x'], p['y'], b['x'], b['y']) / spd
+                vx, vy = vec(p['h'], p['v'])
+                err = 7.0 + (14 if self.na_smoked() else 0)
+                ang = bearing(p['x'] + vx * T - b['x'], p['y'] + vy * T - b['y']) + random.uniform(-err, err)
+                self.launch_missile(b, ang, spd, 'e', 0.0, (8, 5))
+                self.audio.play('launch', .3)
+                c['flashes'].append([b['x'], b['y'], 80, (255, 190, 130), 1.0])
+        # --- escolta aliada
+        a = c['ally']
+        if a is not None:
+            if a['sink'] is not None:
+                a['sink'] += dt
+                if int(a['sink'] * 6) != int((a['sink'] - dt) * 6):
+                    self.fx.explode(a['x'] + random.uniform(-14, 14), a['y'] + random.uniform(-26, 26), 0.7)
+                if a['sink'] > 1.6:
+                    c['ally'] = None
+            else:
+                tx, ty = vec(p['h'] + 90 * a['side'], 150)
+                want = bearing(p['x'] + tx - a['x'], p['y'] + ty - a['y'])
+                dd = dist(p['x'] + tx, p['y'] + ty, a['x'], a['y'])
+                a['h'] = (a['h'] + clamp(angle_diff(a['h'], want), -90 * dt, 90 * dt)) % 360
+                a['v'] += ((clamp(dd * 1.2, 0, 140)) - a['v']) * min(1, dt * 2)
+                dx, dy = vec(a['h'], a['v'] * dt)
+                a['x'], a['y'] = clamp(a['x'] + dx, 40, W - 40), clamp(a['y'] + dy, 40, H - 40)
+                a['cd'] -= dt
+                if a['cd'] <= 0 and not over and dist(a['x'], a['y'], e['x'], e['y']) < 620:
+                    a['cd'] = 3.2
+                    ang = bearing(e['x'] - a['x'], e['y'] - a['y'])
+                    n0 = len(c['shells'])
+                    self.launch_missile(a, ang, 400, 'p')
+                    for s_ in c['shells'][n0:]:
+                        s_['ally'] = True
+                    self.audio.play('launch', .3)
+                    c['flashes'].append([a['x'], a['y'], 70, (200, 255, 220), 1.0])
+        # --- ataques aéreos (destructores de la oleada 4 en adelante)
+        if w >= 4 and not c['is_boss'] and not c['nest'] and not c['sub'] and not over and p['sink'] is None:
+            c['air_t'] -= dt
+            if c['air_t'] <= 0:
+                c['air_t'] = random.uniform(13, 19)
+                side = random.choice((-1, 1))
+                y0 = clamp(p['y'] + random.uniform(-160, 60), 120, H - 140)
+                for i in range(3):
+                    c['planes'].append(dict(x=-50 - i * 90 if side > 0 else W + 50 + i * 90, y=y0 + (i - 1) * 70, vx=300.0 * side, hp=1.0, bt=0.0))
+                self.call_out('¡ATAQUE AÉREO!', (255, 190, 110), 'air', 6)
+                self.audio.play('alarm', .4)
+        for pl in c['planes'][:]:
+            pl['x'] += pl['vx'] * dt
+            pl['bt'] -= dt
+            if random.random() < dt * 28:
+                self.fx.add('smoke', pl['x'] - math.copysign(18, pl['vx']), pl['y'], 0, 0, 0.5, 2, 6, (220, 220, 226))
+            if pl['bt'] <= 0 and abs(pl['x'] - p['x']) < 230:
+                pl['bt'] = 0.34
+                c['bombs'].append(dict(x=pl['x'] + random.uniform(-6, 6), y=pl['y'], t=0.0))
+            if (pl['vx'] > 0 and pl['x'] > W + 80) or (pl['vx'] < 0 and pl['x'] < -80):
+                c['planes'].remove(pl)
+        for bm in c['bombs'][:]:
+            bm['t'] += dt
+            if bm['t'] >= 0.9:
+                c['bombs'].remove(bm)
+                self.fx.explode(bm['x'], bm['y'], 0.9, True)
+                self.fx.splash(bm['x'], bm['y'], 1.0)
+                self.audio.play('boom_s', .45)
+                if p['sink'] is None and dist(bm['x'], bm['y'], p['x'], p['y']) < 46:
+                    self.hull -= 9
+                    self.shake = max(self.shake, 9)
+                    self.pop('-9 CASCO', p['x'], p['y'] - 24, (255, 110, 100))
+        # --- fortaleza costera: andanadas con aviso rojo
+        if c['nest'] and w >= 3 and not over and p['sink'] is None:
+            c['bar_t'] -= dt
+            if c['bar_t'] <= 0:
+                c['bar_t'] = max(5.0, 10.0 - 0.7 * w)
+                vx, vy = vec(p['h'], p['v'] * 1.4)
+                for d in (-90, 0, 90):
+                    ox, oy = vec(p['h'] + 90, d)
+                    c['barrage'].append(dict(x=clamp(p['x'] + vx + ox, 40, W - 40), y=clamp(p['y'] + vy + oy, 140, H - 40), t=0.0, delay=1.5))
+                self.call_out('¡ARTILLERÍA!', (255, 130, 100), 'barrage', 6)
+                self.audio.play('alarm', .35)
+        for br in c['barrage'][:]:
+            br['t'] += dt
+            if br['t'] >= br['delay']:
+                c['barrage'].remove(br)
+                self.fx.explode(br['x'], br['y'], 1.4, True)
+                self.fx.splash(br['x'], br['y'], 1.6)
+                self.audio.play('boom_s', .6)
+                self.shake = max(self.shake, 7)
+                if p['sink'] is None and dist(br['x'], br['y'], p['x'], p['y']) < 62:
+                    self.hull -= 14
+                    self.shake = max(self.shake, 11)
+                    self.pop('-14 CASCO', p['x'], p['y'] - 24, (255, 110, 100))
+        if over:
+            c['planes'].clear()
+            c['barrage'].clear()
+            c['bombs'].clear()
+
+    # ------------------------------------------------------------ impactos de misiles sobre botes, aviones y aliado
+    def nf_shell_hit(self, s):
+        """Devuelve True si el misil se consumió contra un bote enemigo, un avión o la escolta aliada."""
+        c = self.c
+        if s['own'] == 'p':
+            for b in c['boats']:
+                if dist(b['x'], b['y'], s['x'], s['y']) < (26 if b['kind'] == 'boat' else 30):
+                    dmg = (2.2 if not s.get('ally') else 1.2) * self.up_dmg()
+                    b['hp'] -= dmg
+                    self.fx.explode(s['x'], s['y'], 0.8)
+                    self.audio.play('hit', .5)
+                    self.pop('-%d' % round(dmg), s['x'], s['y'] - 18, (255, 255, 160))
+                    if not s.get('ally'):
+                        self.na_charge(8)
+                    if b['hp'] <= 0:
+                        c['boats'].remove(b)
+                        self.fx.explode(b['x'], b['y'], 1.5, True)
+                        self.audio.play('boom_s', .7)
+                        self.add_score(120)
+                        self.pop('+120', b['x'], b['y'] - 20, (255, 255, 160))
+                        self.call_out('¡ESCOLTA HUNDIDA!', (255, 230, 130), 'boatkill', 2.5)
+                    return True
+            for pl in c['planes']:
+                if dist(pl['x'], pl['y'], s['x'], s['y']) < 22:
+                    c['planes'].remove(pl)
+                    self.fx.explode(pl['x'], pl['y'], 0.8)
+                    self.audio.play('boom_s', .4)
+                    self.add_score(60)
+                    self.pop('+60', pl['x'], pl['y'] - 16, (255, 255, 160))
+                    return True
+        else:
+            a = c['ally']
+            if a is not None and a['sink'] is None and dist(a['x'], a['y'], s['x'], s['y']) < 26:
+                dmg = s['dmg'][0]
+                a['hp'] -= dmg
+                self.fx.explode(s['x'], s['y'], 0.8)
+                self.audio.play('hit', .5)
+                self.pop('ALIADO -%d' % dmg, s['x'], s['y'] - 18, (130, 255, 190))
+                if a['hp'] <= 0:
+                    a['sink'] = 0.0
+                    self.fx.explode(a['x'], a['y'], 1.5, True)
+                    self.call_out('¡ESCOLTA ALIADA HUNDIDA!', (255, 120, 100), 'allyk', 4)
+                return True
+        return False
+
+    # ------------------------------------------------------------ dibujo
+    def nf_draw(self, cv):
+        c = self.c
+        t = self.t
+        for b in c['boats']:
+            if b['kind'] == 'boat':
+                self.blit_ship(cv, 'g_boat', b['x'], b['y'], b['h'])
+            else:
+                draw_circ(cv, b['x'] + 3, b['y'] + 4, 24, (0, 0, 0), 60)
+                pygame.draw.circle(cv, (150, 130, 96), (int(b['x']), int(b['y'])), 22)
+                pygame.draw.circle(cv, (90, 94, 100), (int(b['x']), int(b['y'])), 14)
+                self.blit_turret(cv, self.tur_e, b['x'], b['y'], bearing(c['p']['x'] - b['x'], c['p']['y'] - b['y']))
+            pygame.draw.rect(cv, (8, 12, 24), (b['x'] - 18, b['y'] - 32, 36, 5))
+            pygame.draw.rect(cv, (240, 80, 70), (b['x'] - 17, b['y'] - 31, int(34 * clamp(b['hp'] / b['max'], 0, 1)), 3))
+        a = c['ally']
+        if a is not None:
+            if a['sink'] is None:
+                self.blit_ship(cv, 'a_ally', a['x'], a['y'], a['h'])
+                pygame.draw.rect(cv, (8, 12, 24), (a['x'] - 18, a['y'] - 34, 36, 5))
+                pygame.draw.rect(cv, (110, 255, 170), (a['x'] - 17, a['y'] - 33, int(34 * clamp(a['hp'] / a['max'], 0, 1)), 3))
+            else:
+                self.blit_ship(cv, 'a_ally', a['x'], a['y'], a['h'], alpha=int(255 * clamp(1 - a['sink'] / 1.6, 0, 1)))
+                glow(cv, a['x'], a['y'], 30, (255, 140, 50), 0.7)
+        for br in c['barrage']:
+            k = br['t'] / br['delay']
+            pulse = 0.5 + 0.5 * math.sin(t * 18)
+            draw_circ(cv, br['x'], br['y'], 62, (255, 60, 50), 40 + 70 * k * pulse)
+            draw_circ(cv, br['x'], br['y'], 62, (255, 120, 90), 200, 2)
+            draw_circ(cv, br['x'], br['y'], 62 * (1 - k), (255, 220, 200), 160, 1)
+            yy = br['y'] - 480 * (1 - k) ** 2
+            pygame.draw.line(cv, (255, 235, 200), (br['x'], yy - 28), (br['x'], yy), 4)
+            glow(cv, br['x'], yy, 18, (255, 170, 80), 0.8)
+        for bm in c['bombs']:
+            k = bm['t'] / 0.9
+            draw_circ(cv, bm['x'], bm['y'], 46, (255, 70, 50), 60, 1)
+            yy = bm['y'] - 200 * (1 - k) ** 1.5
+            pygame.draw.circle(cv, (40, 44, 50), (int(bm['x']), int(yy)), 5)
+            draw_circ(cv, bm['x'] + 4, bm['y'] + 6, 7, (0, 0, 0), 60 * k)
+        for pl in c['planes']:
+            d = 1 if pl['vx'] > 0 else -1
+            pts = [(pl['x'] + d * 22, pl['y']), (pl['x'] - d * 14, pl['y'] - 18), (pl['x'] - d * 6, pl['y']), (pl['x'] - d * 14, pl['y'] + 18)]
+            draw_circ(cv, pl['x'] + 10, pl['y'] + 16, 18, (0, 0, 0), 50)
+            pygame.draw.polygon(cv, (46, 52, 62), pts)
+            pygame.draw.polygon(cv, (210, 216, 226), pts, 2)
+            glow(cv, pl['x'] - d * 18, pl['y'], 12, (255, 170, 80), 0.7)

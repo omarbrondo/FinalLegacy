@@ -35,6 +35,9 @@ python retro_legacy.py
 | `upgrade_mode.py` | Pantalla de mejoras entre oleadas (elegir 1 de 3) |
 | `hazards.py` | Nubes tóxicas, máscara antigás y misil Tomahawk en infantería y puerto |
 | `heli_mode.py` | Helipuerto, Blackhawk (bidón de combustible) y misiones aire-tierra |
+| `naval_fx.py` | Efectos del combate naval: daños, hundimiento partido, clima, locutor |
+| `naval_arms.py` | Descarga especial, torpedos, humo y control de daños |
+| `naval_fleet.py` | Escoltas, aviones, aliado, flanqueo y artillería en las batallas navales |
 | `war.py` | Huellas de la guerra en el mapa: restos, petróleo, islas dañadas y islotes que se mueven |
 | `car_art.py` | Autos 3D pre-renderizados (intactos, quemados y aplastados) |
 | `tk_props.py` | Farolas, autos y bicicletas en la ciudad del tanque (aplastables) |
@@ -57,6 +60,7 @@ Cada modo suma contenido nuevo a medida que avanzan las oleadas:
 - **Puerto**: jefe tanque u helicóptero según la oleada; noche y tormenta.
 - **Hackeo**: virus que corrompen nodos, cortafuegos y segunda fuente.
 - **Tomahawk** (mejora): apoyo de fuego en infantería y puerto, tecla T / LB sobre el punto apuntado (1,7 s de demora, radio ~150, hace daño a quien esté cerca incluso a vos).
+- **Combate naval**: Q descarga especial (abanico de 5 misiles, se carga acertando), R torpedo (alcanza al submarino sumergido), F o clic derecho cortina de humo, G control de daños (apaga incendios). Los cascos muestran impactos y fuego, se parten al hundirse, hay cámara lenta en el golpe final, tormentas, noche con reflectores y un locutor. Mando: LB descarga, X torpedo, B/RB/LT humo, Y control de daños, Back huir. Batallas a gran escala: escoltas enemigas (desde la oleada 2), ataques aéreos con bombas (desde la 4), escolta aliada, cañones de flanco y artillería con aviso rojo en las baterías costeras (desde la 3).
 - **Entre oleadas**: elegís 1 de 3 mejoras (daño +20%, recarga, explosivos, casco, misiles guiados, nano-reparación…); al completar las oleadas 3 y 5 elegís dos. El daño y la recarga valen en todos los modos.
 
 ## Helicóptero Blackhawk
