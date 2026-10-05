@@ -15,7 +15,7 @@ KIND_HINT = {
     'drift': 'A/D frecuencia  |  W/S amplitud  |  Q/E fase: la señal se mueve, seguila',
     'jam': 'A/D frecuencia  |  W/S amplitud: el enemigo interfiere y te desajusta',
     'dual': 'A/D frecuencia  |  W/S amplitud  |  ESPACIO: cambiar de canal  |  calzá los dos',
-    'sweep': 'ESPACIO cuando el cursor cruce la banda verde  (3 aciertos)',
+    'sweep': 'ESPACIO cuando el cursor esté sobre la banda verde (se frena ahí)  |  3 aciertos',
 }
 PHRASES = ('FLOTA NORTE ATACA CIUDAD AMANECER', 'MISILES LISTOS ORDEN ESPERAR SEÑAL', 'REFUERZOS LLEGAN PUERTO MEDIANOCHE SILENCIO',
            'SUBMARINOS BAJO HIELO SEGUIR OBJETIVO', 'ANTENA ENEMIGA CAMBIAR CLAVE URGENTE', 'CONVOY SIN ESCOLTA RUTA SUR',
@@ -138,11 +138,11 @@ class RadioMixin:
         kind = rd['kinds'][rd['stage']]
         tol = self.rd_tol()
         st = dict(kind=kind, lock=0.0, flash=0.0, jam_t=3.0, jam_fl=0.0, miss=0.0, tol=dict(f=0.22 * tol, a=0.09 * tol, p=0.42 * tol), ch=0)
-        total = {'tune': 32.0, 'drift': 38.0, 'jam': 36.0, 'dual': 42.0, 'sweep': 26.0}[kind] - 1.5 * rd['fails']
+        total = {'tune': 32.0, 'drift': 38.0, 'jam': 36.0, 'dual': 42.0, 'sweep': 34.0}[kind] - 1.5 * rd['fails']
         st['total'] = st['time'] = max(18.0, total)
         st['need'] = {'tune': 1.0, 'drift': 1.5, 'jam': 1.4, 'dual': 1.2}.get(kind, 1.0)
         if kind == 'sweep':
-            st.update(pos=0.0, dir=1.0, speed=0.55 + 0.04 * self.wave, bw=0.13, bc=random.uniform(0.2, 0.8), hits=0, bars=[random.random() for _ in range(44)])
+            st.update(pos=0.0, dir=1.0, speed=0.26 + 0.012 * self.wave, bw=0.22, bc=random.uniform(0.2, 0.8), hits=0, bars=[random.random() for _ in range(44)])
         elif kind == 'dual':
             st['tgt'] = [self.rd_rand_par(), self.rd_rand_par()]
             st['cur'] = [self.rd_far(st['tgt'][0]), self.rd_far(st['tgt'][1])]
@@ -181,15 +181,15 @@ class RadioMixin:
     def rd_sweep_hit(self):
         rd = self.rd
         st = rd['st']
-        if abs(st['pos'] - st['bc']) <= st['bw'] / 2:
+        if abs(st['pos'] - st['bc']) <= st['bw'] / 2 + 0.02:                        # un poco de margen a favor del jugador
             st['hits'] += 1
             st['flash'] = 0.35
             self.audio.play('pickup', .7)
             if st['hits'] >= 3:
                 self.rd_stage_ok()
                 return
-            st['bw'] = max(0.07, st['bw'] - 0.025)
-            st['speed'] *= 1.18
+            st['bw'] = max(0.14, st['bw'] - 0.02)
+            st['speed'] *= 1.06
             for _ in range(20):
                 nb = random.uniform(0.12, 0.88)
                 if abs(nb - st['bc']) > 0.25:
@@ -198,7 +198,7 @@ class RadioMixin:
         else:
             st['hits'] = max(0, st['hits'] - 1)
             st['miss'] = 0.4
-            st['time'] = max(1.0, st['time'] - 2.0)
+            st['time'] = max(1.0, st['time'] - 1.0)
             self.audio.play('hit', .5)
             self.shake = max(self.shake, 4)
 
@@ -265,7 +265,8 @@ class RadioMixin:
         kind = st['kind']
         st['time'] -= dt
         if kind == 'sweep':
-            st['pos'] += st['dir'] * st['speed'] * dt
+            slow = 0.6 if abs(st['pos'] - st['bc']) < st['bw'] / 2 + 0.04 else 1.0       # el cursor se frena al pasar por la banda
+            st['pos'] += st['dir'] * st['speed'] * slow * dt
             if st['pos'] > 1:
                 st['pos'], st['dir'] = 1.0, -1.0
             elif st['pos'] < 0:
