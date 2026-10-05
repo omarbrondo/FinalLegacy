@@ -10,6 +10,7 @@ from .common import (
     Particles, W, WIN_WAVE, WORLD_H,
     WORLD_W, blob, clamp, coast_r,
     dist, lerp, shade, vec)
+from .radio_mode import RADAR_IDX
 from .audio import Audio
 from .render_fx import PostFX
 from .sprites import (
@@ -442,6 +443,7 @@ class CoreMixin:
         self.up = {}
         self.up_left = 0
         self.antennas = {i: False for i in ANTENNA_ISLANDS}
+        self.radars_reset()
         self.landing_attempts = {i: 0 for i in range(len(EXTRA_ISLANDS))}
         self.cities = []
         for (name, x, y, r, seed) in CITY_DEFS:
@@ -485,7 +487,7 @@ class CoreMixin:
     def go(self, state):
         self.state = state
         self.fade = 1.0
-        pygame.mouse.set_visible(state in ('upgrade',) or state not in ('defense', 'combat', 'aerial', 'ground', 'tank', 'port', 'heli'))
+        pygame.mouse.set_visible(state in ('upgrade',) or state not in ('defense', 'combat', 'aerial', 'ground', 'tank', 'port', 'heli', 'radio'))
         calm = state in ('title', 'map', 'upgrade', 'helisel')
         ctx = {'helisel': 'upgrade', 'gameover': None}.get(state, state)
         if state == 'combat' and (getattr(self, 'c', None) or {}).get('is_boss'):
@@ -507,7 +509,7 @@ class CoreMixin:
         self.go('gameover')
 
     def debug_key(self, key):
-        """Atajos de prueba en el mapa: F8 defensa de misiles, F9 subir de oleada, F10 +3000 puntos, F12 reabastecer todo."""
+        """Atajos de prueba en el mapa: F8 defensa de misiles, F9 subir de oleada, F10 +3000 puntos, F12 reabastecer todo, N ir a un radar enemigo."""
         if key == pygame.K_F8:
             alive = [c for c in self.cities if not c['dead']]
             if alive:
@@ -524,6 +526,13 @@ class CoreMixin:
         elif key == pygame.K_F10:
             self.add_score(3000)
             self.toast('MODO PRUEBA: +3000 puntos', (255, 220, 120))
+        elif key == pygame.K_n:
+            ks = [k for k in RADAR_IDX if not self.radars[k]['hacked']]
+            if ks:
+                self._dbg_radar = (getattr(self, '_dbg_radar', -1) + 1) % len(ks)
+                x, y, r = self.radar_pos(ks[self._dbg_radar])
+                self.sx, self.sy = x, y + r + 90
+                self.toast('MODO PRUEBA: junto a un radar enemigo (H para hackearlo)', (255, 220, 120))
         elif key == pygame.K_F12:
             self.hull, self.fuel, self.ammo = float(self.hull_max), 100.0, 40
             for c in self.cities:
@@ -557,7 +566,7 @@ class CoreMixin:
                 self.cycle_gfx()
             elif e.key == pygame.K_m:
                 self.audio.toggle_mute()
-            elif e.key in (pygame.K_F8, pygame.K_F9, pygame.K_F10, pygame.K_F12) and self.state == 'map' and not self.paused:
+            elif e.key in (pygame.K_F8, pygame.K_F9, pygame.K_F10, pygame.K_F12, pygame.K_n) and self.state == 'map' and not self.paused:
                 self.debug_key(e.key)
             elif e.key == pygame.K_F7 and self.state == 'map' and not self.paused:
                 self.port_tries = min(self.port_tries, 1)
@@ -575,7 +584,7 @@ class CoreMixin:
                     self.warned = False
                     self.attack = None
                     {pygame.K_F2: self.start_tank, pygame.K_F3: self.start_aerial, pygame.K_F4: self.start_ground}[e.key](self.strike_city)
-            elif e.key in (pygame.K_p, pygame.K_ESCAPE) and self.state in ('map', 'defense', 'combat', 'ground', 'aerial', 'hack', 'tank', 'port', 'heli'):
+            elif e.key in (pygame.K_p, pygame.K_ESCAPE) and self.state in ('map', 'defense', 'combat', 'ground', 'aerial', 'hack', 'radio', 'tank', 'port', 'heli'):
                 self.paused = not self.paused
             elif e.key == pygame.K_q and self.paused:
                 pygame.quit()
@@ -630,6 +639,8 @@ class CoreMixin:
                 self.tk_fire()
             elif self.state == 'map' and e.key == pygame.K_h and not self.paused:
                 self.try_hack()
+            elif self.state == 'radio' and not self.paused:
+                self.radio_key(e.key)
             elif self.state == 'hack' and not self.paused:
                 h = self.h
                 if e.key == pygame.K_TAB and h['phase'] == 'play':
@@ -732,6 +743,8 @@ class CoreMixin:
             self.upd_aerial(dt)
         elif self.state == 'hack':
             self.upd_hack(dt)
+        elif self.state == 'radio':
+            self.upd_radio(dt)
         elif self.state == 'tank':
             self.upd_tank(dt)
         elif self.state == 'upgrade':
@@ -812,6 +825,8 @@ class CoreMixin:
             self.draw_aerial(cv)
         elif self.state == 'hack':
             self.draw_hack(cv)
+        elif self.state == 'radio':
+            self.draw_radio(cv)
         elif self.state == 'tank':
             self.draw_tank(cv)
         elif self.state == 'upgrade':

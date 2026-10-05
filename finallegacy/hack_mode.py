@@ -87,6 +87,8 @@ class HackMixin:
         return min(len(self.antennas), 2 + (self.wave - 1) // 2)
 
     def try_hack(self):
+        if self.try_radar():
+            return
         boss = self.nearest_shield_boss()
         n = sum(self.antennas.values())
         if boss is None:
@@ -98,7 +100,7 @@ class HackMixin:
         else:
             self.start_hack(boss)
 
-    def start_hack(self, boss):
+    def start_hack(self, boss, radar=None):
         lvl, n = self.wave, sum(self.antennas.values())
         cols, rows = 5 + (lvl >= 3) + (lvl >= 5), 4 + (lvl >= 4)
         nterm = 2 + lvl // 3
@@ -106,14 +108,14 @@ class HackMixin:
         total = max(22.0, 40.0 + 5 * n - 2 * (lvl - 1))
         csz = 86
         h = self.h
-        h.update(boss=boss, n=n, nterm=nterm, t=total, total=total, base_total=total, fails=0, lvl=lvl, phase='play', pt=0.0, csz=csz,
+        h.update(boss=boss, radar=radar, n=n, nterm=nterm, t=total, total=total, base_total=total, fails=0, lvl=lvl, phase='play', pt=0.0, csz=csz,
                  gx=96, gy=(H - rows * csz) // 2 + 24, cur=root, kb=False, log=[], logt=0.0, done=set(), vt=self.hack_virus_gap(), glitch=None)
         h['rain'] = [[random.randrange(0, W, 18), random.uniform(-400, H), random.uniform(60, 160)] for _ in range(40)]
         if not hasattr(self, 'rain_gl'):
             self.rain_gl = [[self.f_s.render(ch, True, (0, g, int(g * .45))) for g in (35, 70, 130, 230)] for ch in '01']
         self.toasts, self.banners = [], []
         self.hack_say('> ENLACE CON %d ANTENA(S)' % n)
-        self.hack_say('> OBJETIVO: ESCUDO DEL JEFE')
+        self.hack_say('> OBJETIVO: RADAR ENEMIGO' if radar is not None else '> OBJETIVO: ESCUDO DEL JEFE')
         self.hack_say('> ENERGIZA %d TERMINALES' % nterm)
         self.aim = [W / 2, H / 2]
         self.go('hack')
@@ -206,6 +208,13 @@ class HackMixin:
     def end_hack(self, ok, abort=False):
         h = self.h
         boss = h['boss']
+        if h.get('radar') is not None:
+            if ok:
+                return self.start_radio(h['radar'])     # segundo paso: interceptar la señal de radio
+            self.go('map')
+            self.radars[h['radar']]['cd'] = 6.0 if abort else 25.0
+            self.toast('Hackeo del radar abortado' if abort else 'Hackeo del radar fallido: en alerta 25 s', (255, 200, 120) if abort else (255, 120, 100))
+            return
         self.go('map')
         if ok:
             boss['shield'] = False
@@ -271,7 +280,7 @@ class HackMixin:
         dark.fill((4, 8, 14, 175))
         cv.blit(dark, (0, 0))
         cs, gx, gy = h['csz'], h['gx'], h['gy']
-        self.text(cv, 'CIBERATAQUE  //  ESCUDO DIGITAL', self.f_l, (110, 240, 255), 96, 30)
+        self.text(cv, 'CIBERATAQUE  //  ' + ('RADAR ENEMIGO' if h.get('radar') is not None else 'ESCUDO DIGITAL'), self.f_l, (110, 240, 255), 96, 30)
         self.text(cv, 'Girá los nodos para llevar energía desde la fuente a todas las terminales', self.f_s, (150, 190, 220), 96, 72)
         pw = self.hack_power()[0]
         hover = h['cur'] if h['kb'] else self.hack_cell_at(pygame.mouse.get_pos())
@@ -325,6 +334,8 @@ class HackMixin:
             ok = h['phase'] == 'win'
             self.dim(cv, 90)
             self.text(cv, 'ACCESO CONCEDIDO' if ok else 'INTRUSION DETECTADA', self.f_xl, (110, 255, 170) if ok else (255, 90, 90), W // 2, H // 2 - 80, 'c')
+            if ok and h.get('radar') is not None:
+                self.text(cv, 'Enlazando con la red de comunicaciones...', self.f_m, (170, 230, 255), W // 2, H // 2 + 20, 'c')
             if not ok:
                 self.text(cv, 'Contraataque: -5 casco', self.f_m, (255, 160, 140), W // 2, H // 2 + 20, 'c')
                 if h['pt'] > 0.6:
