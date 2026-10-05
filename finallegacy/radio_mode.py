@@ -351,8 +351,8 @@ class RadioMixin:
                 self.add_score(600)
                 txt = '+600 puntos'
             self.radar_t = max(self.radar_t, 90.0)
-            self.banner('¡RADAR INTERCEPTADO!', '%s  |  Flota enemiga visible 90 s  |  Bonus +%d' % (txt, max(200, bonus)), (120, 255, 190), 4.2)
-            self.toast('Transmisión: "%s"' % ' '.join(rd['words']), (160, 230, 255))
+            self.banner('¡RADAR INTERCEPTADO!', '%s  |  Bonus +%d' % (txt, max(200, bonus)), (120, 255, 190), 4.2)
+            self.toast('Flota enemiga visible 90 s', (160, 230, 255))
             nr = self.radars_done()
             if nr == LAND_RADARS:
                 self.toast('¡DESEMBARCO DESBLOQUEADO! (L junto a una isla de antena)', (140, 230, 255))
@@ -506,9 +506,10 @@ class RadioMixin:
             self.text(cv, 'El radar activó el contrahackeo', self.f_m, (255, 190, 160), W // 2, 370, 'c')
         elif rd['phase'] == 'win':
             self.dim(cv, 90)
-            self.text(cv, 'COMUNICACIONES INTERCEPTADAS', self.f_xl, (110, 255, 170), W // 2, 260, 'c')
-            self.text(cv, '"%s"' % ' '.join(rd['words']), self.f_l, (255, 240, 170), W // 2, 340, 'c')
-            self.text(cv, 'Descifrando recompensa...', self.f_m, (170, 210, 240), W // 2, 400, 'c')
+            self.text(cv, 'COMUNICACIONES', self.f_xl, (110, 255, 170), W // 2, 215, 'c')
+            self.text(cv, 'INTERCEPTADAS', self.f_xl, (110, 255, 170), W // 2, 295, 'c')
+            self.text(cv, '"%s"' % ' '.join(rd['words']), self.f_l, (255, 240, 170), W // 2, 395, 'c')
+            self.text(cv, 'Descifrando recompensa...', self.f_m, (170, 210, 240), W // 2, 450, 'c')
 
     def draw_sweep(self, cv, st):
         n = len(st['bars'])
