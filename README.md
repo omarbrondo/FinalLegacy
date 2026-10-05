@@ -35,6 +35,8 @@ python retro_legacy.py
 | `upgrade_mode.py` | Pantalla de mejoras entre oleadas (elegir 1 de 3) |
 | `hazards.py` | Nubes tóxicas, máscara antigás y misil Tomahawk en infantería y puerto |
 | `heli_mode.py` | Helipuerto, Blackhawk (bidón de combustible) y misiones aire-tierra |
+| `war.py` | Huellas de la guerra en el mapa: restos, petróleo, islas dañadas y islotes que se mueven |
+| `tk_props.py` | Farolas, autos y bicicletas en la ciudad del tanque (aplastables) |
 | `music.py` | Compositor de música por modo y oleada |
 | `render_fx.py` | Post-proceso (bloom, viñeta, color, grano) y sprites suaves de humo/fuego/brillo |
 | `gamepad.py` | Mando Xbox y pantalla completa |
@@ -48,7 +50,8 @@ Cada modo suma contenido nuevo a medida que avanzan las oleadas:
 
 - **Aéreo**: un jefe distinto por oleada, cápsulas de ráfaga/misiles guiados, kamikazes, minas, helicópteros y clima.
 - **Defensa**: misiles rápidos, evasivos, señuelos, MIRV; desde la oleada 3, ALERTA NUCLEAR (ojiva con cuenta regresiva, flash y onda expansiva que derrumba edificios); ráfaga doble y escudo por combos; cielos distintos.
-- **Tanques**: kamikazes, artillería pesada, helicópteros, tanque jefe, niebla y noche.
+- **Tanques**: kamikazes, artillería pesada, helicópteros, tanque jefe, niebla y noche; la ciudad tiene farolas (se encienden de noche), autos y bicicletas que los tanques aplastan (los proyectiles incendian los autos); cuanto más avanza la guerra, más autos quemados y farolas caídas.
+- **Mapa**: cada oleada deja restos de barcos hundidos (algunos en llamas), manchas de petróleo, escombros flotantes, islas chamuscadas con humo y una bruma cada vez más densa; además algunos islotes cambian de lugar.
 - **Infantería**: perros y francotiradores (láser de mira); desde la oleada 3, alertas químicas (nube verde que daña, máscara antigás de 14 s como ítem).
 - **Puerto**: jefe tanque u helicóptero según la oleada; noche y tormenta.
 - **Hackeo**: virus que corrompen nodos, cortafuegos y segunda fuente.

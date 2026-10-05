@@ -135,6 +135,77 @@ def tex_missile():
     return s
 
 
+def tex_car(col, seed):
+    """Carrocería de auto: faldón oscuro abajo, pintura con brillo y línea de luces."""
+    rnd = random.Random(seed)
+    s = pygame.Surface((64, 32))
+    s.fill(col)
+    for y in range(32):
+        k = 1.0 + 0.22 * math.sin(y / 31 * 3.1416) - 0.1
+        pygame.draw.line(s, tuple(clamp(int(c * k), 0, 255) for c in col), (0, y), (63, y))
+    pygame.draw.rect(s, (24, 24, 28), (0, 24, 64, 8))
+    for wx in (12, 46):
+        pygame.draw.circle(s, (10, 10, 12), (wx, 26), 7)
+        pygame.draw.circle(s, (120, 124, 130), (wx, 26), 3)
+    pygame.draw.rect(s, (250, 240, 190), (1, 14, 4, 4))
+    pygame.draw.rect(s, (200, 40, 40), (59, 14, 4, 4))
+    pygame.draw.line(s, tuple(clamp(c + 50, 0, 255) for c in col), (0, 8), (63, 8))
+    for _ in range(18):
+        s.set_at((rnd.randrange(64), rnd.randrange(24)), tuple(clamp(c + rnd.randint(-14, 14), 0, 255) for c in col))
+    return s
+
+
+def tex_cabin():
+    s = pygame.Surface((64, 32))
+    s.fill((38, 56, 74))
+    for y in range(32):
+        pygame.draw.line(s, (int(lerp(70, 28, y / 31)), int(lerp(96, 44, y / 31)), int(lerp(120, 60, y / 31))), (0, y), (63, y))
+    pygame.draw.polygon(s, (150, 190, 214), [(8, 0), (22, 0), (10, 31), (0, 31)])
+    pygame.draw.rect(s, (30, 32, 36), (30, 0, 3, 32))
+    pygame.draw.rect(s, (30, 32, 36), (0, 0, 64, 3))
+    return s
+
+
+def tex_crushed(seed, burnt=False):
+    rnd = random.Random(seed)
+    s = pygame.Surface((64, 32))
+    base = (34, 30, 28) if burnt else (96, 100, 108)
+    _grain(s, base, 14, rnd)
+    for _ in range(9):
+        x, y = rnd.randrange(64), rnd.randrange(32)
+        pygame.draw.line(s, (12, 12, 14), (x, y), (x + rnd.randint(-18, 18), y + rnd.randint(-10, 10)), 2)
+    if burnt:
+        for _ in range(10):
+            pygame.draw.circle(s, (rnd.randint(150, 230), rnd.randint(50, 100), 20), (rnd.randrange(64), rnd.randrange(32)), rnd.randint(1, 3))
+    else:
+        pygame.draw.rect(s, (24, 24, 28), (0, 24, 64, 8))
+    return s
+
+
+def tex_pole():
+    s = pygame.Surface((8, 32))
+    for x in range(8):
+        v = int(lerp(90, 190, x / 7)) if x < 4 else int(lerp(190, 70, (x - 4) / 3))
+        pygame.draw.line(s, (v, v, v + 6), (x, 0), (x, 31))
+    return s
+
+
+def tex_lamp():
+    s = pygame.Surface((16, 8))
+    s.fill((255, 238, 180))
+    pygame.draw.rect(s, (255, 252, 230), (2, 2, 12, 4))
+    pygame.draw.rect(s, (90, 90, 96), (0, 0, 16, 1))
+    return s
+
+
+def tex_bike():
+    s = pygame.Surface((32, 32))
+    s.fill((20, 22, 26))
+    pygame.draw.rect(s, (200, 50, 40), (0, 6, 32, 8))
+    pygame.draw.rect(s, (170, 174, 180), (0, 22, 32, 2))
+    return s
+
+
 def tk_entry(tile, reps):
     tw, th = tile.get_size()
     tall = pygame.Surface((tw, th * reps))
@@ -161,6 +232,14 @@ def make_tk_textures():
                 tk_entry(tex_concrete(4), 4), tk_entry(tex_glass(5), 4), tk_entry(tex_sand(6), 4)]
     T['hall'] = tk_entry(tex_hall(7), 4)
     T['missile'] = tk_entry(tex_missile(), 1)
+    cols = [(188, 46, 40), (40, 90, 170), (214, 196, 70), (210, 212, 216), (44, 130, 90), (210, 120, 40)]
+    T['car'] = [tk_entry(tex_car(c, i), 1) for i, c in enumerate(cols)]
+    T['cabin'] = tk_entry(tex_cabin(), 1)
+    T['crushed'] = tk_entry(tex_crushed(5), 1)
+    T['burnt'] = tk_entry(tex_crushed(6, True), 1)
+    T['pole'] = tk_entry(tex_pole(), 1)
+    T['lamp'] = tk_entry(tex_lamp(), 1)
+    T['bike'] = tk_entry(tex_bike(), 1)
     return T
 
 

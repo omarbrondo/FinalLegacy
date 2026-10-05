@@ -3,7 +3,7 @@ import math
 import pygame
 import random
 from .common import (
-    ANTENNA_ISLANDS, BOSS_NAMES, DECOR_ISLANDS, ENEMY_PORT,
+    ANTENNA_ISLANDS, BOSS_NAMES, ENEMY_PORT,
     EXTRA_ISLANDS, H, HELIPAD, MAX_LANDING_ATTEMPTS, SHIELD_R,
     SKY_W, VMAX, W, WIN_WAVE,
     WORLD_H, WORLD_W, angle_diff, bearing,
@@ -36,7 +36,7 @@ class MapMixin:
         """Baterías costeras enemigas sobre algunos islotes pequeños (se renuevan cada oleada)."""
         hp = 14 + 4 * self.wave
         self.nests = [dict(x=x, y=y, r=r, hp=float(hp), max=float(hp), cool=0.0, ang=180.0, nest=True, alive=True, seen=False)
-                      for (x, y, r, _s) in random.sample([i for i in DECOR_ISLANDS if i != HELIPAD and dist(i[0], i[1], self.sx, self.sy) > 800], 10)]
+                      for (x, y, r, _s) in random.sample([i for i in self.decor_now() if dist(i[0], i[1], self.sx, self.sy) > 800], 10)]
 
     def spawn_wave(self):
         n = min(3 + self.wave, 9)
@@ -254,6 +254,7 @@ class MapMixin:
                 self.fxm.add('smoke', c['x'] + random.uniform(-30, 30), c['y'] + random.uniform(-30, 10), 0, -25, 2.5,
                              8, 28, (50, 50, 50))
         self.fxm.update(dt)
+        self.war_update(dt)
         self.heli_map_update(dt)
         # oleada completada
         if not self.enemies:
@@ -572,6 +573,7 @@ class MapMixin:
             if not c['dead']:
                 c['hp'] = min(100, c['hp'] + 20)
         self.ammo = min(40, self.ammo + 12)
+        self.war_advance()
         self.spawn_nests()
         self.convoy_t = min(self.convoy_t, 35.0)       # cada oleada nueva trae un convoy pronto
         self.port_tries = 0
@@ -634,6 +636,7 @@ class MapMixin:
         cx, cy = int(self.cam[0]), int(self.cam[1])
         self.draw_ocean(cv, cx, cy, self.t)
         cv.blit(self.land, (0, 0), area=pygame.Rect(cx, cy, W, H))
+        self.war_draw(cv, cx, cy)
         for c in self.cities:
             surf = self.city_surf[c['name']][1 if c['dead'] else 0]
             sx, sy = c['x'] - cx, c['y'] - cy
@@ -731,6 +734,7 @@ class MapMixin:
                 self.text(cv, '%s %s' % (BOSS_TYPES[en.get('btype', 0)]['label'], en['name']), self.f_s, (255, 150, 235), sx_, sy_ + 78, 'c')
         self.draw_heli_map(cv, cx, cy)
         self.blit_ship(cv, 'p_map', self.sx, self.sy, self.sh, cx, cy)
+        self.war_haze(cv)
         # HUD
         self.draw_hud(cv)
         self.draw_cities_hud(cv)
