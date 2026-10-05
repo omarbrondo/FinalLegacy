@@ -183,6 +183,9 @@ class LandingOpsMixin:
         g = self.g
         lz = g['lz']
         p = g['p']
+        if alive and not lz.get('mine_hint') and any(dist(sg['x'], sg['y'], p['x'], p['y']) < 280 for sg in lz['signs']):
+            lz['mine_hint'] = True
+            self.lz_say('RAMOS', '¡Campo minado! Rodealo o dispará a las minas de lejos', (255, 220, 120))
         for m in lz['mines']:
             if m['boom'] > 0:
                 m['boom'] -= dt
@@ -310,10 +313,15 @@ class LandingOpsMixin:
             sx, sy = m['x'] - cx_, m['y'] - cy_
             if not (-20 < sx < W + 20 and -20 < sy < H + 20):
                 continue
-            draw_circ(cv, sx, sy, 8, (60, 46, 30), 150)
-            pygame.draw.circle(cv, (44, 48, 44), (int(sx), int(sy)), 4)
-            if dist(m['x'], m['y'], p['x'], p['y']) < 130 and int(t * 3) % 2 == 0:
+            near = dist(m['x'], m['y'], p['x'], p['y']) < 130
+            draw_circ(cv, sx, sy, 13, (52, 38, 24), 190)
+            pygame.draw.circle(cv, (24, 26, 24), (int(sx), int(sy)), 9)
+            pygame.draw.circle(cv, (92, 98, 90), (int(sx), int(sy)), 7)
+            pygame.draw.circle(cv, (52, 56, 50), (int(sx), int(sy)), 4)
+            if int(t * (4 if near else 1.5) + m['x']) % 2 == 0:
                 pygame.draw.circle(cv, (255, 70, 60), (int(sx), int(sy)), 2)
+                if near:
+                    glow(cv, sx, sy, 14, (255, 70, 60), 0.6)
         for s in lz['signs']:
             sx, sy = s['x'] - cx_, s['y'] - cy_
             if not (-40 < sx < W + 40 and -40 < sy < H + 40):
@@ -322,7 +330,7 @@ class LandingOpsMixin:
             pygame.draw.polygon(cv, (236, 200, 60), [(sx, sy - 14), (sx - 13, sy + 8), (sx + 13, sy + 8)])
             pygame.draw.polygon(cv, (40, 36, 30), [(sx, sy - 14), (sx - 13, sy + 8), (sx + 13, sy + 8)], 2)
             self.text(cv, '!', self.f_s, (40, 30, 24), sx, sy - 10, 'c', shadow=False)
-            self.text(cv, 'MINAS', self.f_s, (255, 220, 120), sx, sy + 20, 'c', alpha=180)
+            self.text(cv, 'CAMPO MINADO', self.f_s, (255, 220, 120), sx, sy + 20, 'c', alpha=210)
         for m in lz['mortars']:
             sx, sy = m['x'] - cx_, m['y'] - cy_
             if not (-100 < sx < W + 100 and -100 < sy < H + 100):
