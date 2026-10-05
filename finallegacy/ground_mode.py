@@ -247,6 +247,8 @@ class GroundMixin:
         return {i for i, c in enumerate(self.g['covers']) if dist(x, y, c['x'], c['y']) < c['r'] + 16}
 
     def g_los(self, x0, y0, x1, y1):
+        if self.lz_smoke_blocks(x0, y0, x1, y1):
+            return False
         ign = self.g_ign(x0, y0)
         vx, vy = x1 - x0, y1 - y0
         L2 = vx * vx + vy * vy or 1.0
@@ -867,9 +869,9 @@ class GroundMixin:
             if not cam['on']:
                 continue
             cam['sw'] += dt * 0.7
-            cam['h'] = cam['base'] + 48 * math.sin(cam['sw'])
-            seen = (alive and dist(cam['x'], cam['y'], p['x'], p['y']) < 290 * (0.75 if p['sneak'] else 1.0)
-                    and abs(angle_diff(cam['h'], bearing(p['x'] - cam['x'], p['y'] - cam['y']))) < 28
+            cam['h'] = cam['base'] + cam.get('amp', 48) * math.sin(cam['sw'])
+            seen = (alive and dist(cam['x'], cam['y'], p['x'], p['y']) < cam.get('rng', 290) * (0.75 if p['sneak'] else 1.0)
+                    and abs(angle_diff(cam['h'], bearing(p['x'] - cam['x'], p['y'] - cam['y']))) < cam.get('fov', 28)
                     and self.g_los(cam['x'], cam['y'], p['x'], p['y']))
             if seen:
                 cam['det'] += dt * 1.1
@@ -1084,8 +1086,8 @@ class GroundMixin:
                 if not cm_['on']:
                     continue
                 kx, ky = cm_['x'] - cx_, cm_['y'] - cy_
-                col = (255, 80, 70) if cm_['det'] > 0.2 else (110, 230, 255)
-                self.draw_cone(cv, kx, ky, cm_['h'], 290 * (0.75 if p['sneak'] else 1.0), 56, col)
+                col = (255, 80, 70) if cm_['det'] > 0.2 else cm_.get('col', (110, 230, 255))
+                self.draw_cone(cv, kx, ky, cm_['h'], min(338, cm_.get('rng', 290) * (0.75 if p['sneak'] else 1.0)), cm_.get('fov', 28) * 2, col)
                 pygame.draw.circle(cv, (40, 44, 52), (int(kx), int(ky)), 9)
                 pygame.draw.circle(cv, col, (int(kx), int(ky)), 5)
                 ex2, ey2 = vec(cm_['h'], 13)
@@ -1190,7 +1192,8 @@ class GroundMixin:
                 for cm in g['cams']:
                     if cm['on']:
                         ex_, ey_ = mr + (cm['x'] - W / 2) * sc, mr + (cm['y'] - H / 2) * sc
-                        pts_ = [(ex_, ey_)] + [(ex_ + vec(cm['h'] - 28 + 56 * i / 6, 290 * sc)[0], ey_ + vec(cm['h'] - 28 + 56 * i / 6, 290 * sc)[1]) for i in range(7)]
+                        fv_, rg_ = cm.get('fov', 28), cm.get('rng', 290) * sc
+                        pts_ = [(ex_, ey_)] + [(ex_ + vec(cm['h'] - fv_ + 2 * fv_ * i / 6, rg_)[0], ey_ + vec(cm['h'] - fv_ + 2 * fv_ * i / 6, rg_)[1]) for i in range(7)]
                         pygame.draw.polygon(rs, (110, 230, 255, 70), pts_)
                 cv.blit(rs, (mcx - mr, mcy - mr))
             for e in g['enemies']:

@@ -23,7 +23,7 @@ class LandingMixin:
         if self.wave <= 1:
             wx = ('dia', 'amanecer')[(g['island_idx'] or 0) % 2]
         else:
-            wx = ('dia', 'amanecer', 'noche', 'tormenta')[(self.wave * 2 + (g['island_idx'] or 0)) % 4]
+            wx = random.Random(self.wave * 31 + (g['island_idx'] or 0) * 7).choice(('dia', 'amanecer', 'noche', 'tormenta'))
         bunkers = []
         for side in (-1, 1):
             a = math.pi / 2 + side * random.uniform(0.55, 0.75)
@@ -45,6 +45,7 @@ class LandingMixin:
                        bunkers=bunkers, def_clock=0.0, def_prog=0.0, def_dur=22.0, def_idx=0, ghost=False, boat=(spawn[0], spawn[1] + 300),
                        lost=0, bunker_kills=0, last_alerts=0, say_t=0.0, rain=[(random.random() * W, random.random() * H, random.uniform(0.7, 1.3)) for _ in range(130)],
                        bolt=random.uniform(4, 9), white=0.0, thunder=[], stats=None, t_install=0.0, far_t=0.0, hit_msg=0.0)
+        self.lz_ops_setup(spawn)
         p = g['p']
         p['gren'] = 6
         p['x'], p['y'] = float(spawn[0]), float(spawn[1] + 290)
@@ -158,6 +159,9 @@ class LandingMixin:
                 self.shake = max(self.shake, 5)
                 g['decals'].append((s['x'], s['y'], 26))
                 g['decals'] = g['decals'][-40:]
+                if s.get('big'):
+                    self.lz_blast(s['x'], s['y'], 58, 7.0)
+                    continue
                 for b in lz['bunkers']:
                     if b['alive'] and dist(b['x'], b['y'], s['x'], s['y']) < 70:
                         self.lz_bunker_damage(b, 0.18 * b['max'])
@@ -173,6 +177,17 @@ class LandingMixin:
         g = self.g
         lz = g['lz']
         b['alive'] = False
+        if b.get('mortar'):
+            self.fx.explode(b['x'], b['y'], 1.3, True)
+            self.audio.play('boom_l', .6)
+            self.shake = max(self.shake, 10)
+            self.add_score(120)
+            self.gpop('+120', b['x'], b['y'] - 30)
+            for c in g['covers']:
+                if c.get('bunker') is b:
+                    c['x'] = c['y'] = -99999.0
+            self.lz_say('RAMOS', '¡Mortero destruido!')
+            return
         lz['bunker_kills'] += 1
         for c in g['covers']:
             if c.get('bunker') is b:
@@ -405,10 +420,13 @@ class LandingMixin:
     def lz_nade(self, x, y, R, own):
         g = self.g
         if own == 'p':
-            for b in g['lz']['bunkers']:
+            for b in g['lz']['bunkers'] + g['lz']['mortars']:
                 d = dist(x, y, b['x'], b['y'])
                 if b['alive'] and d < R + 20:
                     self.lz_bunker_damage(b, 7.0 * self.up_dmg() * (1 - 0.35 * d / (R + 20)))
+            for m in g['lz']['mines']:
+                if m['alive'] and dist(x, y, m['x'], m['y']) < R:
+                    m['alive'], m['boom'] = False, 0.2
         else:
             for a in g['allies']:
                 d = dist(x, y, a['x'], a['y'])
@@ -433,7 +451,9 @@ class LandingMixin:
         self.lz_bunkers_update(dt, alive)
         self.lz_allies_update(dt, alive)
         self.lz_revive_update(dt, alive, keys)
-        if g['alerts'] != lz['last_alerts']:
+        new_alert = g['alerts'] != lz['last_alerts']
+        self.lz_ops_update(dt, alive, new_alert)
+        if new_alert:
             lz['last_alerts'] = g['alerts']
             if lz['stage'] < 2 and lz['say_t'] <= 0:
                 lz['say_t'] = 6.0
@@ -634,6 +654,7 @@ class LandingMixin:
             lights += [(e['x'] - cx_, e['y'] - cy_, 110) for e in g['enemies'] if e['flash'] > 0][:10]
             lights += [(b['x'] - cx_, b['y'] - cy_, 120) for b in lz['bunkers'] if b['alive'] and (b['flash'] > 0 or b['tele'] > 0)]
             lights.append((W // 2 - cx_, H // 2 - cy_, 120))
+            lights += self.lz_ops_lights(cx_, cy_)
             for x, y, r in lights:
                 if -r < x < W + r and -r < y < H + r:
                     ov.blit(self.lz_light(r), (int(x) - r, int(y) - r), special_flags=pygame.BLEND_RGBA_SUB)
@@ -646,6 +667,7 @@ class LandingMixin:
     def lz_draw_world(self, cv, cx_, cy_):
         g = self.g
         lz = g['lz']
+        self.lz_ops_draw_world(cv, cx_, cy_)
         for b in lz['bunkers']:
             sx, sy = b['x'] - cx_, b['y'] - cy_
             if not (-120 < sx < W + 120 and -120 < sy < H + 120):
@@ -778,6 +800,7 @@ class LandingMixin:
             pygame.draw.polygon(cv, (120, 255, 160), [(sx + hx, sy + hy), (sx + lx, sy + ly), (sx + rx, sy + ry)])
             self.text(cv, 'LANCHA %d m' % int(d / 3), self.f_s, (150, 255, 190), sx, sy + 16, 'c')
         self.text(cv, WX_LABEL[lz['wx']], self.f_s, (170, 195, 230), 26, 98 + 20 * len(g['allies']))
+        self.lz_ops_hud(cv)
         # resumen final
         if g['phase'] == 'result' and not g['fail'] and lz['stats']:
             n = len(lz['stats'])

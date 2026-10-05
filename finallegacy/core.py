@@ -597,6 +597,8 @@ class CoreMixin:
                     self.audio.play('blip', .5)
             elif self.state == 'ground' and e.key == pygame.K_e and not self.paused:
                 self.takedown()
+            elif self.state == 'ground' and e.key == pygame.K_TAB and not self.paused and self.g.get('lz'):
+                self.lz_support_toggle()
             elif self.state == 'map' and e.key == pygame.K_t and not self.paused:
                 if self.nearest_port():
                     self.start_port()

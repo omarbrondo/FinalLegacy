@@ -19,6 +19,8 @@ class HazardMixin:
 
     def tomahawk(self):
         """T / LB: pide un ataque de misil Tomahawk sobre el punto apuntado (infantería y puerto)."""
+        if self.state == 'ground' and self.g.get('lz'):
+            return self.lz_support_fire()                  # en el desembarco, T llama al apoyo naval
         if self.state == 'ground' and not self.g['stealth']:
             st = self.hz_state(self.g)
             tx, ty = self.ground_aim()

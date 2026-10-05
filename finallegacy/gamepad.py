@@ -134,8 +134,9 @@ class GamepadMixin:
         if 'START' in pressed:
             key(pygame.K_RETURN if menu else pygame.K_p)
             return
+        sup = st == 'ground' and bool(self.g.get('lz'))             # desembarco: RB llama al apoyo naval, Back cambia el tipo
         if 'BACK' in pressed:
-            key(pygame.K_e if st == 'combat' else pygame.K_m)       # en combate naval, Back = huir
+            key(pygame.K_e if st == 'combat' else (pygame.K_TAB if sup else pygame.K_m))       # en combate naval, Back = huir
         if menu:
             if 'A' in pressed:
                 key(pygame.K_RETURN)
@@ -158,7 +159,9 @@ class GamepadMixin:
             return
         if 'A' in pressed or 'RT' in pressed:
             click(1)
-        if 'B' in pressed or 'LT' in pressed or 'RB' in pressed:
+        if sup and 'RB' in pressed:
+            key(pygame.K_t)
+        if 'B' in pressed or 'LT' in pressed or ('RB' in pressed and not sup):
             click(3)
             if st in ('aerial', 'ground'):
                 key(pygame.K_b if st == 'aerial' else pygame.K_g)
