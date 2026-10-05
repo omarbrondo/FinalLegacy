@@ -521,7 +521,7 @@ class NavalMixin:
         c = self.c
         x, y = s['x'], s['y']
         if s['own'] == 'p':
-            dmg = (3 if full else 2) * self.up_dmg() * (0.5 if s.get('ally') else 1.0)
+            dmg = (3 if full else 2) * self.up_dmg() * s.get('f', 0.5 if s.get('ally') else 1.0)
             armored = c['is_boss'] and c['special'] == 'armor' and abs(angle_diff(s['ang'], c['e']['h'] + 180)) < 60
             if armored:
                 dmg *= 0.25

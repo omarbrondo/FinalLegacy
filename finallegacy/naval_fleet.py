@@ -9,7 +9,8 @@ class NavalFleetMixin:
     def nf_init(self):
         c = self.c
         w = self.wave
-        c.update(boats=[], planes=[], bombs=[], barrage=[], ally=None, air_t=random.uniform(9, 14), bar_t=random.uniform(5, 8))
+        c.update(boats=[], planes=[], bombs=[], barrage=[], ally=None, air_t=random.uniform(9, 14), bar_t=random.uniform(5, 8),
+                 air_cd=22.0, aplane=None)
         if not self.ships.get('g_boat'):
             for key, src, k in (('g_boat', 'e_map', 1.55), ('a_ally', 'p_map', 1.5)):
                 s, sh = self.ships[src]
@@ -153,10 +154,64 @@ class NavalFleetMixin:
                     self.hull -= 14
                     self.shake = max(self.shake, 11)
                     self.pop('-14 CASCO', p['x'], p['y'] - 24, (255, 110, 100))
+        # --- apoyo aéreo aliado: cuando el contador llega a cero, un caza pasa lanzando misiles al enemigo (puede ser derribado)
+        ap = c['aplane']
+        if ap is None:
+            if not over and p['sink'] is None:
+                c['air_cd'] -= dt
+                if c['air_cd'] <= 0:
+                    self.nf_spawn_air(1)
+        else:
+            if ap['dead'] is not None:
+                ap['dead'] += dt
+                ap['h'] = (ap['h'] + 420 * dt) % 360
+                dx_, dy_ = vec(ap['h'], 120 * dt)
+                ap['x'] += dx_
+                ap['y'] += dy_ + 90 * dt
+                if random.random() < dt * 40:
+                    self.fx.add('smoke', ap['x'], ap['y'], 0, 0, 0.9, 4, 14, (40, 38, 38))
+                if ap['dead'] > 1.3 or ap['y'] > H + 60:
+                    self.fx.explode(ap['x'], min(ap['y'], H - 20), 1.4, True)
+                    self.audio.play('boom_s', .6)
+                    c['aplane'] = None
+                    c['air_cd'] = 45.0
+            else:
+                ap['x'] += ap['vx'] * dt
+                ap['cdw'] -= dt
+                if random.random() < dt * 30:
+                    self.fx.add('smoke', ap['x'] - math.copysign(20, ap['vx']), ap['y'], 0, 0, 0.6, 2, 7, (230, 230, 236))
+                if (not over and ap['shots'] < 4 and ap['cdw'] <= 0 and abs(ap['x'] - e['x']) < 430 and 0 < ap['x'] < W):
+                    ap['cdw'] = 0.38
+                    ap['shots'] += 1
+                    ang = bearing(e['x'] - ap['x'], e['y'] - ap['y'])
+                    n0 = len(c['shells'])
+                    self.launch_missile(ap, ang, 440, 'p')
+                    for s_ in c['shells'][n0:]:
+                        s_['ally'] = True
+                        s_['f'] = 0.5
+                    self.audio.play('launch', .35)
+                    c['flashes'].append([ap['x'], ap['y'], 60, (200, 255, 220), 1.0])
+                if (ap['vx'] > 0 and ap['x'] > W + 110) or (ap['vx'] < 0 and ap['x'] < -110):
+                    if ap['passes'] == 1 and not over:
+                        self.nf_spawn_air(2, ap['hp'])
+                    else:
+                        c['aplane'] = None
+                        c['air_cd'] = 35.0
         if over:
             c['planes'].clear()
             c['barrage'].clear()
             c['bombs'].clear()
+
+    def nf_spawn_air(self, passes, hp=3.0):
+        c = self.c
+        e = c['e']
+        side = random.choice((-1, 1))
+        y = clamp(e['y'] + random.uniform(-110, 170), 90, H - 230)
+        c['aplane'] = dict(x=-70.0 if side > 0 else W + 70.0, y=y, vx=330.0 * side, h=90.0 if side > 0 else 270.0, hp=hp, shots=0,
+                           cdw=0.0, dead=None, passes=passes)
+        if passes == 1:
+            self.call_out('¡APOYO AÉREO EN CAMINO!', (130, 255, 190), 'airsup', 4)
+            self.audio.play('ping', .6)
 
     # ------------------------------------------------------------ impactos de misiles sobre botes, aviones y aliado
     def nf_shell_hit(self, s):
@@ -189,6 +244,16 @@ class NavalFleetMixin:
                     self.pop('+60', pl['x'], pl['y'] - 16, (255, 255, 160))
                     return True
         else:
+            ap = c['aplane']
+            if ap is not None and ap['dead'] is None and dist(ap['x'], ap['y'], s['x'], s['y']) < 24:
+                ap['hp'] -= 1
+                self.fx.explode(s['x'], s['y'], 0.8)
+                self.audio.play('hit', .5)
+                self.pop('AVIÓN -1', s['x'], s['y'] - 18, (130, 255, 190))
+                if ap['hp'] <= 0:
+                    ap['dead'] = 0.0
+                    self.call_out('¡AVIÓN ALIADO DERRIBADO!', (255, 120, 100), 'apk', 4)
+                return True
             a = c['ally']
             if a is not None and a['sink'] is None and dist(a['x'], a['y'], s['x'], s['y']) < 26:
                 dmg = s['dmg'][0]
@@ -241,6 +306,20 @@ class NavalFleetMixin:
             yy = bm['y'] - 200 * (1 - k) ** 1.5
             pygame.draw.circle(cv, (40, 44, 50), (int(bm['x']), int(yy)), 5)
             draw_circ(cv, bm['x'] + 4, bm['y'] + 6, 7, (0, 0, 0), 60 * k)
+        ap = c['aplane']
+        if ap is not None:
+            if 'ap_spr' not in self.air:
+                f = self.air['f16']
+                self.air['ap_spr'] = pygame.transform.smoothscale(f, (int(f.get_width() * 0.7), int(f.get_height() * 0.7)))
+            spr = pygame.transform.rotate(self.air['ap_spr'], -ap['h'])
+            sh = pygame.mask.from_surface(spr).to_surface(setcolor=(0, 0, 0, 70), unsetcolor=(0, 0, 0, 0))
+            cv.blit(sh, (ap['x'] - sh.get_width() // 2 + 14, ap['y'] - sh.get_height() // 2 + 20))
+            cv.blit(spr, (ap['x'] - spr.get_width() // 2, ap['y'] - spr.get_height() // 2))
+            if ap['dead'] is None:
+                bx, by = vec(ap['h'], -26)
+                glow(cv, ap['x'] + bx, ap['y'] + by, 14, (140, 200, 255), 0.8)
+            else:
+                glow(cv, ap['x'], ap['y'], 26, (255, 120, 40), 0.7)
         for pl in c['planes']:
             d = 1 if pl['vx'] > 0 else -1
             pts = [(pl['x'] + d * 22, pl['y']), (pl['x'] - d * 14, pl['y'] - 18), (pl['x'] - d * 6, pl['y']), (pl['x'] - d * 14, pl['y'] + 18)]

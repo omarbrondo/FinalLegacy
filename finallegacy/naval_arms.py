@@ -186,12 +186,18 @@ class NavalArmsMixin:
 
     def na_hud(self, cv):
         c = self.c
-        x0, y0 = W - 262, H - 156
-        self.panel(cv, (x0 - 8, y0 - 8, 256, 148), 165)
+        x0, y0 = W - 262, H - 189
+        self.panel(cv, (x0 - 8, y0 - 8, 256, 181), 165)
         rows = [('Q DESCARGA', c['charge'] / 100.0, (130, 255, 190) if c['charge'] >= 100 else (255, 200, 90), '%d%%' % c['charge']),
                 ('R TORPEDO', 1 - c['tcd'] / 9.0, (130, 220, 255) if c['tcd'] <= 0 else (110, 130, 160), 'LISTO' if c['tcd'] <= 0 else '%ds' % math.ceil(c['tcd'])),
                 ('F HUMO', 1 - c['scd'] / 16.0, (210, 214, 222) if c['scd'] <= 0 else (110, 114, 124), 'LISTO' if c['scd'] <= 0 else '%ds' % math.ceil(c['scd'])),
                 ('G DAÑOS', c['dc'] / 2.0, (130, 220, 255) if c['dc'] else (110, 114, 124), 'x%d' % c['dc'])]
+        ap = c.get('aplane')
+        if ap is not None:
+            rows.append(('APOYO AÉREO', 1.0, (130, 255, 190) if ap['dead'] is None else (255, 120, 100), 'EN ACCIÓN' if ap['dead'] is None else 'DERRIBADO'))
+        else:
+            rows.append(('APOYO AÉREO', 1 - c['air_cd'] / (35.0 if c['air_cd'] < 35 else 45.0), (130, 255, 190) if c['air_cd'] < 5 else (255, 200, 90),
+                         '%ds' % math.ceil(max(0, c['air_cd']))))
         for i, (lab, fr, col, txt) in enumerate(rows):
             y = y0 + i * 33
             self.text(cv, lab, self.f_s, (200, 220, 245), x0, y)
