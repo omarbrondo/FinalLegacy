@@ -10,7 +10,7 @@ from .common import (
     Particles, W, WIN_WAVE, WORLD_H,
     WORLD_W, blob, clamp, coast_r,
     dist, lerp, shade, vec)
-from .radio_mode import RADAR_IDX
+from .radio_mode import LAND_RADARS, PORT_RADARS, RADAR_IDX
 from .audio import Audio
 from .render_fx import PostFX
 from .sprites import (
@@ -609,7 +609,7 @@ class CoreMixin:
             elif self.state == 'ground' and e.key == pygame.K_TAB and not self.paused and self.g.get('lz'):
                 self.lz_support_toggle()
             elif self.state == 'map' and e.key == pygame.K_t and not self.paused:
-                if self.nearest_port():
+                if self.nearest_port() and not self.invasion_locked(PORT_RADARS, 'Asalto al puerto'):
                     self.start_port()
             elif self.state == 'port' and not self.paused and e.key in (pygame.K_w, pygame.K_UP, pygame.K_SPACE):
                 self.pt_jump()
@@ -619,7 +619,7 @@ class CoreMixin:
                 self.pt_airstrike()
             elif self.state == 'map' and e.key == pygame.K_l and not self.paused:
                 island = self.nearest_landing_island()
-                if island:
+                if island and (island[0] in self.cleared_isl or not self.invasion_locked(LAND_RADARS, 'Desembarco')):
                     self.start_landing(island[0])
             elif self.state == 'aerial' and e.key in (pygame.K_b, pygame.K_x) and not self.paused:
                 self.air_bomb()

@@ -2,6 +2,7 @@
 import math
 import pygame
 import random
+from .radio_mode import LAND_RADARS, PORT_RADARS
 from .common import (
     ANTENNA_ISLANDS, BOSS_NAMES, ENEMY_PORT,
     EXTRA_ISLANDS, H, HELIPAD, MAX_LANDING_ATTEMPTS, SHIELD_R,
@@ -810,6 +811,9 @@ class MapMixin:
         need = self.antennas_needed()
         self.text(cv, 'ANTENAS %d/%d  (jefe: %d)' % (n_ant, len(self.antennas), need), self.f_s,
                   (130, 235, 255) if n_ant >= need else (255, 190, 120), W - 296 + 8, 116)
+        nr = self.radars_done()
+        self.text(cv, 'RADARES %d/%d  (desemb. %d | puerto %d)' % (nr, len(self.radars), LAND_RADARS, PORT_RADARS), self.f_s,
+                  (130, 255, 190) if nr >= PORT_RADARS else ((255, 220, 120) if nr >= LAND_RADARS else (255, 150, 130)), W - 296 + 8, 136)
         bs = self.nearest_shield_boss()
         if bs:
             if n_ant < self.antennas_needed():
@@ -834,8 +838,12 @@ class MapMixin:
         elif self.nearest_radar() is not None:
             self.text(cv, 'RADAR ENEMIGO: presioná H para hackearlo  |  1) nodos  2) señal de radio', self.f_m, (255, 190, 150), W // 2, H - 148, 'c')
         elif self.nearest_port():
-            self.text(cv, 'PUERTO ENEMIGO: presioná T para asaltarlo  |  Intentos: %d/2' % self.port_tries,
-                      self.f_m, (255, 150, 120), W // 2, H - 148, 'c')
+            if self.invasion_locked(PORT_RADARS, 'Asalto', True):
+                self.text(cv, 'PUERTO ENEMIGO BLOQUEADO: interceptá %d radares (tenés %d)' % (PORT_RADARS, self.radars_done()),
+                          self.f_m, (255, 170, 120), W // 2, H - 148, 'c')
+            else:
+                self.text(cv, 'PUERTO ENEMIGO: presioná T para asaltarlo  |  Intentos: %d/2' % self.port_tries,
+                          self.f_m, (255, 150, 120), W // 2, H - 148, 'c')
         else:
             island = self.nearest_landing_island()
             if island:
@@ -847,6 +855,9 @@ class MapMixin:
                 elif attempts >= MAX_LANDING_ATTEMPTS:
                     self.text(cv, '%s: sin intentos de desembarco' % self.isl_name(island_idx),
                               self.f_m, (255, 140, 110), W // 2, H - 148, 'c')
+                elif self.invasion_locked(LAND_RADARS, 'Desembarco', True):
+                    self.text(cv, '%s BLOQUEADA: interceptá %d radar enemigo para desembarcar (tenés %d)' % (self.isl_name(island_idx), LAND_RADARS, self.radars_done()),
+                              self.f_m, (255, 170, 120), W // 2, H - 148, 'c')
                 else:
                     self.text(cv, '%s CERCANA: presioná L para desembarcar (10 soldados enemigos)  |  Intentos: %d/%d' %
                               (self.isl_name(island_idx), attempts, MAX_LANDING_ATTEMPTS),
