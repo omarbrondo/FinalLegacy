@@ -54,6 +54,7 @@ class CoreMixin:
         self.mouse_moved = False
         self.pad_init()
         self.hiscore = self.load_hi()
+        self.god = bool(self.sv_read().get('god', False))
         self.state = 'title'
         self.end_msg = ''
         self.victory = False
@@ -505,6 +506,9 @@ class CoreMixin:
     def game_over(self, msg, victory=False):
         self.end_msg = msg
         self.victory = victory
+        if self.god and not victory:                 # inmortal: no se pierde la partida
+            self.hull = float(self.hull_max)
+            return
         self.save_hi()
         self.audio.play('win' if victory else 'lose')
         self.go('gameover')
@@ -587,6 +591,16 @@ class CoreMixin:
                     {pygame.K_F2: self.start_tank, pygame.K_F3: self.start_aerial, pygame.K_F4: self.start_ground}[e.key](self.strike_city)
             elif e.key in (pygame.K_p, pygame.K_ESCAPE) and self.state in ('map', 'defense', 'combat', 'ground', 'aerial', 'hack', 'radio', 'tank', 'port', 'heli'):
                 self.paused = not self.paused
+            elif self.state == 'saves':
+                self.saves_key(e.key)
+            elif self.paused and e.key == pygame.K_s:
+                self.open_saves('save')
+            elif self.paused and e.key == pygame.K_c:
+                self.open_saves('load')
+            elif e.key == pygame.K_i and (self.paused or self.state in ('title', 'map', 'gameover')):
+                self.set_god(not self.god)
+            elif self.state == 'title' and e.key == pygame.K_c:
+                self.open_saves('load')
             elif e.key == pygame.K_q and self.paused:
                 pygame.quit()
                 sys.exit()
@@ -722,6 +736,7 @@ class CoreMixin:
     # ------------------------------------------------------------ update
     def update(self, dt):
         self.t += dt
+        self.god_apply()
         self.fade = max(0.0, self.fade - dt * 2.2)
         self.shake *= 0.9 ** (dt * 60)
         for q in self.toasts:
@@ -758,6 +773,7 @@ class CoreMixin:
             self.upd_ground(dt)
         elif self.state in ('title', 'gameover'):
             self.fxm.update(dt)
+        self.god_apply()
 
     # ------------------------------------------------------------ DIBUJO
     def blit_ship(self, dst, key, x, y, heading, cx=0, cy=0, alpha=255):
@@ -842,6 +858,8 @@ class CoreMixin:
             self.draw_ground(cv)
         elif self.state == 'gameover':
             self.draw_gameover(cv)
+        elif self.state == 'saves':
+            self.draw_saves(cv)
         self.postfx.apply(cv, self.state, self.shake)
         self.draw_overlays(cv)
         ox = oy = 0
@@ -865,11 +883,14 @@ class CoreMixin:
                 self.text(cv, b[1], self.f_m, (235, 240, 255), W // 2, 232, 'c', alpha=a)
         for s, x, y, life, col in self.pops:
             self.text(cv, s, self.f_m, col, int(x), int(y), 'c', alpha=int(255 * clamp(life * 1.5, 0, 1)))
+        self.draw_god_tag(cv)
         if self.paused:
             self.dim(cv, 130)
             self.text(cv, 'PAUSA', self.f_xl, (255, 255, 255), W // 2, 260, 'c')
             self.text(cv, 'P / ESC: continuar   |   M: sonido   |   F1: efecto CRT   |   Q: salir', self.f_m, (190, 210, 240),
                       W // 2, 380, 'c')
+            self.text(cv, 'S: guardar partida   |   C: cargar partida   |   I: modo inmortal [%s]' % ('SÍ' if self.god else 'NO'), self.f_m,
+                      (255, 230, 140), W // 2, 430, 'c')
         if self.fade > 0:
             self.fade_surf.set_alpha(int(255 * self.fade))
             cv.blit(self.fade_surf, (0, 0))
@@ -888,7 +909,7 @@ class CoreMixin:
                 self.text(cv, ln, self.f_xl, (30, 10, 0), W // 2 + dx, y + dy, 'c', shadow=False)
             self.text(cv, ln, self.f_xl, col, W // 2, y, 'c', shadow=False)
         self.text(cv, 'EDICIÓN OMAR BRONDO', self.f_l, (120, 220, 255), W // 2, 275, 'c')
-        self.panel(cv, (W // 2 - 380, 320, 760, 270), 170)
+        self.panel(cv, (W // 2 - 380, 316, 760, 304), 170)
         lines = ['MAPA   W/S acelerar-frenar   A/D girar   R (en puerto) reabastecer   L desembarcar',
                  'DEFENSA   Mouse o flechas apuntan   Clic/ESPACIO lanzan interceptor',
                  'COMBATE   Mouse apunta, clic lanza un misil recto (¡adelantate!)   E: huir',
@@ -897,13 +918,14 @@ class CoreMixin:
                  'JEFE   Instalá antenas en las islas (L) y hackeá su escudo con H cerca del buque',
                  'AIRE   WASD mover   ESPACIO disparar   B bomba',
                  'MANDO   Izq. mover  Der. apuntar  RT/A disparar  LT/B granada  X recargar  Y acción',
-                 'P pausa  M sonido  V gráficos  F11 pantalla completa  F1 CRT  F2-F10, F12 modo prueba']
+                 'P pausa (S guardar, C cargar)  M sonido  V gráficos  F11 pantalla completa  F1 CRT',
+                 'C cargar partida   I modo inmortal [%s]   F2-F10, F12, N modo prueba' % ('SÍ' if self.god else 'NO')]
         for i, ln in enumerate(lines):
             self.text(cv, ln, self.f_s, (220, 232, 255), W // 2 - 360, 336 + i * 28)
         if int(t * 2) % 2 == 0:
-            self.text(cv, 'PRESIONÁ ENTER PARA ZARPAR', self.f_l, (255, 255, 255), W // 2, 610, 'c')
-        self.text(cv, 'Récord: %d' % self.hiscore, self.f_m, (255, 230, 120), W // 2, 665, 'c')
-        self.text(cv, 'Hundí %d oleadas y salvá al menos una ciudad para ganar' % WIN_WAVE, self.f_s, (160, 190, 220), W // 2, 705, 'c')
+            self.text(cv, 'PRESIONÁ ENTER PARA ZARPAR', self.f_l, (255, 255, 255), W // 2, 636, 'c')
+        self.text(cv, 'Récord: %d' % self.hiscore, self.f_m, (255, 230, 120), W // 2, 686, 'c')
+        self.text(cv, 'Hundí %d oleadas y salvá al menos una ciudad para ganar' % WIN_WAVE, self.f_s, (160, 190, 220), W // 2, 740, 'c')
 
     # ---- game over
     def draw_gameover(self, cv):
