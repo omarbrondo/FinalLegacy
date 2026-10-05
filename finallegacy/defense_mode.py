@@ -280,7 +280,7 @@ class DefenseMixin:
         d['fires'] = [f for f in d['fires'] if f[2] > 0]
         self.fx.update(dt)
         if self.hull <= 0:
-            return self.game_over('Tu buque fue hundido por los misiles')
+            return self.lose_ship('Tu buque fue hundido por los misiles')
         if d['phase'] == 'play' and not d['queue'] and not d['missiles'] and not d['inter'] and not d['blasts'] \
                 and not d['planes'] and not d['plan']:
             d['phase'] = 'result'

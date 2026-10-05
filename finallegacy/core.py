@@ -434,10 +434,12 @@ class CoreMixin:
 
     def add_score(self, n):
         self.score += n
+        self.check_life()
 
     # ------------------------------------------------------------ partida
     def reset(self):
         self.score = 0
+        self.lives_reset()
         self.wave = 1
         self.sx, self.sy = 2400.0, 1350.0
         self.sh, self.sv = 0.0, 0.0
@@ -490,9 +492,9 @@ class CoreMixin:
     def go(self, state):
         self.state = state
         self.fade = 1.0
-        pygame.mouse.set_visible(state in ('upgrade',) or state not in ('defense', 'combat', 'aerial', 'ground', 'tank', 'port', 'heli', 'radio'))
+        pygame.mouse.set_visible(state in ('upgrade',) or state not in ('defense', 'combat', 'aerial', 'ground', 'tank', 'port', 'heli', 'radio', 'lifeboat'))
         calm = state in ('title', 'map', 'upgrade', 'helisel')
-        ctx = {'helisel': 'upgrade', 'gameover': None}.get(state, state)
+        ctx = {'helisel': 'upgrade', 'gameover': None, 'lifeboat': 'defense'}.get(state, state)
         if state == 'combat' and (getattr(self, 'c', None) or {}).get('is_boss'):
             ctx = 'boss'
         self.audio.music(ctx, getattr(self, 'wave', 1), 'calm' if calm else 'battle')
@@ -590,7 +592,7 @@ class CoreMixin:
                     self.warned = False
                     self.attack = None
                     {pygame.K_F2: self.start_tank, pygame.K_F3: self.start_aerial, pygame.K_F4: self.start_ground}[e.key](self.strike_city)
-            elif e.key in (pygame.K_p, pygame.K_ESCAPE) and self.state in ('map', 'defense', 'combat', 'ground', 'aerial', 'hack', 'radio', 'tank', 'port', 'heli'):
+            elif e.key in (pygame.K_p, pygame.K_ESCAPE) and self.state in ('map', 'defense', 'combat', 'ground', 'aerial', 'hack', 'radio', 'tank', 'port', 'heli', 'lifeboat'):
                 self.paused = not self.paused
             elif self.state == 'saves':
                 self.saves_key(e.key)
@@ -766,6 +768,8 @@ class CoreMixin:
             self.upd_radio(dt)
         elif self.state == 'tank':
             self.upd_tank(dt)
+        elif self.state == 'lifeboat':
+            self.upd_lifeboat(dt)
         elif self.state == 'upgrade':
             self.upd_upgrade(dt)
         elif self.state == 'heli':
@@ -849,6 +853,8 @@ class CoreMixin:
             self.draw_radio(cv)
         elif self.state == 'tank':
             self.draw_tank(cv)
+        elif self.state == 'lifeboat':
+            self.draw_lifeboat(cv)
         elif self.state == 'upgrade':
             self.draw_upgrade(cv)
         elif self.state == 'heli':
@@ -954,6 +960,7 @@ class CoreMixin:
         self.panel(cv, (14, 12, 250, 56), 160)
         self.text(cv, 'PUNTOS %07d' % self.score, self.f_m, (255, 255, 255), 26, 18)
         self.text(cv, 'OLEADA %d/%d   REC %d' % (self.wave, WIN_WAVE, self.hiscore), self.f_s, (160, 200, 240), 26, 42)
+        self.draw_lives(cv, 186, 24)
 
     def draw_cities_hud(self, cv):
         self.panel(cv, (W - 296, 12, 282, 56), 160)

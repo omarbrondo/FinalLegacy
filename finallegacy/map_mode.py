@@ -105,7 +105,7 @@ class MapMixin:
                     self.toast('¡Encallaste! Casco dañado', (255, 120, 90))
                     self.shake = 6
                     if self.hull <= 0:
-                        return self.game_over('Tu buque encalló y se hundió')
+                        return self.lose_ship('Tu buque encalló y se hundió')
                 self.sx = ix + (self.sx - ix) / d * lim
                 self.sy = iy + (self.sy - iy) / d * lim
                 self.sv *= 0.3

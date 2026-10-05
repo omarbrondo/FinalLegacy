@@ -103,7 +103,7 @@ class NavalMixin:
             self.hull -= 8
             self.toast('Huiste de la batería: -8 casco', (255, 140, 90))
             if self.hull <= 0:
-                return self.game_over('Tu buque se hundió al huir')
+                return self.lose_ship('Tu buque se hundió al huir')
             return self.go('map')
         en['hp'] = c['e']['hp']
         if en.get('nest'):
@@ -120,7 +120,7 @@ class NavalMixin:
         self.toast('Huiste bajo fuego: -8 casco', (255, 140, 90))
         self.audio.play('hit', .7)
         if self.hull <= 0:
-            return self.game_over('Tu buque se hundió al huir')
+            return self.lose_ship('Tu buque se hundió al huir')
         self.go('map')
 
     def upd_combat(self, dt):
@@ -298,7 +298,7 @@ class NavalMixin:
                 self.radar_t = 60.0
                 self.toast('¡Batería destruida! +%d  (+8 munición, radar enemigo 60 s)' % (400 + 100 * self.wave), (120, 255, 160))
                 if self.hull <= 0:
-                    return self.game_over('Tu buque no sobrevivió al combate')
+                    return self.lose_ship('Tu buque no sobrevivió al combate')
                 return self.go('map')
             self.add_score(500 + 100 * self.wave)
             self.ammo = min(40, self.ammo + (15 if boss_kill else 5))
@@ -309,10 +309,10 @@ class NavalMixin:
             if self.enemy_ref in self.enemies:
                 self.enemies.remove(self.enemy_ref)
             if self.hull <= 0:
-                return self.game_over('Tu buque no sobrevivió al combate')
+                return self.lose_ship('Tu buque no sobrevivió al combate')
             self.go('map')
         elif p['sink'] is not None and p['sink'] > 2.6:
-            self.game_over('Tu buque fue hundido en combate')
+            self.lose_ship('Tu buque fue hundido en combate')
 
     def sub_fire(self):
         """Abanico de 3 torpedos lentos que apuntan a donde va a estar el jugador."""

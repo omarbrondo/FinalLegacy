@@ -849,7 +849,7 @@ class PortMixin:
             left = 2 - self.port_tries
             self.toast('Asalto fallido: -20 casco, -4 munición (intentos: %d)' % left, (255, 140, 90))
             if self.hull <= 0:
-                return self.game_over('Tu barco se hundió')
+                return self.lose_ship('Tu barco se hundió')
         else:
             self.port_done = True
             self.hull = min(self.hull_max, self.hull + 30)
