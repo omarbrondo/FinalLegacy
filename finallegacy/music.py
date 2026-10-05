@@ -30,6 +30,8 @@ SPECS = {
                    bass='rf', pad=0, arp=None, lead='active', leadw='saw'),
     'boss': dict(bpm=146, root=41, modes=('phrygian', 'harmonic', 'phrygian'), prog=([0, 1, 0, 6], [0, 0, 1, 5]), drums='indus',
                  bass='gallop', pad=1, arp='16th', lead='active', leadw='saw'),
+    'bossf': dict(bpm=162, root=41, modes=('phrygian', 'harmonic', 'phrygian'), prog=([0, 1, 0, 6], [0, 6, 1, 5]), drums='break',
+                  bass='gallop', pad=1, arp='16th', lead='active', leadw='saw'),
     'aerial': dict(bpm=152, root=48, modes=('mixolydian', 'aeolian', 'dorian'), prog=([0, 5, 3, 4], [0, 6, 5, 4]), drums='four',
                    bass='eighth', pad=0, arp='16th', lead='active', leadw='square'),
     'ground': dict(bpm=106, root=46, modes=('dorian', 'aeolian', 'phrygian'), prog=([0, 0, 3, 4], [0, 5, 3, 1]), drums='march',

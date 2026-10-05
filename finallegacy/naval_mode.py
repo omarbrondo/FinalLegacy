@@ -30,6 +30,7 @@ class NavalMixin:
         bt = BOSS_TYPES[self.c['btype']]
         self.c['mounts'] = bt['mounts']
         self.c['special'] = bt['special']
+        self.nv_init()
         self.aim = [W / 2, 300.0]
         self.go('combat')
         if is_sub:
@@ -67,6 +68,7 @@ class NavalMixin:
         self.launch_missile(p, bearing(tx - p['x'], ty - p['y']), 400, 'p')
         self.audio.play('launch', .8)
         self.fx.add('glow', p['x'], p['y'], life=.2, r0=20, r1=44, col=(255, 220, 150))
+        c['flashes'].append([p['x'], p['y'], 120, (255, 210, 150), 1.0])
         self.shake = max(self.shake, 3)
 
     def combat_aim(self):
@@ -107,6 +109,14 @@ class NavalMixin:
     def upd_combat(self, dt):
         c = self.c
         p, e = c['p'], c['e']
+        if c['hs'] > 0:                                   # golpe grande: el tiempo se congela un instante
+            c['hs'] -= dt
+            self.fx.update(dt * 0.1)
+            return
+        if c['slow'] > 0:                                 # cámara lenta en el golpe final
+            c['slow'] -= dt
+            dt *= 0.35
+        self.nv_update(dt)
         c['t'] += dt
         keys = pygame.key.get_pressed()
         alive_p = p['sink'] is None
@@ -245,10 +255,17 @@ class NavalMixin:
             e['sink'] = 0.0
             self.audio.play('boom_l')
             self.fx.explode(e['x'], e['y'], 3.0 if c['is_boss'] else 1.8, True)
+            c['slow'], c['white'] = (2.4 if c['is_boss'] else 1.3), 0.7
+            c['flashes'].append([e['x'], e['y'], 220, (255, 200, 120), 1.0])
+            self.fx.add('ring', e['x'], e['y'], life=0.9, r0=10, r1=330 if c['is_boss'] else 190, col=(255, 230, 190))
+            self.call_out('¡BUQUE JEFE HUNDIDO!' if c['is_boss'] else ('¡BATERÍA SILENCIADA!' if c['nest'] else '¡BLANCO ELIMINADO!'),
+                          (255, 230, 120), 'kill', 5)
         if p['sink'] is None and self.hull <= 0:
             p['sink'] = 0.0
             self.audio.play('boom_l')
             self.fx.explode(p['x'], p['y'], 1.8, True)
+            c['slow'], c['white'] = 1.3, 0.6
+            self.call_out('¡NOS HUNDEN!', (255, 90, 80), 'pkill', 5)
         self.fx.update(dt)
         if e['sink'] is not None and e['sink'] > (4.0 if c['is_boss'] else 2.4):
             boss_kill = c.get('is_boss', False)
@@ -422,11 +439,14 @@ class NavalMixin:
         ox, oy = vec(e['h'], off)
         T = dist(p['x'], p['y'], e['x'] + ox, e['y'] + oy) / spd
         vx, vy = vec(p['h'], p['v'])
-        err = max(2.0, 11 - 1.2 * self.wave)
+        err = max(2.0, 11 - 1.2 * self.wave) * (0.5 if self.nv_lit() else 1.0)
         ang = bearing(p['x'] + vx * T - e['x'] - ox, p['y'] + vy * T - e['y'] - oy) + random.uniform(-err, err)
         self.launch_missile(e, ang, spd, 'e', off, (18, 10) if boss else ((15, 9) if c['nest'] else (22, 12)))
         self.audio.play('launch', .5)
         self.fx.add('glow', e['x'] + ox, e['y'] + oy, life=.2, r0=22, r1=46, col=(255, 160, 120))
+        c['flashes'].append([e['x'] + ox, e['y'] + oy, 120, (255, 200, 140), 1.0])
+        if boss and mount == 0:
+            self.call_out('¡SALVA ENEMIGA!', (255, 140, 110), 'salvo', 6)
 
     def ship_hit(self, ship, x, y, boss):
         L, r, core = (108, BOSS_TYPES[self.c['btype']]['r'], 56) if boss else (44, 17, 24)
@@ -445,6 +465,17 @@ class NavalMixin:
             if random.random() < dt * 45:
                 bx, by = vec(s['ang'], -14)
                 self.fx.add('smoke', s['x'] + bx, s['y'] + by, 0, 0, 0.7, 2, 7, (200, 200, 205))
+            tg_ = p if s['own'] == 'e' else e
+            dd_ = dist(s['x'], s['y'], tg_['x'], tg_['y'])
+            if dd_ < s.get('dmin', 1e9):
+                s['dmin'] = dd_
+            elif not s.get('sp') and s['dmin'] < 90 and tg_['sink'] is None:
+                s['sp'] = True
+                self.fx.splash(s['x'], s['y'], 1.8)
+                self.fx.add('ring', s['x'], s['y'], life=0.7, r0=8, r1=70, col=(235, 248, 255))
+                self.audio.play('splash', .5)
+                if s['own'] == 'e':
+                    self.shake = max(self.shake, 3)
             if s['own'] == 'p' and (c['jets'] or c['mines']):
                 hitx = next((j for j in c['jets'] if dist(j['x'], j['y'], s['x'], s['y']) < 18), None)
                 if hitx is not None:
@@ -495,6 +526,25 @@ class NavalMixin:
             self.hull -= dmg
             self.pop('-%d CASCO' % dmg, x, y - 20, (255, 110, 100))
             self.shake = max(self.shake, 12)
+        who = 'e' if tgt is c['e'] else 'p'
+        big = full and ((s['own'] == 'p' and dmg >= 2) or (s['own'] == 'e' and dmg >= 15))
+        self.nv_mark(who, tgt, x, y, dmg)
+        ratio = clamp((c['e']['hp'] / c['e']['max']) if who == 'e' else self.hull / 100.0, 0.0, 1.0)
+        self.nv_mark_fires(who, ratio)
+        c['flashes'].append([x, y, 100 if full else 64, (255, 190, 110), 1.0])
+        for _ in range(8 if full else 4):
+            a_ = random.uniform(0, 6.28)
+            sp_ = random.uniform(80, 240)
+            self.fx.add('spark', x, y, math.cos(a_) * sp_, math.sin(a_) * sp_, random.uniform(0.4, 0.9), col=(255, 190, 90), drag=1.2)
+        if full:
+            self.fx.add('ring', x, y, life=0.4, r0=6, r1=56, col=(255, 230, 170))
+        if big:
+            c['hs'] = 0.05
+            self.shake = max(self.shake, 8)
+            if s['own'] == 'p':
+                self.call_out('¡IMPACTO DIRECTO!', (255, 230, 120), 'direct', 3.5)
+            else:
+                self.call_out('¡NOS DIERON!', (255, 130, 100), 'hurt', 4.5)
         self.fx.explode(x, y, 1.0 if full else 0.7)
         self.audio.play('hit')
 
@@ -503,7 +553,9 @@ class NavalMixin:
         c = self.c
         p, e = c['p'], c['e']
         is_boss = c.get('is_boss', False)
-        self.draw_ocean(cv, 0, 0, self.t)
+        self.draw_ocean(cv, 0, 0, self.t * (1.6 if c['wx'] == 'storm' else 1.0))
+        self.nv_ocean_tint(cv)
+        self.nv_draw_light(cv)
         if is_boss:
             glow(cv, e['x'], e['y'], 90 + 20 * math.sin(self.t * 2), (255, 80, 200), 0.35)
         self.fx.draw(cv)
@@ -520,6 +572,9 @@ class NavalMixin:
                 cv.blit(spr, (e['x'] - spr.get_width() // 2, e['y'] - spr.get_height() // 2))
                 if ship['sink'] is None:
                     self.blit_turret(cv, self.tur_e, e['x'], e['y'] - 4, bearing(p['x'] - e['x'], p['y'] - e['y']))
+                continue
+            if alpha > 0 and ship['sink'] is not None and ship['sink'] > 0.12:
+                self.nv_draw_split(cv, key, ship, alpha)
                 continue
             if alpha > 0:
                 if key == 's_hull':
@@ -550,6 +605,10 @@ class NavalMixin:
                     tx_, ty_ = p['x'], p['y']
                 ang = bearing(tx_ - (ship['x'] + fx_), ty_ - (ship['y'] + fy_))
                 self.blit_turret(cv, tur, ship['x'] + fx_, ship['y'] + fy_, ang, alpha)
+        for ship_, who_ in ((e, 'e'), (p, 'p')):
+            if ship_['sink'] is None or ship_['sink'] <= 0.12:
+                if not (who_ == 'e' and c['sub'] and not e['surf']):
+                    self.nv_draw_marks(cv, who_, ship_)
         self.draw_boss_extras(cv)
         # misiles (vuelan en línea recta)
         for s in c['shells']:
@@ -570,6 +629,8 @@ class NavalMixin:
         for dx, dy in ((-26, 0), (26, 0), (0, -26), (0, 26)):
             pygame.draw.line(cv, (255, 230, 120), (ax + dx // 2, ay + dy // 2), (ax + dx, ay + dy), 2)
         pygame.draw.circle(cv, (70, 100, 135), (int(p['x']), int(p['y'])), 650, 1)
+        self.nv_draw_flashes(cv)
+        self.nv_draw_weather(cv)
         # HUD
         self.draw_hud(cv)
         self.panel(cv, (W // 2 - 230, 12, 460, 70), 170)
@@ -587,3 +648,4 @@ class NavalMixin:
         pygame.draw.rect(cv, (8, 12, 24), (W // 2 - 60, H - 40, 120, 10))
         pygame.draw.rect(cv, (120, 255, 160) if rl >= 1 else (255, 200, 80), (W // 2 - 59, H - 39, int(118 * rl), 8))
         self.text(cv, 'Clic/ESPACIO: misil recto (adelantate al objetivo)  |  E huir', self.f_s, (200, 220, 255), W // 2, H - 64, 'c')
+        self.nv_draw_calls(cv)
