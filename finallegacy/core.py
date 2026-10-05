@@ -125,7 +125,7 @@ class CoreMixin:
         for k_ in range(len(BOSS_TYPES)):
             reg('b%d_map' % k_, make_boss_sprite(k_, 46, 126))
             reg('b%d_hull' % k_, make_boss_sprite(k_, 98, 270))
-        self.sol = {'p': make_soldier_frames('rifle', 'p')}
+        self.sol = {'p': make_soldier_frames('rifle', 'p'), 'a': make_soldier_frames('rifle', 'a')}
         for kd in ENEMY_TYPES:
             self.sol['e_' + kd] = make_soldier_frames(kd, 'e')
         for f_ in self.sol['e_sniper']:

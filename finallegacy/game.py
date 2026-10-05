@@ -20,9 +20,10 @@ from .war import WarMixin
 from .naval_fx import NavalFxMixin
 from .naval_arms import NavalArmsMixin
 from .naval_fleet import NavalFleetMixin
+from .landing import LandingMixin
 
 
-class Game(CoreMixin, MapMixin, DefenseMixin, HackMixin, NavalMixin, AerialMixin, AirBossMixin, GroundMixin, PortMixin, TankMixin, UpgradeMixin, GamepadMixin, HeliMixin, HazardMixin, TankPropsMixin, WarMixin, NavalFxMixin, NavalArmsMixin, NavalFleetMixin):
+class Game(CoreMixin, MapMixin, DefenseMixin, HackMixin, NavalMixin, AerialMixin, AirBossMixin, GroundMixin, PortMixin, TankMixin, UpgradeMixin, GamepadMixin, HeliMixin, HazardMixin, TankPropsMixin, WarMixin, NavalFxMixin, NavalArmsMixin, NavalFleetMixin, LandingMixin):
     """Juego completo. El estado vive en 'self'; cada mixin aporta los métodos de un modo."""
 
 

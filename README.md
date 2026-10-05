@@ -30,6 +30,7 @@ python retro_legacy.py
 | `naval_mode.py` | Combate naval (destructores, submarinos, baterías, acorazado) |
 | `aerial_mode.py` | Batalla aérea estilo Twinbee |
 | `ground_mode.py` | Infantería cenital: invasión, desembarco con sigilo, defensa de antenas |
+| `landing.py` | Desembarco épico: escuadra aliada, fases, búnkeres, clima y informe de misión |
 | `port_mode.py` | Asalto al puerto enemigo (estilo Metal Slug) |
 | `tank_mode.py` | Combate urbano con tanques en primera persona (estilo Battlezone) |
 | `upgrade_mode.py` | Pantalla de mejoras entre oleadas (elegir 1 de 3) |
@@ -57,6 +58,7 @@ Cada modo suma contenido nuevo a medida que avanzan las oleadas:
 - **Tanques**: kamikazes, artillería pesada, helicópteros, tanque jefe, niebla y noche; la ciudad tiene farolas (se encienden de noche), autos y bicicletas que los tanques aplastan (los proyectiles incendian los autos); cuanto más avanza la guerra, más autos quemados y farolas caídas.
 - **Mapa**: cada oleada deja restos de barcos hundidos (algunos en llamas), manchas de petróleo, escombros flotantes, islas chamuscadas con humo y una bruma cada vez más densa; además algunos islotes cambian de lugar.
 - **Infantería**: perros y francotiradores (láser de mira); desde la oleada 3, alertas químicas (nube verde que daña, máscara antigás de 14 s como ítem).
+- **Desembarco** (cuatro fases): llegás en lancha con el buque tirando fuego de cobertura sobre los búnkeres; **1 PLAYA** (destruí los 2 búnkeres con granadas o avanzá tierra adentro: la ametralladora fija avisa con un cono rojo), **2 INTERIOR** (sigilo como siempre), **3 ANTENA** (al instalarla empieza a transmitir: defendé la posición 22 s contra tres oleadas de lanchas; si te alejás la señal retrocede), **4 EXTRACCIÓN** (volvé a la lancha antes de que se acabe el tiempo). Te acompañan 3 soldados aliados (RAMOS, DÍAZ, LUNA) que te siguen, se cubren y disparan; los enemigos también les disparan, y si caen quedan heridos 28 s: mantené E a su lado para auxiliarlos. Clima según la oleada (día, amanecer, noche con luz propia, tormenta con rayos), cámara lenta en noqueos y disparos de francotirador, música distinta por fase e informe final con bonus (fantasma, tiempo, escuadra a salvo).
 - **Puerto**: jefe tanque u helicóptero según la oleada; noche y tormenta.
 - **Hackeo**: virus que corrompen nodos, cortafuegos y segunda fuente.
 - **Tomahawk** (mejora): apoyo de fuego en infantería y puerto, tecla T / LB sobre el punto apuntado (1,7 s de demora, radio ~150, hace daño a quien esté cerca incluso a vos).

@@ -9,6 +9,7 @@ from .common import (
     clamp, coast_r, dist, draw_circ,
     glow, lerp, vec)
 from .sprites import ENEMY_TYPES, draw_cover
+from .landing import WX_LABEL
 
 
 class GroundMixin:
@@ -113,7 +114,7 @@ class GroundMixin:
             self.toast('Sin intentos de desembarco en esta isla', (255, 140, 90))
             return
         self.landing_attempts[island_idx] += 1
-        n = LANDING_ENEMIES
+        n = LANDING_ENEMIES + 2
         n_mg, n_gr = max(1, n // 5), max(1, n // 5)
         n_sn = min(self.wave - 2, 2) if self.wave >= 3 else 0
         kinds = ['mg'] * n_mg + ['gren'] * n_gr + ['sniper'] * n_sn + ['rifle'] * (n - n_mg - n_gr - n_sn)
@@ -121,7 +122,7 @@ class GroundMixin:
         spawn = (W / 2, sy)
         city = dict(name=self.isl_name(island_idx), x=x, y=y, r=r, hp=100.0, dead=False, seed=s)
         covers = self.init_ground('landing', s, city, 16, [(W / 2, H / 2, 80)], spawn, kinds, island_idx=island_idx, R=LAND_R)
-        self.g['limit'] = self.g['tleft'] = float(max(110, 190 - 12 * (self.wave - 1)))
+        self.g['limit'] = self.g['tleft'] = float(max(130, 215 - 12 * (self.wave - 1)))
         self.g['reinf_t'] = 30.0
         g = self.g
         random.shuffle(kinds)
@@ -162,10 +163,12 @@ class GroundMixin:
             cx0, cy0 = W / 2 + math.cos(a_) * rr, H / 2 + math.sin(a_) * rr
             base_ = bearing(W / 2 - cx0, H / 2 - cy0)
             g['cams'].append(dict(x=cx0, y=cy0, base=base_, h=base_, sw=random.uniform(0, 6.28), det=0.0, hp=3, on=True))
+        self.lz_setup(spawn, s)
+        self.g_camera(0.0, True)
         g['total'] = len(g['enemies'])
         left = MAX_LANDING_ATTEMPTS - self.landing_attempts[island_idx]
         self.banner('¡DESEMBARCO EN %s!' % self.isl_name(island_idx),
-                    'Tenés %d s: llegá a la antena (centro) y mantené E, o eliminá a los %d soldados  |  Intentos: %d' % (self.g['limit'], n, left),
+                    '%s  |  Playa, interior, antena y extracción  |  Intentos: %d' % (WX_LABEL[self.g['lz']['wx']], left),
                     (100, 180, 255), 4.6)
         self.toast('SHIFT: sigilo | Q: pistola silenciada | E: noquear por la espalda / instalar antena', (255, 220, 120))
 
@@ -286,6 +289,7 @@ class GroundMixin:
     def g_noise(self, radius, secs=0.3):
         """El jugador hace ruido: los enemigos dentro del radio lo oyen."""
         p = self.g['p']
+        radius *= self.lz_noise_k()
         if radius >= p['noise_r'] or p['noise_t'] <= 0:
             p['noise_r'], p['noise_t'] = radius, secs
 
@@ -293,7 +297,7 @@ class GroundMixin:
         """Noqueo silencioso por la espalda."""
         g = self.g
         p = g['p']
-        if p['dead'] or g['phase'] != 'play' or not g['stealth']:
+        if p['dead'] or g['phase'] != 'play' or not g['stealth'] or self.lz_downed_near(p['x'], p['y']):
             return False
         best = None
         for e in g['enemies']:
@@ -306,6 +310,7 @@ class GroundMixin:
             return False
         e = best[1]
         g['takedowns'] += 1
+        g['slow'] = 0.4
         g['tleft'] += 8.0
         self.gpop('+8 s', p['x'], p['y'] - 44, (140, 255, 200))
         self.audio.play('blip', .6)
@@ -409,6 +414,8 @@ class GroundMixin:
         self.shake = max(self.shake, 7)
         g['decals'].append((x, y, R * 0.55))
         g['decals'] = g['decals'][-40:]
+        if g.get('lz'):
+            self.lz_nade(x, y, R, n['own'])
         for e in g['enemies'][:]:
             d = dist(x, y, e['x'], e['y'])
             if d < R:
@@ -430,6 +437,8 @@ class GroundMixin:
             return
         p['hp'] -= dmg
         g['hurt'] = 0.5
+        if dmg >= 14:
+            g['slow'] = 0.5
         self.shake = max(self.shake, 4 + dmg * 0.5)
         self.audio.play('hit', .5)
         self.gpop('-%d' % dmg, p['x'], p['y'] - 22, (255, 110, 100))
@@ -651,6 +660,11 @@ class GroundMixin:
     def upd_ground(self, dt):
         g = self.g
         p, city = g['p'], g['city']
+        if g.get('slow', 0) > 0:                      # cámara lenta (noqueos, disparos de sniper, hitos)
+            g['slow'] -= dt
+            dt *= 0.4
+        if g.get('lz') and g['lz']['intro'] > 0:
+            return self.lz_intro(dt)
         keys = pygame.key.get_pressed()
         g['t'] += dt
         g['hurt'] = max(0.0, g['hurt'] - dt)
@@ -700,6 +714,8 @@ class GroundMixin:
         g['boats'] = [b for b in g['boats'] if b[3] < 1.8]
         for e in g['enemies'][:]:
             self.ai_soldier(e, dt)
+        if g.get('lz'):
+            self.lz_update(dt, alive, keys)
         for b in g['bullets'][:]:
             b['x'] += b['vx'] * dt
             b['y'] += b['vy'] * dt
@@ -711,6 +727,8 @@ class GroundMixin:
             for i, c in enumerate(g['covers']):
                 if i not in b['ign'] and dist(b['x'], b['y'], c['x'], c['y']) < c['r'] * 0.9:
                     blocked = True
+                    if c.get('bunker'):
+                        self.lz_bullet_hits_bunker(b, c)
                     break
             if blocked:
                 self.fx.add('smoke', b['x'], b['y'], 0, -10, 0.5, 3, 9, (190, 170, 130))
@@ -719,7 +737,10 @@ class GroundMixin:
                                 col=(255, 220, 140), drag=2)
                 g['bullets'].remove(b)
                 continue
-            if b['own'] == 'p':
+            if b['own'] == 'e' and g.get('allies') and self.lz_bullet_hits_ally(b):
+                g['bullets'].remove(b)
+                continue
+            if b['own'] in ('p', 'a'):
                 cm = next((c_ for c_ in g['cams'] if c_['on'] and dist(b['x'], b['y'], c_['x'], c_['y']) < 14), None)
                 if cm is not None:
                     cm['hp'] -= b['dmg']
@@ -796,7 +817,7 @@ class GroundMixin:
                 g['phase'], g['fail'], g['pt'] = 'result', True, 0.0
             self.banner('¡ANTENA DESTRUIDA!' if g['antenna'] is not None else '¡CIUDAD CAPTURADA!', city['name'], (255, 70, 60), 3.0)
         self.fx.update(dt)
-        if g['phase'] == 'play' and not g['queue'] and not g['enemies']:
+        if g['phase'] == 'play' and not g['queue'] and not g['enemies'] and g['mode'] != 'landing':
             g['phase'], g['pt'] = 'result', 0.0
             bonus = 300
             if g['mode'] == 'invasion' and city['hp'] >= g['city0'] - 0.01:
@@ -811,12 +832,14 @@ class GroundMixin:
             g['pt'] += dt
             if not g['fail']:
                 g['ant_t'] += dt
-            if g['pt'] > (3.6 if g['mode'] == 'landing' and not g['fail'] else 2.8):
+            if g['pt'] > ((7.5 if g.get('lz') and g['lz']['stats'] else 3.6) if g['mode'] == 'landing' and not g['fail'] else 2.8):
                 self.end_ground()
 
     def upd_stealth(self, dt, alive, keys):
         g = self.g
         p = g['p']
+        if g.get('lz') and g['lz']['stage'] >= 2:
+            return                                  # la defensa y la extracción las maneja landing.py
         # tiempo límite y refuerzos en lancha
         g['tleft'] -= dt
         if g['tleft'] < 10 and int(g['tleft']) != int(g['tleft'] + dt):
@@ -881,7 +904,9 @@ class GroundMixin:
         if alive and keys[pygame.K_e] and pad_d < 56 and not p['sneak'] and not any(e['state'] == 'combat' and dist(e['x'], e['y'], p['x'], p['y']) < 260 for e in g['enemies']):
             g['inst'] += dt / 4.0
             self.g_noise(60, 0.15)
-            if g['inst'] >= 1.0:
+            if g['inst'] >= 1.0 and g.get('lz'):
+                self.lz_install_done()
+            elif g['inst'] >= 1.0:
                 g['phase'], g['pt'] = 'result', 0.0
                 bonus = (800 if g['alerts'] == 0 else 300) + 120 * g['takedowns']
                 self.add_score(bonus)
@@ -935,15 +960,18 @@ class GroundMixin:
         if not hasattr(self, '_cone'):
             self._cone = pygame.Surface((2 * 340 + 4, 2 * 340 + 4), pygame.SRCALPHA)
         c = self._cone
-        c.fill((0, 0, 0, 0))
         mid = 340 + 2
         pts = [(mid, mid)]
         for i in range(13):
             ax, ay = vec(h - fov / 2 + fov * i / 12, rng)
             pts.append((mid + ax, mid + ay))
+        box = pygame.Rect(int(min(q[0] for q in pts)) - 2, int(min(q[1] for q in pts)) - 2,
+                          int(max(q[0] for q in pts) - min(q[0] for q in pts)) + 5, int(max(q[1] for q in pts) - min(q[1] for q in pts)) + 5)
+        box = box.clip(c.get_rect())
+        c.fill((0, 0, 0, 0), box)                       # solo se limpia y se copia el rectángulo del cono
         pygame.draw.polygon(c, (*col, 44 + int(14 * math.sin(self.t * 4))), pts)
         pygame.draw.lines(c, (*col, 90), False, [pts[1], pts[0], pts[-1]], 1)
-        cv.blit(c, (x - mid, y - mid))
+        cv.blit(c, (x - mid + box.x, y - mid + box.y), box)
 
     def blit_soldier(self, dst, key, x, y, ang, frame, hit=0.0, dead=False):
         draw_circ(dst, x + 4, y + 5, 14, (0, 0, 0), 70)
@@ -1002,6 +1030,8 @@ class GroundMixin:
         cv.blit(g['land'], (lo[0] - cx_, lo[1] - cy_))
         for x, y, r in g['decals']:
             draw_circ(cv, x - cx_, y - cy_, r, (28, 24, 20), 140)
+        if g.get('lz'):
+            self.lz_draw_world(cv, cx_, cy_)
         if g['mode'] == 'landing':
             if g['phase'] == 'result' and not g['fail']:
                 k = clamp(g['ant_t'] / 1.8, 0, 1)
@@ -1013,7 +1043,8 @@ class GroundMixin:
                     for j in range(3):
                         ph = (t * 0.8 + j / 3) % 1
                         draw_circ(cv, W // 2 - cx_, H // 2 - cy_ - bh + 30, 14 + ph * 80, (120, 240, 255), 170 * (1 - ph), 2)
-            self.draw_boat(cv, g['spawn'][0] - cx_, g['spawn'][1] + 58 - cy_, 0)
+            bx_, by_ = g['lz']['boat'] if g.get('lz') else (g['spawn'][0], g['spawn'][1] + 58)
+            self.draw_boat(cv, bx_ - cx_, by_ - cy_, 0)
         for x, y, a, _t in g['boats']:
             self.draw_boat(cv, x - cx_, y - cy_, a)
         for c in g['corpses']:
@@ -1042,7 +1073,7 @@ class GroundMixin:
                                (255, 200, 90) if e['state'] == 'hold' else (255, 120, 60))
         if g['stealth']:
             pad = (W // 2 - cx_, H // 2 - cy_)
-            if g['phase'] == 'play':
+            if g['phase'] == 'play' and self.lz_stage() < 2:
                 pul = 0.5 + 0.5 * math.sin(t * 3)
                 draw_circ(cv, pad[0], pad[1], 54 + pul * 4, (110, 230, 255), 60 + 40 * pul, 2)
                 self.text(cv, 'ANTENA (E)', self.f_s, (150, 240, 255), pad[0], pad[1] - 78, 'c')
@@ -1064,10 +1095,13 @@ class GroundMixin:
                     pygame.draw.rect(cv, (255, 90 + int(100 * (1 - cm_['det'])), 60), (kx - 13, ky - 21, int(26 * cm_['det']), 3))
             if p['noise_t'] > 0 and p['noise'] > 40:
                 draw_circ(cv, p['x'] - cx_, p['y'] - cy_, p['noise'], (255, 255, 255), 22 * clamp(p['noise_t'] / 0.3, 0, 1), 1)
-        actors = [(e['y'], 'e', e) for e in g['enemies']] + [(p['y'], 'p', p)]
+        actors = [(e['y'], 'e', e) for e in g['enemies']] + [(p['y'], 'p', p)] + [(a['y'], 'a', a) for a in g.get('allies', ())]
         for _, who, s in sorted(actors, key=lambda a: a[0]):
             sx, sy = s['x'] - cx_, s['y'] - cy_
             if not (-120 < sx < W + 120 and -120 < sy < H + 120):
+                continue
+            if who == 'a':
+                self.lz_draw_ally(cv, s, sx, sy)
                 continue
             if who == 'e' and s['kind'] == 'dog':
                 self.draw_dog(cv, sx, sy, s)
@@ -1104,7 +1138,7 @@ class GroundMixin:
                     fx_, fy_ = vec(s['h'], 46)
                     glow(cv, sx + fx_, sy + fy_, 22, (255, 230, 150))
         for b in g['bullets']:
-            col = (255, 240, 150) if b['own'] == 'p' else (255, 150, 110)
+            col = (255, 240, 150) if b['own'] in ('p', 'a') else (255, 150, 110)
             bx, by = b['x'] - cx_, b['y'] - cy_
             pygame.draw.line(cv, col, (bx, by), (bx - b['vx'] * 0.035, by - b['vy'] * 0.035), 2)
             glow(cv, bx, by, 7, col, 0.7)
@@ -1122,6 +1156,8 @@ class GroundMixin:
             draw_circ(cv, x + 2, y + 3, 5, (0, 0, 0), 80)
             pygame.draw.circle(cv, (58, 74, 48), (int(x), int(y - hh)), 5)
             pygame.draw.circle(cv, (110, 128, 92), (int(x - 1), int(y - hh - 1)), 2)
+        if g.get('lz'):
+            self.lz_draw_ambient(cv, cx_, cy_)
         self.fx.draw(cv, cx_, cy_)
         ax, ay = self.ground_aim()
         ax, ay = int(ax - cx_), int(ay - cy_)
@@ -1160,6 +1196,9 @@ class GroundMixin:
             for e in g['enemies']:
                 pygame.draw.circle(cv, (255, 70, 60) if e['state'] == 'combat' else (170, 70, 60),
                                    (int(mcx + (e['x'] - W / 2) * sc), int(mcy + (e['y'] - H / 2) * sc)), 3)
+            for a_ in g.get('allies', ()):
+                if not a_['kia']:
+                    pygame.draw.circle(cv, (120, 220, 255) if not a_['down'] else (255, 150, 100), (int(mcx + (a_['x'] - W / 2) * sc), int(mcy + (a_['y'] - H / 2) * sc)), 3)
             pygame.draw.rect(cv, (220, 230, 240), (mcx + (cam[0] - W / 2) * sc, mcy + (cam[1] - H / 2) * sc, W * sc, H * sc), 1)
             pygame.draw.circle(cv, (90, 255, 255), (int(mcx + (p['x'] - W / 2) * sc), int(mcy + (p['y'] - H / 2) * sc)), 3)
             pygame.draw.circle(cv, (110, 150, 190), (mcx, mcy), mr + 3, 2)
@@ -1190,18 +1229,20 @@ class GroundMixin:
             self.text(cv, 'ENEMIGOS: %d' % (len(g['queue']) + len(g['enemies'])), self.f_m, (255, 160, 140), W - 20, 90, 'r')
         if g['stealth']:
             self.text(cv, 'SHIFT sigilo | Q pistola/fusil | E noquear o instalar | clic disparar | ESPACIO granada', self.f_s, (200, 220, 255), W - 14, H - 30, 'r')
-            tl = max(0.0, g['tleft'])
+            lbl, tl = self.lz_timer() if g.get('lz') else ('TIEMPO', max(0.0, g['tleft']))
             tcol = (140, 230, 255) if tl > 60 else ((255, 210, 80) if tl > 30 else (255, 90 + int(100 * (0.5 + 0.5 * math.sin(t * 10))), 70))
             self.panel(cv, (W // 2 - 110, 130, 220, 44), 190)
-            self.text(cv, 'TIEMPO', self.f_s, (170, 200, 230), W // 2 - 96, 138)
+            self.text(cv, lbl, self.f_s, (170, 200, 230), W // 2 - 96, 138)
             self.text(cv, '%d:%04.1f' % (int(tl) // 60, tl % 60), self.f_l, tcol, W // 2 + 100, 134, 'r')
             if g['alert_t'] > 0:
                 pul = 0.5 + 0.5 * math.sin(t * 9)
                 self.panel(cv, (W // 2 - 150, 88, 300, 40), 190)
                 self.text(cv, 'ALERTA  %04.1f s' % g['alert_t'], self.f_m, (255, int(80 + 100 * pul), 70), W // 2, 96, 'c')
                 pygame.draw.rect(cv, (255, 40, 40), (0, 0, W, H), 3 + int(4 * pul))
-            else:
+            elif self.lz_stage() < 2:
                 state = 'SIGILO' if not any(e['state'] == 'susp' for e in g['enemies']) else 'SOSPECHA'
                 self.text(cv, state + ('  (agachado)' if p['sneak'] else ''), self.f_s, (140, 255, 200) if state == 'SIGILO' else (255, 210, 100), W // 2, 92, 'c')
         else:
             self.text(cv, 'WASD mover | Clic disparar | R recargar | ESPACIO granada', self.f_s, (200, 220, 255), W - 14, H - 30, 'r')
+        if g.get('lz'):
+            self.lz_draw_hud(cv)
