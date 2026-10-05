@@ -33,6 +33,7 @@ class NavalMixin:
         self.nv_init()
         self.na_init()
         self.nf_init()
+        self.ng_init()
         self.aim = [W / 2, 300.0]
         self.go('combat')
         if is_sub:
@@ -121,6 +122,7 @@ class NavalMixin:
         self.nv_update(dt)
         self.na_update(dt)
         self.nf_update(dt)
+        self.ng_update(dt)
         c['t'] += dt
         keys = pygame.key.get_pressed()
         alive_p = p['sink'] is None
@@ -624,6 +626,7 @@ class NavalMixin:
         self.draw_boss_extras(cv)
         self.na_draw(cv)
         self.nf_draw(cv)
+        self.ng_draw(cv)
         # misiles (vuelan en línea recta)
         for s in c['shells']:
             col = (255, 240, 160) if s['own'] == 'p' else (255, 150, 120)
@@ -661,6 +664,7 @@ class NavalMixin:
         rl = 1 - clamp(p['cool'] / 0.9, 0, 1)
         pygame.draw.rect(cv, (8, 12, 24), (W // 2 - 60, H - 40, 120, 10))
         pygame.draw.rect(cv, (120, 255, 160) if rl >= 1 else (255, 200, 80), (W // 2 - 59, H - 39, int(118 * rl), 8))
-        self.text(cv, 'Clic/ESPACIO: misil (adelantate al blanco)  |  E huir', self.f_s, (200, 220, 255), W // 2, H - 64, 'c')
+        self.text(cv, 'Clic/ESPACIO: misil  |  la ametralladora (MG) dispara sola  |  E huir', self.f_s, (200, 220, 255), W // 2, H - 64, 'c')
         self.nv_draw_calls(cv)
         self.na_hud(cv)
+        self.ng_hud(cv)

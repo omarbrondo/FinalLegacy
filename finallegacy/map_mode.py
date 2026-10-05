@@ -287,6 +287,8 @@ class MapMixin:
         """Baraja de ataques: sale cada tipo con frecuencia pareja y nunca repite el anterior."""
         if self.strike_n <= 1:
             return 'missile'
+        if self.strike_n == 2 and self.wave == 1:        # el segundo ataque de la oleada 1 es aéreo, para conocerlo temprano
+            return 'aerial'
         if not self.strike_deck:
             self.strike_deck = ['missile', 'aerial', 'tank', 'aerial', 'ground', 'missile']
             random.shuffle(self.strike_deck)
