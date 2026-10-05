@@ -32,6 +32,7 @@ class NavalMixin:
         self.c['special'] = bt['special']
         self.nv_init()
         self.na_init()
+        self.nf_init()
         self.aim = [W / 2, 300.0]
         self.go('combat')
         if is_sub:
@@ -119,6 +120,7 @@ class NavalMixin:
             dt *= 0.35
         self.nv_update(dt)
         self.na_update(dt)
+        self.nf_update(dt)
         c['t'] += dt
         keys = pygame.key.get_pressed()
         alive_p = p['sink'] is None
@@ -481,6 +483,9 @@ class NavalMixin:
                 self.audio.play('splash', .5)
                 if s['own'] == 'e':
                     self.shake = max(self.shake, 3)
+            if self.nf_shell_hit(s):
+                c['shells'].remove(s)
+                continue
             if s['own'] == 'p' and (c['jets'] or c['mines']):
                 hitx = next((j for j in c['jets'] if dist(j['x'], j['y'], s['x'], s['y']) < 18), None)
                 if hitx is not None:
@@ -516,7 +521,7 @@ class NavalMixin:
         c = self.c
         x, y = s['x'], s['y']
         if s['own'] == 'p':
-            dmg = (3 if full else 2) * self.up_dmg()
+            dmg = (3 if full else 2) * self.up_dmg() * (0.5 if s.get('ally') else 1.0)
             armored = c['is_boss'] and c['special'] == 'armor' and abs(angle_diff(s['ang'], c['e']['h'] + 180)) < 60
             if armored:
                 dmg *= 0.25
@@ -534,7 +539,7 @@ class NavalMixin:
         who = 'e' if tgt is c['e'] else 'p'
         big = full and ((s['own'] == 'p' and dmg >= 2) or (s['own'] == 'e' and dmg >= 15))
         self.nv_mark(who, tgt, x, y, dmg)
-        if s['own'] == 'p':
+        if s['own'] == 'p' and not s.get('ally'):
             self.na_charge(20 if full else 10)
         ratio = clamp((c['e']['hp'] / c['e']['max']) if who == 'e' else self.hull / 100.0, 0.0, 1.0)
         self.nv_mark_fires(who, ratio)
@@ -618,6 +623,7 @@ class NavalMixin:
                     self.nv_draw_marks(cv, who_, ship_)
         self.draw_boss_extras(cv)
         self.na_draw(cv)
+        self.nf_draw(cv)
         # misiles (vuelan en línea recta)
         for s in c['shells']:
             col = (255, 240, 160) if s['own'] == 'p' else (255, 150, 120)
