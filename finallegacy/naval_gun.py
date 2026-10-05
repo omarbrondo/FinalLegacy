@@ -33,6 +33,8 @@ class NavalGunMixin:
             consider(1, b['x'], b['y'])
         if e['sink'] is None and not (c['sub'] and not e['surf']):
             consider(2, e['x'], e['y'])
+        if self.nb_alive():
+            consider(2, c['bat']['x'], c['bat']['y'])
         for m in c['mines']:
             consider(3, m['x'], m['y'])
         return best
@@ -135,6 +137,8 @@ class NavalGunMixin:
                         self.audio.play('boom_s', .3)
                         hit = True
                         break
+            if not hit and self.nb_mg_hit(b['x'], b['y']):
+                hit = True
             if not hit and e['sink'] is None and not (c['sub'] and not e['surf']):
                 h_, core = self.ship_hit(e, b['x'], b['y'], boss)
                 if h_:

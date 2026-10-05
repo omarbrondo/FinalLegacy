@@ -12,7 +12,7 @@ from .boss_art import BOSS_TYPES
 
 class NavalMixin:
     # ---------------------------------------------------------- COMBATE
-    def start_combat(self, en):
+    def start_combat(self, en, bat=None):
         self.fx = Particles()
         self.enemy_ref = en
         is_boss = en.get('is_boss', False)
@@ -34,6 +34,7 @@ class NavalMixin:
         self.na_init()
         self.nf_init()
         self.ng_init()
+        self.nb_init(bat)
         self.aim = [W / 2, 300.0]
         self.go('combat')
         if is_sub:
@@ -88,9 +89,22 @@ class NavalMixin:
 
     def flee(self):
         c = self.c
-        if c['p']['sink'] is not None or c['e']['sink'] is not None:
+        e_down = c['e']['sink'] is not None
+        if c['p']['sink'] is not None or (e_down and not self.nb_alive()):
             return
         en = self.enemy_ref
+        if self.nb_alive():
+            self.nb_flee()
+        if e_down:                                        # el barco ya está hundido: solo se huye de la batería
+            if en in self.enemies:
+                self.enemies.remove(en)
+            self.add_score(500 + 100 * self.wave)
+            self.ammo = min(40, self.ammo + 5)
+            self.hull -= 8
+            self.toast('Huiste de la batería: -8 casco', (255, 140, 90))
+            if self.hull <= 0:
+                return self.game_over('Tu buque se hundió al huir')
+            return self.go('map')
         en['hp'] = c['e']['hp']
         if en.get('nest'):
             en['cool'] = 14.0
@@ -123,6 +137,7 @@ class NavalMixin:
         self.na_update(dt)
         self.nf_update(dt)
         self.ng_update(dt)
+        self.nb_update(dt)
         c['t'] += dt
         keys = pygame.key.get_pressed()
         alive_p = p['sink'] is None
@@ -213,7 +228,7 @@ class NavalMixin:
                     self.enemy_fire(0)
                     e['burst'] += [[0.35 * k_, k_] for k_ in range(1, len(c['mounts']))]
                 else:
-                    e['cool'] = random.uniform(2.5, 3.5) * max(0.8, 1 - 0.035 * self.wave)
+                    e['cool'] = random.uniform(2.5, 3.5) * max(0.8, 1 - 0.035 * self.wave) * self.nb_slow()
                     self.enemy_fire()
                     if self.wave >= 4 and random.random() < 0.5:
                         e['burst'].append([0.35, None])
@@ -273,7 +288,7 @@ class NavalMixin:
             c['slow'], c['white'] = 1.3, 0.6
             self.call_out('¡NOS HUNDEN!', (255, 90, 80), 'pkill', 5)
         self.fx.update(dt)
-        if e['sink'] is not None and e['sink'] > (4.0 if c['is_boss'] else 2.4):
+        if e['sink'] is not None and e['sink'] > (4.0 if c['is_boss'] else 2.4) and not self.nb_busy():
             boss_kill = c.get('is_boss', False)
             if c['nest']:
                 nst = self.enemy_ref
@@ -287,7 +302,10 @@ class NavalMixin:
                 return self.go('map')
             self.add_score(500 + 100 * self.wave)
             self.ammo = min(40, self.ammo + (15 if boss_kill else 5))
+            bonus = self.nb_bonus()
             self.toast('¡%s hundido! +%d  (+%d munición)' % ('Buque jefe' if boss_kill else ('Submarino' if c['sub'] else 'Destructor'), 500 + 100 * self.wave, 15 if boss_kill else 5), (120, 255, 160))
+            if bonus:
+                self.toast('¡DOBLE VICTORIA! +%d' % bonus, (255, 230, 130))
             if self.enemy_ref in self.enemies:
                 self.enemies.remove(self.enemy_ref)
             if self.hull <= 0:
@@ -485,7 +503,7 @@ class NavalMixin:
                 self.audio.play('splash', .5)
                 if s['own'] == 'e':
                     self.shake = max(self.shake, 3)
-            if self.nf_shell_hit(s):
+            if self.nf_shell_hit(s) or self.nb_shell_hit(s):
                 c['shells'].remove(s)
                 continue
             if s['own'] == 'p' and (c['jets'] or c['mines']):
@@ -627,6 +645,7 @@ class NavalMixin:
         self.na_draw(cv)
         self.nf_draw(cv)
         self.ng_draw(cv)
+        self.nb_draw(cv)
         # misiles (vuelan en línea recta)
         for s in c['shells']:
             col = (255, 240, 160) if s['own'] == 'p' else (255, 150, 120)
@@ -664,7 +683,8 @@ class NavalMixin:
         rl = 1 - clamp(p['cool'] / 0.9, 0, 1)
         pygame.draw.rect(cv, (8, 12, 24), (W // 2 - 60, H - 40, 120, 10))
         pygame.draw.rect(cv, (120, 255, 160) if rl >= 1 else (255, 200, 80), (W // 2 - 59, H - 39, int(118 * rl), 8))
-        self.text(cv, 'Clic/ESPACIO: misil  |  la ametralladora (MG) dispara sola  |  E huir', self.f_s, (200, 220, 255), W // 2, H - 64, 'c')
+        self.text(cv, 'Clic/ESPACIO: misil  |  la ametralladora (MG) dispara sola  |  E huir', self.f_s, (200, 220, 255), W // 2, H - 84, 'c')
         self.nv_draw_calls(cv)
         self.na_hud(cv)
         self.ng_hud(cv)
+        self.nb_hud(cv)

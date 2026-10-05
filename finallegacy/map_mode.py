@@ -191,7 +191,7 @@ class MapMixin:
                         self.toast('Escudo digital: presioná H para hackearlo', (255, 120, 220))
                 continue
             if d < 78 and en['cool'] <= 0:
-                return self.start_combat(en)
+                return self.start_combat(en, self.nb_find_nest())
         self.radar_t = max(0.0, self.radar_t - dt)
         self.city_regen(dt)
         self.radar_tick(dt)
@@ -220,6 +220,9 @@ class MapMixin:
                     self.audio.play('ping')
                     self.toast('¡Batería costera enemiga!', (255, 120, 90))
             if d < 330 and nst['cool'] <= 0:
+                ship = self.nb_find_ship()
+                if ship is not None:
+                    return self.start_combat(ship, nst)
                 return self.start_combat(nst)
         # cajas
         self.crate_t -= dt
