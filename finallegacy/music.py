@@ -50,6 +50,8 @@ SPECS = {
                     bass='gallop', pad=1, arp='16th', lead='active', leadw='saw'),
     'extract': dict(bpm=164, root=47, modes=('harmonic', 'phrygian', 'harmonic'), prog=([0, 6, 5, 4], [0, 1, 0, 6]), drums='break',
                     bass='eighth', pad=0, arp='16th', lead='active', leadw='square'),
+    'radio': dict(bpm=112, root=44, modes=('phrygian', 'aeolian', 'harmonic'), prog=([0, 0, 1, 0], [0, 5, 1, 4]), drums='soft', bass='pulse',
+                  pad=1, arp='16th', lead='sparse', leadw='square'),
     'hack': dict(bpm=124, root=45, modes=('aeolian', 'phrygian', 'aeolian'), prog=([0, 0, 5, 4], [0, 3, 0, 6]), drums='four',
                  bass='eighth', pad=0, arp='16th', lead='sparse', leadw='square'),
 }

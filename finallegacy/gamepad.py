@@ -13,7 +13,7 @@ except Exception:                                   # pygame sin soporte de mand
     sdl_ctl = None
 
 DEAD = 0.22
-PLAY_STATES = ('map', 'defense', 'combat', 'ground', 'aerial', 'hack', 'tank', 'port')
+PLAY_STATES = ('map', 'defense', 'combat', 'ground', 'aerial', 'hack', 'radio', 'tank', 'port')
 
 
 class _Keys:
@@ -113,8 +113,11 @@ class GamepadMixin:
             v |= {pygame.K_d, pygame.K_RIGHT}
         if cur['X']:
             v.add(pygame.K_r)
-        if st == 'port' and cur['A'] and False:
-            v.add(pygame.K_SPACE)
+        if st == 'radio':                            # fase de la señal en el minijuego de comunicaciones
+            if cur['LB']:
+                v.add(pygame.K_q)
+            if cur['RB']:
+                v.add(pygame.K_e)
         self.pad_virt = v
         self.pad_btn = (cur['A'] or rt, cur['B'] or lt or cur['RB'])
         # mira con la palanca derecha
@@ -148,6 +151,11 @@ class GamepadMixin:
             return
         if st == 'helisel':
             for b, k in (('X', pygame.K_1), ('A', pygame.K_2), ('Y', pygame.K_3), ('RB', pygame.K_4), ('B', pygame.K_ESCAPE)):
+                if b in pressed:
+                    key(k)
+            return
+        if st == 'radio':
+            for b, k in (('A', pygame.K_SPACE), ('B', pygame.K_TAB)):
                 if b in pressed:
                     key(k)
             return

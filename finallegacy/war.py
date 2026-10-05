@@ -38,7 +38,8 @@ class WarMixin:
 
     def war_relocate(self, n):
         """Mueve n islotes a otro lugar (solo si su vecindario está libre para no pisar a otra isla)."""
-        cand = [k for k in range(len(DECOR_ISLANDS)) if DECOR_ISLANDS[k] != HELIPAD]
+        from .radio_mode import RADAR_IDX
+        cand = [k for k in range(len(DECOR_ISLANDS)) if DECOR_ISLANDS[k] != HELIPAD and k not in RADAR_IDX]     # los radares no se mudan
         random.shuffle(cand)
         done = 0
         for k in cand:

@@ -193,6 +193,7 @@ class MapMixin:
                 return self.start_combat(en)
         self.radar_t = max(0.0, self.radar_t - dt)
         self.city_regen(dt)
+        self.radar_tick(dt)
         if self.convoy is not None:
             self.upd_convoy(dt)
         else:
@@ -620,6 +621,7 @@ class MapMixin:
         for c in self.cities:
             if not c['dead']:
                 self.city_refill(c, 40)
+        self.radars_reset()                           # los radares enemigos vuelven a operar
         self.war_advance()
         self.spawn_nests()
         self.convoy_t = min(self.convoy_t, 35.0)       # cada oleada nueva trae un convoy pronto
@@ -728,6 +730,7 @@ class MapMixin:
             w_, h_ = mc['spr'].get_size()
             if -w_ < mx_ - cx < W and -h_ < my_ - cy < H:
                 cv.blit(mc['spr'], (mx_ - cx, my_ - cy))
+        self.radar_draw_map(cv, cx, cy)
         for i in ANTENNA_ISLANDS:
             ix, iy, ir, _sd = EXTRA_ISLANDS[i]
             sx, sy = ix - cx, iy - cy
@@ -828,6 +831,8 @@ class MapMixin:
         elif self.near_helipad(260) and self.heli_sorties > 0:
             self.text(cv, 'HELIPUERTO: presioná B para despegar en el BLACKHAWK (misiones: %d)' % self.heli_sorties,
                       self.f_m, (130, 255, 190), W // 2, H - 148, 'c')
+        elif self.nearest_radar() is not None:
+            self.text(cv, 'RADAR ENEMIGO: presioná H para hackearlo  |  1) nodos  2) señal de radio', self.f_m, (255, 190, 150), W // 2, H - 148, 'c')
         elif self.nearest_port():
             self.text(cv, 'PUERTO ENEMIGO: presioná T para asaltarlo  |  Intentos: %d/2' % self.port_tries,
                       self.f_m, (255, 150, 120), W // 2, H - 148, 'c')
@@ -869,6 +874,7 @@ class MapMixin:
                 pygame.draw.polygon(cv, (120, 240, 255), [(mx_, my_ - 5), (mx_ + 4, my_ + 3), (mx_ - 4, my_ + 3)])
             else:
                 pygame.draw.circle(cv, (255, 220, 90), (mx_, my_), 5, 1)
+        self.radar_draw_mini(cv, x0, y0, sc)
         pygame.draw.rect(cv, (130, 255, 190), (int(x0 + HELIPAD[0] * sc) - 3, int(y0 + HELIPAD[1] * sc) - 3, 6, 6), 1)
         pygame.draw.rect(cv, (140, 140, 150) if self.port_done else (255, 90, 70), (int(x0 + ENEMY_PORT[0] * sc) - 4, int(y0 + ENEMY_PORT[1] * sc) - 4, 8, 8), 2)
         for nst in self.nests:
