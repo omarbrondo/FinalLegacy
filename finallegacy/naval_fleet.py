@@ -24,9 +24,9 @@ class NavalFleetMixin:
                                            cd=random.uniform(2, 4), orb=0.0))
                 self.call_out('¡CAÑONES DE FLANCO!', (255, 170, 110), 'flank', 9)
         elif c['is_boss']:
-            n_boats = 2 if w >= 3 else (1 if w >= 2 else 0)
+            n_boats = 2 if w >= 5 else (1 if w >= 3 else 0)
         elif not c['sub']:
-            n_boats = 0 if w < 2 else min(3, 1 + (w >= 4) + (w >= 6))
+            n_boats = 0 if w < 3 else (1 + (w >= 5))
         for i in range(n_boats):
             c['boats'].append(dict(kind='boat', x=random.choice((90, W - 90)), y=random.uniform(60, 220), h=180.0, v=60.0, hp=6.0 + 1.5 * w,
                                    max=6.0 + 1.5 * w, cd=random.uniform(1.5, 3.5), orb=random.uniform(0, 360)))
@@ -63,8 +63,8 @@ class NavalFleetMixin:
                     bx, by = vec(b['h'], -26)
                     self.fx.add('foam', b['x'] + bx, b['y'] + by, life=1.0, r0=4, r1=12, col=(230, 245, 255))
             if b['cd'] <= 0 and p['sink'] is None:
-                b['cd'] = random.uniform(2.6, 3.8) * max(0.6, 1 - 0.05 * w)
-                spd = 235 + 6 * w
+                b['cd'] = random.uniform(3.0, 4.2) * max(0.8, 1 - 0.03 * w)
+                spd = 225 + 4 * w
                 T = dist(p['x'], p['y'], b['x'], b['y']) / spd
                 vx, vy = vec(p['h'], p['v'])
                 err = 7.0 + (14 if self.na_smoked() else 0)
@@ -103,10 +103,10 @@ class NavalFleetMixin:
         if w >= 4 and not c['is_boss'] and not c['nest'] and not c['sub'] and not over and p['sink'] is None:
             c['air_t'] -= dt
             if c['air_t'] <= 0:
-                c['air_t'] = random.uniform(13, 19)
+                c['air_t'] = random.uniform(18, 26)
                 side = random.choice((-1, 1))
                 y0 = clamp(p['y'] + random.uniform(-160, 60), 120, H - 140)
-                for i in range(3):
+                for i in range(2):
                     c['planes'].append(dict(x=-50 - i * 90 if side > 0 else W + 50 + i * 90, y=y0 + (i - 1) * 70, vx=300.0 * side, hp=1.0, bt=0.0))
                 self.call_out('¡ATAQUE AÉREO!', (255, 190, 110), 'air', 6)
                 self.audio.play('alarm', .4)
@@ -127,15 +127,15 @@ class NavalFleetMixin:
                 self.fx.explode(bm['x'], bm['y'], 0.9, True)
                 self.fx.splash(bm['x'], bm['y'], 1.0)
                 self.audio.play('boom_s', .45)
-                if p['sink'] is None and dist(bm['x'], bm['y'], p['x'], p['y']) < 46:
-                    self.hull -= 9
+                if p['sink'] is None and dist(bm['x'], bm['y'], p['x'], p['y']) < 42:
+                    self.hull -= 7
                     self.shake = max(self.shake, 9)
-                    self.pop('-9 CASCO', p['x'], p['y'] - 24, (255, 110, 100))
+                    self.pop('-7 CASCO', p['x'], p['y'] - 24, (255, 110, 100))
         # --- fortaleza costera: andanadas con aviso rojo
         if c['nest'] and w >= 3 and not over and p['sink'] is None:
             c['bar_t'] -= dt
             if c['bar_t'] <= 0:
-                c['bar_t'] = max(5.0, 10.0 - 0.7 * w)
+                c['bar_t'] = max(7.0, 11.0 - 0.5 * w)
                 vx, vy = vec(p['h'], p['v'] * 1.4)
                 for d in (-90, 0, 90):
                     ox, oy = vec(p['h'] + 90, d)
@@ -151,9 +151,9 @@ class NavalFleetMixin:
                 self.audio.play('boom_s', .6)
                 self.shake = max(self.shake, 7)
                 if p['sink'] is None and dist(br['x'], br['y'], p['x'], p['y']) < 62:
-                    self.hull -= 14
+                    self.hull -= 11
                     self.shake = max(self.shake, 11)
-                    self.pop('-14 CASCO', p['x'], p['y'] - 24, (255, 110, 100))
+                    self.pop('-11 CASCO', p['x'], p['y'] - 24, (255, 110, 100))
         # --- apoyo aéreo aliado: cuando el contador llega a cero, un caza pasa lanzando misiles al enemigo (puede ser derribado)
         ap = c['aplane']
         if ap is None:

@@ -12,7 +12,7 @@ class PortMixin:
     # ---------------------------------------------------------- ASALTO AL PUERTO ENEMIGO (vista lateral, estilo Metal Slug)
     PT_GR = 640          # y del suelo del muelle
 
-    PT_LEN = 6400        # largo del nivel
+    PT_LEN = 9600        # largo del nivel (más largo: 8 pantallas de combate y el jefe)
 
     def nearest_port(self):
         x, y, r, _s = ENEMY_PORT
@@ -43,6 +43,10 @@ class PortMixin:
         grp(2350, [('gren', 'R'), ('rifle', 'R'), ('rifle', 'S'), ('rifle', 'S'), ('knife', 'L')] + [('shield', 'R')] * (1 + ex // 2))
         grp(3250, [('knife', 'R'), ('flame', 'R'), ('gren', 'R'), ('rifle', 'L'), ('sniper', 'P')] + [('flame', 'R')] * (ex // 2) + [('rifle', 'R')] * ex, True)
         grp(4200, [('shield', 'R'), ('rifle', 'S'), ('rifle', 'S'), ('gren', 'R'), ('gren', 'L'), ('sniper', 'P'), ('flame', 'R')] + [('knife', 'L')] * ex, True)
+        grp(5100, [('rifle', 'R')] * 3 + [('knife', 'R'), ('knife', 'L'), ('gren', 'R'), ('sniper', 'P'), ('rifle', 'S'), ('rifle', 'S')] + [('rifle', 'R')] * ex)
+        grp(5900, [('shield', 'R'), ('shield', 'R'), ('flame', 'R'), ('gren', 'L'), ('gren', 'R'), ('sniper', 'P'), ('rifle', 'S'), ('rifle', 'S')] + [('flame', 'R')] * (ex // 2) + [('knife', 'L')] * ex, True)
+        grp(6800, [('rifle', 'R'), ('rifle', 'L'), ('rifle', 'R'), ('rifle', 'L'), ('knife', 'R'), ('knife', 'R'), ('sniper', 'P'), ('rifle', 'S'), ('rifle', 'S'), ('rifle', 'S')] + [('shield', 'R')] * (1 + ex // 2))
+        grp(7600, [('flame', 'R'), ('flame', 'R'), ('shield', 'R'), ('shield', 'R'), ('gren', 'R'), ('gren', 'L'), ('sniper', 'P'), ('sniper', 'P'), ('rifle', 'S'), ('rifle', 'S'), ('knife', 'L')] + [('knife', 'R')] * ex, True)
         grp(L - 1500, [('tank', 'R')], True)
         self.pt = dict(
             plats=plats, groups=groups, cam=0.0, lock=None, t=0.0, phase='play', pt=0.0, fail=False, kills=0,
@@ -54,18 +58,18 @@ class PortMixin:
         dec = self.pt['decor']
         for lx in range(300, L, 640):
             dec.append(dict(kind='lamp', x=float(lx + drnd.randint(-60, 60))))
-        for _ in range(46):
+        for _ in range(68):
             kind = drnd.choice(('crates', 'bollard', 'sandbags', 'fence', 'fence'))
             dec.append(dict(kind=kind, x=float(drnd.randint(200, L - 200))))
         dec.sort(key=lambda d: {'fence': 0, 'lamp': 1}.get(d['kind'], 2))
         self.pt['puddles'] = [(float(drnd.randint(100, L - 100)), drnd.randint(70, 140)) for _ in range(26)]
-        self.pt['barrels'] = [dict(x=float(bx), y=float(GR), hp=2, fuse=-1.0) for bx in sorted(drnd.sample(range(900, L - 1700, 60), 10))]
-        for bx_, kind_ in zip((1250, 2900, 4500), ('hmg', 'gren', 'med')):
+        self.pt['barrels'] = [dict(x=float(bx), y=float(GR), hp=2, fuse=-1.0) for bx in sorted(drnd.sample(range(900, L - 1700, 60), 16))]
+        for bx_, kind_ in zip((1250, 2900, 4500, 6200, 7400), ('hmg', 'gren', 'med', 'hmg', 'med')):
             self.pt['pows'].append(dict(x=float(bx_), state='tied', t=0.0, item=kind_))
         self.pt_art_init()
-        for xi, kind in ((1000, 'med'), (1900, 'gren'), (2750, 'hmg'), (3700, 'med'), (4600, 'gren'), (5100, 'med')):
+        for xi, kind in ((1000, 'med'), (1900, 'gren'), (2750, 'hmg'), (3700, 'med'), (4600, 'gren'), (5100, 'med'), (6300, 'med'), (7100, 'gren'), (7900, 'med')):
             self.pt['items'].append(dict(x=float(xi), y=float(GR - 30), kind=kind, t=0.0))
-        for xt in (2650, 3900, 4800):
+        for xt in (2650, 3900, 4800, 5700, 6500, 7300):
             self.pt['enemies'].append(self.pt_enemy('turret', xt, GR, -1))
         self.pt_epic_setup()
         self.fx = Particles()
@@ -119,18 +123,14 @@ class PortMixin:
 
     def pt_jump(self):
         p = self.pt['p']
-        if self.pt_try_mount():
-            return
         if p['ground'] and not p['dead'] and self.pt['phase'] == 'play':
-            p['vy'] = -560.0 if p['veh'] else -760.0
+            p['vy'] = -760.0
             p['ground'] = False
             self.audio.play('blip', .5)
 
     def pt_throw(self):
         pt = self.pt
         p = pt['p']
-        if p['veh']:
-            return self.pt_veh_cannon()
         if p['dead'] or p['gren'] <= 0 or p['gcd'] > 0 or pt['phase'] != 'play':
             return
         p['gren'] -= 1
@@ -147,8 +147,6 @@ class PortMixin:
         p = pt['p']
         if p['dead'] or p['inv'] > 0 or pt['phase'] != 'play':
             return
-        if p['veh']:
-            return self.pt_veh_hit(dmg)
         p['hp'] -= dmg
         pt['taken'] += dmg
         p['inv'] = 0.55
@@ -574,8 +572,8 @@ class PortMixin:
         cam = pt['cam']
         if alive and pt['phase'] == 'play':
             mv = (1 if (keys[pygame.K_d] or keys[pygame.K_RIGHT]) else 0) - (1 if (keys[pygame.K_a] or keys[pygame.K_LEFT]) else 0)
-            p['crouch'] = bool(keys[pygame.K_s] or keys[pygame.K_DOWN]) and p['ground'] and not p['veh']
-            sp = 0.0 if p['crouch'] else (190.0 if p['veh'] else 235.0)
+            p['crouch'] = bool(keys[pygame.K_s] or keys[pygame.K_DOWN]) and p['ground']
+            sp = 0.0 if p['crouch'] else 235.0
             p['vx'] = mv * sp
             p['x'] += p['vx'] * dt
             if mv:
@@ -697,8 +695,6 @@ class PortMixin:
                 pt['bul'].remove(b)
         # balas enemigas
         pbox = (p['x'] - 14, p['y'] - (46 if p['crouch'] else 70), 28, 46 if p['crouch'] else 70)
-        if p['veh']:
-            pbox = (p['x'] - 72, p['y'] - 100, 144, 100)
         for b in pt['ebul'][:]:
             b['x'] += b['vx'] * dt
             b['y'] += b['vy'] * dt
@@ -799,7 +795,7 @@ class PortMixin:
         if pt['phase'] == 'play' and boss_dead:
             pt['phase'], pt['pt'] = 'result', 0.0
             hpf = p['hp'] / PLAYER_HP
-            pts_ = (hpf >= 0.6) + (pt['t'] < 150) + (pt['pow_n'] >= 3) + (pt['taken'] < 80)
+            pts_ = (hpf >= 0.6) + (pt['t'] < 240) + (pt['pow_n'] >= 4) + (pt['taken'] < 100)
             rank = 'S' if pts_ >= 4 else ('A' if pts_ == 3 else ('B' if pts_ == 2 else 'C'))
             pt['rank'] = rank
             bonus = 1500 + 300 * self.wave + {'S': 1500, 'A': 800, 'B': 300, 'C': 0}[rank]
@@ -831,7 +827,7 @@ class PortMixin:
         p = pt['p']
         if p['cd'] > 0 or p['dead']:
             return
-        if p['veh'] or p['wpn']:
+        if p['wpn']:
             return self.pt_shoot_special()
         hmg = p['hmg'] > 0
         p['cd'] = (0.075 if hmg else 0.115) * self.up_reload()
@@ -1099,13 +1095,6 @@ class PortMixin:
                 for k in range(4):
                     ph = (t * 1.6 + k * 0.27) % 1
                     glow(cv, sx - 60 + k * 44, w_['y'] - 110 - ph * 40, 26 - 10 * ph, (255, 150, 60), 1 - ph)
-            elif w_['kind'] == 'sv':
-                img = self.pt_veh_image(1, 0, False).copy()
-                img.fill((60, 56, 54, 255), special_flags=pygame.BLEND_RGBA_MULT)
-                cv.blit(img, (sx - img.get_width() // 2, w_['y'] - 112))
-                for k in range(3):
-                    ph = (t * 1.6 + k * 0.33) % 1
-                    glow(cv, sx - 30 + k * 30, w_['y'] - 60 - ph * 40, 20 - 8 * ph, (255, 150, 60), 1 - ph)
             else:
                 spr = self.pt_bk['base'].copy()
                 spr.fill((60, 56, 54, 255), special_flags=pygame.BLEND_RGBA_MULT)
@@ -1260,7 +1249,7 @@ class PortMixin:
                 pygame.draw.rect(cv, (8, 12, 24), (sx - 15, fy - 84, 30, 5))
                 pygame.draw.rect(cv, (240, 80, 70), (sx - 14, fy - 83, int(28 * e['hp'] / e['max']), 3))
         # jugador
-        if not p['dead'] and not p['veh']:
+        if not p['dead']:
             if not (p['inv'] > 0 and int(t * 20) % 2 == 0):
                 pv_ = p.get('pv') or (p['x'], p['y'] - (50 if p['crouch'] else 67))
                 aim = (self.aim[0] + cam - pv_[0], self.aim[1] - pv_[1])
@@ -1368,7 +1357,7 @@ class PortMixin:
             k_ = clamp((pt['pt'] - 0.8) / 0.5, 0, 1)
             self.panel(cv, (W // 2 - 220, 230, 440, 250), int(215 * k_))
             self.text(cv, 'MISIÓN CUMPLIDA', self.f_l, (120, 255, 160), W // 2, 240, 'c', alpha=int(255 * k_))
-            rows = [('Bajas', '%d' % pt['kills']), ('Prisioneros', '%d / 3' % pt['pow_n']), ('Tiempo', '%d s' % pt['t']),
+            rows = [('Bajas', '%d' % pt['kills']), ('Prisioneros', '%d / 5' % pt['pow_n']), ('Tiempo', '%d s' % pt['t']),
                     ('Daño recibido', '%d' % pt['taken']), ('Bonus', '+%d' % pt.get('bonus', 0))]
             for i, (a_, b_) in enumerate(rows):
                 self.text(cv, a_, self.f_m, (200, 215, 235), W // 2 - 190, 292 + i * 30, alpha=int(255 * k_))

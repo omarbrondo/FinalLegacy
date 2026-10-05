@@ -154,11 +154,11 @@ class NavalMixin:
             e['cool'] -= dt
             e['h'] = 180.0
             if e['cool'] <= 0 and p['sink'] is None:
-                e['cool'] = random.uniform(2.2, 3.0) * max(0.6, 1 - 0.06 * self.wave)
+                e['cool'] = random.uniform(2.6, 3.4) * max(0.8, 1 - 0.04 * self.wave)
                 self.enemy_fire()
-                if self.wave >= 2:
+                if self.wave >= 3 and random.random() < 0.6:
                     e['burst'].append([0.45, None])
-                if self.wave >= 5:
+                if self.wave >= 6 and random.random() < 0.5:
                     e['burst'].append([0.9, None])
             e['burst'] = [[t_ - dt, m_] for t_, m_ in e['burst']]
             due = [b_ for b_ in e['burst'] if b_[0] <= 0]
@@ -185,7 +185,7 @@ class NavalMixin:
                 want = bearing(W / 2 - e['x'], H / 2 - e['y'])
             turn_rate = 17 if c['is_boss'] else 48
             e['h'] = (e['h'] + clamp(angle_diff(e['h'], want), -turn_rate * dt, turn_rate * dt)) % 360
-            e['v'] += (((34 + 2 * self.wave) if c['is_boss'] else ((46 + 3 * self.wave) if c['sub'] else (62 + 5 * self.wave))) - e['v']) * min(1, dt * (0.8 if c['is_boss'] else 1.5))
+            e['v'] += (((32 + 2 * self.wave) if c['is_boss'] else ((44 + 2 * self.wave) if c['sub'] else (58 + 3 * self.wave))) - e['v']) * min(1, dt * (0.8 if c['is_boss'] else 1.5))
             ex, ey = vec(e['h'], e['v'] * dt)
             e['x'] += ex
             e['y'] += ey
@@ -203,17 +203,17 @@ class NavalMixin:
                         self.fx.splash(e['x'], e['y'], 1.0)
                         self.audio.play('ping', .6)
                     else:
-                        e['ut'] = random.uniform(4.0, 5.5) * max(0.7, 1 - 0.05 * self.wave)
+                        e['ut'] = random.uniform(4.5, 6.0) * max(0.85, 1 - 0.03 * self.wave)
             elif e['cool'] <= 0 and p['sink'] is None:
                 if is_boss:
                     slow = 1.0 if c['special'] in (None, 'armor') else 1.35
-                    e['cool'] = random.uniform(3.4, 4.4) * max(0.65, 1 - 0.05 * self.wave) * slow
+                    e['cool'] = random.uniform(3.6, 4.6) * max(0.82, 1 - 0.03 * self.wave) * slow
                     self.enemy_fire(0)
                     e['burst'] += [[0.35 * k_, k_] for k_ in range(1, len(c['mounts']))]
                 else:
-                    e['cool'] = random.uniform(2.1, 3.0) * max(0.55, 1 - 0.07 * self.wave)
+                    e['cool'] = random.uniform(2.5, 3.5) * max(0.8, 1 - 0.035 * self.wave)
                     self.enemy_fire()
-                    if self.wave >= 3:
+                    if self.wave >= 4 and random.random() < 0.5:
                         e['burst'].append([0.35, None])
             e['burst'] = [[t_ - dt, m_] for t_, m_ in e['burst']]
             due = [b_ for b_ in e['burst'] if b_[0] <= 0]
@@ -298,12 +298,12 @@ class NavalMixin:
         """Abanico de 3 torpedos lentos que apuntan a donde va a estar el jugador."""
         c = self.c
         p, e = c['p'], c['e']
-        spd = 175 + 6 * self.wave
+        spd = 165 + 4 * self.wave
         T = dist(p['x'], p['y'], e['x'], e['y']) / spd
         vx, vy = vec(p['h'], p['v'])
         base = bearing(p['x'] + vx * T - e['x'], p['y'] + vy * T - e['y'])
         for d in (-8, 0, 8):
-            self.launch_missile(e, base + d + random.uniform(-2, 2), spd, 'e', 0.0, (20, 12))
+            self.launch_missile(e, base + d + random.uniform(-2, 2), spd, 'e', 0.0, (16, 9))
         self.audio.play('launch', .5)
 
     # ---- habilidades especiales de cada jefe
@@ -317,8 +317,8 @@ class NavalMixin:
         use_laser = sp == 'laser' or (sp == 'all' and ratio < 0.33)
         if use_jets:
             c['jt'] -= dt
-            if c['jt'] <= 0 and len(c['jets']) < 6:
-                c['jt'] = max(3.2, 5.6 - 0.25 * self.wave)
+            if c['jt'] <= 0 and len(c['jets']) < 4:
+                c['jt'] = max(4.6, 6.4 - 0.2 * self.wave)
                 for sd in (-1, 1):
                     jx, jy = vec(e['h'] + 90, sd * 22)
                     c['jets'].append(dict(x=e['x'] + jx, y=e['y'] + jy, h=e['h'] + sd * 40, t=0.0))
@@ -336,17 +336,17 @@ class NavalMixin:
                 self.fx.add('smoke', j['x'] + bx, j['y'] + by, 0, 0, 0.5, 2, 6, (210, 210, 215))
             if dist(j['x'], j['y'], p['x'], p['y']) < 24:
                 c['jets'].remove(j)
-                self.hull -= 9
+                self.hull -= 7
                 self.shake = max(self.shake, 10)
                 self.fx.explode(j['x'], j['y'], 0.8)
                 self.audio.play('hit', .7)
-                self.pop('-9 CASCO', j['x'], j['y'] - 20, (255, 110, 100))
+                self.pop('-7 CASCO', j['x'], j['y'] - 20, (255, 110, 100))
             elif j['t'] > 9:
                 c['jets'].remove(j)
         if use_mines:
             c['mt'] -= dt
-            if c['mt'] <= 0 and len(c['mines']) < 9:
-                c['mt'] = max(2.4, 3.6 - 0.15 * self.wave)
+            if c['mt'] <= 0 and len(c['mines']) < 6:
+                c['mt'] = max(3.4, 4.6 - 0.12 * self.wave)
                 bx, by = vec(e['h'] + 180, 100)
                 ox, oy = vec(e['h'] + 90, random.uniform(-34, 34))
                 c['mines'].append(dict(x=e['x'] + bx + ox, y=e['y'] + by + oy, t=0.0))
@@ -354,7 +354,7 @@ class NavalMixin:
             m['t'] += dt
             if m['t'] > 0.9 and dist(m['x'], m['y'], p['x'], p['y']) < 26:
                 c['mines'].remove(m)
-                self.hull -= 16
+                self.hull -= 12
                 self.shake = max(self.shake, 12)
                 self.fx.explode(m['x'], m['y'], 1.0)
                 self.audio.play('boom_s', .6)
@@ -383,12 +383,12 @@ class NavalMixin:
                 perp = abs(tx_ * uy - ty_ * ux)
                 if not ls['hit'] and along > 0 and perp < 26:
                     ls['hit'] = True
-                    self.hull -= 22
+                    self.hull -= 16
                     self.shake = max(self.shake, 14)
-                    self.pop('-22 CASCO', p['x'], p['y'] - 24, (255, 110, 100))
+                    self.pop('-16 CASCO', p['x'], p['y'] - 24, (255, 110, 100))
                     self.fx.explode(p['x'], p['y'], 0.9)
                 if ls['t'] <= 0:
-                    ls['state'], ls['t'] = 'idle', max(3.6, 6.2 - 0.3 * self.wave)
+                    ls['state'], ls['t'] = 'idle', max(4.6, 6.8 - 0.25 * self.wave)
 
     def draw_boss_extras(self, cv):
         c = self.c
@@ -438,17 +438,17 @@ class NavalMixin:
         c = self.c
         p, e = c['p'], c['e']
         boss = c['is_boss']
-        spd = (232 + 7 * self.wave) if boss else (250 + 8 * self.wave)
+        spd = (225 + 5 * self.wave) if boss else (240 + 5 * self.wave)
         off = c['mounts'][mount] if (boss and mount is not None and mount < len(c['mounts'])) else 0.0
         ox, oy = vec(e['h'], off)
         T = dist(p['x'], p['y'], e['x'] + ox, e['y'] + oy) / spd
         vx, vy = vec(p['h'], p['v'])
-        err = max(2.0, 11 - 1.2 * self.wave) * (0.5 if self.nv_lit() else 1.0)
+        err = max(4.0, 12 - 1.0 * self.wave) * (0.5 if self.nv_lit() else 1.0)
         if self.na_smoked():                          # dentro de la cortina de humo no te ven bien
             err = err * 2.0 + 14
             T = 0.0
         ang = bearing(p['x'] + vx * T - e['x'] - ox, p['y'] + vy * T - e['y'] - oy) + random.uniform(-err, err)
-        self.launch_missile(e, ang, spd, 'e', off, (18, 10) if boss else ((15, 9) if c['nest'] else (22, 12)))
+        self.launch_missile(e, ang, spd, 'e', off, (13, 7) if boss else ((11, 6) if c['nest'] else (14, 8)))
         self.audio.play('launch', .5)
         self.fx.add('glow', e['x'] + ox, e['y'] + oy, life=.2, r0=22, r1=46, col=(255, 160, 120))
         c['flashes'].append([e['x'] + ox, e['y'] + oy, 120, (255, 200, 140), 1.0])

@@ -69,8 +69,6 @@ class SaveMixin:
             elif st == 'port':
                 p = self.pt['p']
                 p['hp'] = PLAYER_HP
-                if p.get('veh'):
-                    p['veh']['hp'] = p['veh']['max']
             elif st == 'heli':
                 self.hm['p']['hp'] = 100.0
         except (AttributeError, KeyError, TypeError):

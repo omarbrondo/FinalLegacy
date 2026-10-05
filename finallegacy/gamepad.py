@@ -13,6 +13,29 @@ except Exception:                                   # pygame sin soporte de mand
     sdl_ctl = None
 
 DEAD = 0.22
+
+# constantes SDL del mando: pygame-ce las expone en el módulo pygame y pygame clásico en pygame._sdl2.controller; si faltan, valores de SDL
+_FALLBACK = dict(AXIS_LEFTX=0, AXIS_LEFTY=1, AXIS_RIGHTX=2, AXIS_RIGHTY=3, AXIS_TRIGGERLEFT=4, AXIS_TRIGGERRIGHT=5, BUTTON_A=0, BUTTON_B=1, BUTTON_X=2,
+                 BUTTON_Y=3, BUTTON_BACK=4, BUTTON_START=6, BUTTON_LEFTSHOULDER=9, BUTTON_RIGHTSHOULDER=10, BUTTON_DPAD_UP=11, BUTTON_DPAD_DOWN=12,
+                 BUTTON_DPAD_LEFT=13, BUTTON_DPAD_RIGHT=14)
+
+
+class _Const:
+    pass
+
+
+def _make_consts():
+    c = _Const()
+    for k, fb in _FALLBACK.items():
+        name = 'CONTROLLER_' + k
+        v = getattr(sdl_ctl, name, None) if sdl_ctl is not None else None
+        if v is None:
+            v = getattr(pygame, name, fb)
+        setattr(c, name, v)
+    return c
+
+
+_CTL = _make_consts()
 PLAY_STATES = ('saves', 'map', 'defense', 'combat', 'ground', 'aerial', 'hack', 'radio', 'tank', 'port')
 
 
@@ -73,9 +96,20 @@ class GamepadMixin:
         return x * k, y * k
 
     def pad_poll(self, dt):
-        """Llamar una vez por cuadro: genera eventos de teclado/mouse a partir del mando."""
+        """Llamar una vez por cuadro: genera eventos de teclado/mouse a partir del mando (si falla, el mando se desactiva y el juego sigue)."""
         if sdl_ctl is None:
             return
+        try:
+            self._pad_poll(dt)
+        except Exception as ex:
+            self.pad = None
+            self.pad_virt.clear()
+            self.pad_btn = (False, False)
+            if not getattr(self, '_pad_err', False):
+                self._pad_err = True
+                print('Mando desactivado por un error:', ex)
+
+    def _pad_poll(self, dt):
         self.pad_scan += dt
         if self.pad_scan > 1.0:
             self.pad_scan = 0.0
@@ -85,7 +119,7 @@ class GamepadMixin:
             self.pad_virt.clear()
             self.pad_btn = (False, False)
             return
-        C = sdl_ctl
+        C = _CTL
         ax = lambda a: pad.get_axis(a) / 32767.0
         bt = lambda b: bool(pad.get_button(b))
         lx, ly = self._stick(ax(C.CONTROLLER_AXIS_LEFTX), ax(C.CONTROLLER_AXIS_LEFTY))
