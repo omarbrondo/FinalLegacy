@@ -457,6 +457,7 @@ class CoreMixin:
         self.strike_kind = 'missile'
         self.strike_n = 0
         self.strike_deck = []
+        self.war_reset()
         self.heli_init()
         self.attack = None
         self.radar_t = 0.0

@@ -52,7 +52,8 @@ class TankMixin:
             queue.append((14 + n, 'boss'))
         wx = ('clear', 'fog', 'night')[(w - 1) % 3]
         self.fx = Particles()
-        self.k = dict(city=city, blds=blds, sky=sky, t=0.0, tanks=[], missiles=[], shells=[], pshells=[], debris=[], booms=[],
+        props = self.tk_make_props(blds, city, w)
+        self.k = dict(city=city, blds=blds, sky=sky, props=props, crushed=0, t=0.0, tanks=[], missiles=[], shells=[], pshells=[], debris=[], booms=[],
                       cracks=[], helis=[], wx=wx, queue=queue, total=len(kinds), kills=0, phase='play', pt=0.0, fail=False,
                       city0=city['hp'], hurt=0.0, sweep=0.0, inrange=False, msg_t=0.0, msg='',
                       p=dict(x=0.0, z=-112.0, yaw=0.0, v=0.0, hp=TK_HP, cd=0.0, blocked=0.0, dead=False))
@@ -376,6 +377,7 @@ class TankMixin:
                     if boss:
                         self.banner('¡TANQUE JEFE!', 'Blindaje pesado - apuntá a su torreta', (255, 90, 60), 3.0)
                         self.audio.play('alarm', .7)
+        self.tk_props_update(dt)
         for e in k['tanks'][:]:
             self.tk_ai(e, dt)
         for e in k['helis'][:]:
@@ -422,6 +424,8 @@ class TankMixin:
             hit_b, hit_p = self.tk_shell_step(s, dt, p['x'], p['z'], 2.9 if not p['dead'] else -1.0)
             s['life'] -= dt
             if hit_b or hit_p or s['life'] <= 0 or abs(s['x']) > 140 or abs(s['z']) > 140:
+                if hit_b or hit_p:
+                    self.tk_prop_shot(s['x'], s['z'])
                 k['shells'].remove(s)
                 if hit_b:
                     self.tk_boom(s['x'], s['z'], 2.2, 0.6)
@@ -431,6 +435,8 @@ class TankMixin:
             s['life'] -= dt
             hit_b, tgt = self.tk_shell_step(s, dt, None, None, 0.0, k['tanks'] + k['missiles'] + k['helis'])
             gone = s['life'] <= 0 or abs(s['x']) > 140 or abs(s['z']) > 140 or hit_b
+            if hit_b or tgt is not None:
+                self.tk_prop_shot(s['x'], s['z'])
             if hit_b:
                 self.tk_boom(s['x'], s['z'], 2.2, 0.6, s['y'])
                 for _ in range(8):
@@ -897,11 +903,13 @@ class TankMixin:
                 self.tk_add_box(strips, b['x'], b['z'], b['hw'], b['hd'], 0, b['h'], 0, T['hall'], 8.0, 11.0)
             else:
                 self.tk_add_box(strips, b['x'], b['z'], b['hw'], b['hd'], 0, b['h'], 0, T['bld'][b['tx']], 8.0, 8.0, b['uo'])
+        self.tk_props_draw(strips)
         for e in k['tanks']:
             self.tk_add_tank(strips, e)
         for m in k['missiles']:
             self.tk_add_box(strips, m['x'], m['z'], .35, 1.5, .6, 1.5, m['h'], T['missile'], 3.0)
         self.tk_flush(cv, strips)
+        self.tk_props_glow(cv)
         for b in k['blds']:
             if b['hall']:
                 top = self.tk_cam(b['x'], b['h'] + 8, b['z'])
@@ -960,13 +968,17 @@ class TankMixin:
                 glow(cv, sx, sy, int(r), (255, 240, 190), 1 - age * 2)
         wx = k['wx']
         if wx != 'clear':
-            ov = pygame.Surface(vp.size, pygame.SRCALPHA)
-            if wx == 'fog':
-                ov.fill((170, 176, 186, 95))
-                for yy in range(0, vp.h, 6):
-                    ov.fill((190, 196, 206, int(95 + 85 * max(0.0, 1 - abs(yy / vp.h - 0.55) * 2.2))), (0, yy, vp.w, 6))
-            else:
-                ov.fill((4, 8, 30, 150))
+            cache = self.__dict__.setdefault('_tk_wx', {})
+            ov = cache.get(wx)
+            if ov is None:
+                ov = pygame.Surface(vp.size, pygame.SRCALPHA)
+                if wx == 'fog':
+                    ov.fill((170, 176, 186, 95))
+                    for yy in range(0, vp.h, 6):
+                        ov.fill((190, 196, 206, int(95 + 85 * max(0.0, 1 - abs(yy / vp.h - 0.55) * 2.2))), (0, yy, vp.w, 6))
+                else:
+                    ov.fill((4, 8, 30, 150))
+                ov = cache[wx] = ov.convert_alpha()
             cv.blit(ov, vp.topleft)
             if wx == 'night':
                 glow(cv, vp.centerx, vp.bottom - 20, 330, (255, 240, 190), 0.38)
