@@ -642,7 +642,15 @@ class CoreMixin:
                     h['kb'] = True
                     self.hack_rotate(h['cur'], 3 if e.key == pygame.K_z else 1)
             elif self.state == 'combat' and not self.paused:
-                if e.key == pygame.K_SPACE:
+                if e.key == pygame.K_q:
+                    self.na_special()
+                elif e.key == pygame.K_r:
+                    self.na_torpedo()
+                elif e.key == pygame.K_f:
+                    self.na_smoke()
+                elif e.key == pygame.K_g:
+                    self.na_damage_control()
+                elif e.key == pygame.K_SPACE:
                     self.fire_shell()
                 elif e.key == pygame.K_e:
                     self.flee()
@@ -658,6 +666,8 @@ class CoreMixin:
             self.pt_throw()
         if e.type == pygame.MOUSEBUTTONDOWN and e.button == 3 and self.state == 'ground' and not self.paused:
             self.throw_grenade_p()
+        if e.type == pygame.MOUSEBUTTONDOWN and e.button == 3 and self.state == 'combat' and not self.paused:
+            self.na_smoke()
         if e.type == pygame.MOUSEBUTTONDOWN and e.button == 3 and self.state == 'heli' and not self.paused:
             self.heli_rocket()
         if e.type == pygame.MOUSEBUTTONDOWN and e.button == 3 and self.state == 'aerial' and not self.paused:

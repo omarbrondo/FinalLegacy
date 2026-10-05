@@ -31,11 +31,12 @@ class NavalMixin:
         self.c['mounts'] = bt['mounts']
         self.c['special'] = bt['special']
         self.nv_init()
+        self.na_init()
         self.aim = [W / 2, 300.0]
         self.go('combat')
         if is_sub:
             self.audio.play('alarm')
-            self.banner('¡SUBMARINO!', 'Solo es vulnerable cuando emerge a lanzar torpedos: esperalo y disparale  |  E: huir', (120, 220, 200), 4.0)
+            self.banner('¡SUBMARINO!', 'Solo es vulnerable al emerger... o usá el TORPEDO (R), que lo alcanza sumergido  |  E: huir', (120, 220, 200), 4.0)
         elif is_nest:
             self.audio.play('alarm')
             self.banner('¡BATERÍA COSTERA!', 'Cañón fijo en el islote: esquivá sus misiles y destruilo  |  E: huir', (255, 140, 90), 3.6)
@@ -44,7 +45,7 @@ class NavalMixin:
             self.banner('¡%s %s!' % (self.c['label'] if 'label' in self.c else BOSS_TYPES[self.c['btype']]['label'], en['name']),
                         'Escudo digital caído  |  ' + BOSS_TYPES[self.c['btype']]['hint'], (255, 60, 60), 4.6)
         else:
-            self.banner('¡COMBATE NAVAL!', 'W/S/A/D: navegar  |  Mouse+Clic: disparar misil (vuela recto)  |  E: huir', (255, 150, 90), 3.4)
+            self.banner('¡COMBATE NAVAL!', 'WASD navegar | Clic misil | Q descarga | R torpedo | F humo | G control de daños | E huir', (255, 150, 90), 3.4)
 
     def launch_missile(self, ship, ang, speed, own, off=0.0, dmg=(22, 12)):
         ox, oy = vec(ship['h'], off)
@@ -117,6 +118,7 @@ class NavalMixin:
             c['slow'] -= dt
             dt *= 0.35
         self.nv_update(dt)
+        self.na_update(dt)
         c['t'] += dt
         keys = pygame.key.get_pressed()
         alive_p = p['sink'] is None
@@ -440,6 +442,9 @@ class NavalMixin:
         T = dist(p['x'], p['y'], e['x'] + ox, e['y'] + oy) / spd
         vx, vy = vec(p['h'], p['v'])
         err = max(2.0, 11 - 1.2 * self.wave) * (0.5 if self.nv_lit() else 1.0)
+        if self.na_smoked():                          # dentro de la cortina de humo no te ven bien
+            err = err * 2.0 + 14
+            T = 0.0
         ang = bearing(p['x'] + vx * T - e['x'] - ox, p['y'] + vy * T - e['y'] - oy) + random.uniform(-err, err)
         self.launch_missile(e, ang, spd, 'e', off, (18, 10) if boss else ((15, 9) if c['nest'] else (22, 12)))
         self.audio.play('launch', .5)
@@ -529,6 +534,8 @@ class NavalMixin:
         who = 'e' if tgt is c['e'] else 'p'
         big = full and ((s['own'] == 'p' and dmg >= 2) or (s['own'] == 'e' and dmg >= 15))
         self.nv_mark(who, tgt, x, y, dmg)
+        if s['own'] == 'p':
+            self.na_charge(20 if full else 10)
         ratio = clamp((c['e']['hp'] / c['e']['max']) if who == 'e' else self.hull / 100.0, 0.0, 1.0)
         self.nv_mark_fires(who, ratio)
         c['flashes'].append([x, y, 100 if full else 64, (255, 190, 110), 1.0])
@@ -610,6 +617,7 @@ class NavalMixin:
                 if not (who_ == 'e' and c['sub'] and not e['surf']):
                     self.nv_draw_marks(cv, who_, ship_)
         self.draw_boss_extras(cv)
+        self.na_draw(cv)
         # misiles (vuelan en línea recta)
         for s in c['shells']:
             col = (255, 240, 160) if s['own'] == 'p' else (255, 150, 120)
@@ -647,5 +655,6 @@ class NavalMixin:
         rl = 1 - clamp(p['cool'] / 0.9, 0, 1)
         pygame.draw.rect(cv, (8, 12, 24), (W // 2 - 60, H - 40, 120, 10))
         pygame.draw.rect(cv, (120, 255, 160) if rl >= 1 else (255, 200, 80), (W // 2 - 59, H - 39, int(118 * rl), 8))
-        self.text(cv, 'Clic/ESPACIO: misil recto (adelantate al objetivo)  |  E huir', self.f_s, (200, 220, 255), W // 2, H - 64, 'c')
+        self.text(cv, 'Clic/ESPACIO: misil (adelantate al blanco)  |  E huir', self.f_s, (200, 220, 255), W // 2, H - 64, 'c')
         self.nv_draw_calls(cv)
+        self.na_hud(cv)

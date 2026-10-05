@@ -135,7 +135,7 @@ class GamepadMixin:
             key(pygame.K_RETURN if menu else pygame.K_p)
             return
         if 'BACK' in pressed:
-            key(pygame.K_m)
+            key(pygame.K_e if st == 'combat' else pygame.K_m)       # en combate naval, Back = huir
         if menu:
             if 'A' in pressed:
                 key(pygame.K_RETURN)
@@ -168,7 +168,7 @@ class GamepadMixin:
                     key(k)
         else:
             if 'Y' in pressed:
-                key(pygame.K_e)
+                key(pygame.K_g if st == 'combat' else pygame.K_e)
             if 'X' in pressed:
                 key(pygame.K_r)
             if 'LB' in pressed:

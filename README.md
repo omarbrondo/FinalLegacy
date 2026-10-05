@@ -57,6 +57,7 @@ Cada modo suma contenido nuevo a medida que avanzan las oleadas:
 - **Puerto**: jefe tanque u helicóptero según la oleada; noche y tormenta.
 - **Hackeo**: virus que corrompen nodos, cortafuegos y segunda fuente.
 - **Tomahawk** (mejora): apoyo de fuego en infantería y puerto, tecla T / LB sobre el punto apuntado (1,7 s de demora, radio ~150, hace daño a quien esté cerca incluso a vos).
+- **Combate naval**: Q descarga especial (abanico de 5 misiles, se carga acertando), R torpedo (alcanza al submarino sumergido), F o clic derecho cortina de humo, G control de daños (apaga incendios). Los cascos muestran impactos y fuego, se parten al hundirse, hay cámara lenta en el golpe final, tormentas, noche con reflectores y un locutor. Mando: LB descarga, X torpedo, B/RB/LT humo, Y control de daños, Back huir.
 - **Entre oleadas**: elegís 1 de 3 mejoras (daño +20%, recarga, explosivos, casco, misiles guiados, nano-reparación…); al completar las oleadas 3 y 5 elegís dos. El daño y la recarga valen en todos los modos.
 
 ## Helicóptero Blackhawk
