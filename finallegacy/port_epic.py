@@ -1,17 +1,12 @@
-"""Asalto al puerto: combos, armas pesadas, suministros en paracaídas, apoyo aéreo y el tanque SV-001."""
+"""Asalto al puerto: combos, armas pesadas, suministros en paracaídas y apoyo aéreo."""
 import math
 import pygame
 import random
 from .common import H, PLAYER_HP, W, clamp, draw_circ, glow
 
 COMBO_WIN = 2.6
-VEH_HP = 70.0
-SV_POS = (1950, 3800)                          # lugares donde espera un SV-001
-SV_SCALE = 0.64
-SV_GROUND = int(176 * SV_SCALE)                # alto del suelo dentro del sprite
 WEAPONS = {'shot': ('ESCOPETA', 14, (255, 200, 100)), 'rkt': ('LANZACOHETES', 9, (255, 140, 100))}
 MILESTONES = {3: ('¡TRIPLE!', 0), 5: ('¡PENTA!  +300', 300), 8: ('¡MASACRE!  +600', 600), 12: ('¡IMPARABLE!  +1000', 1000)}
-CRUSHABLE = ('rifle', 'knife', 'gren', 'flame', 'shield')
 
 
 class PortEpicMixin:
@@ -19,17 +14,16 @@ class PortEpicMixin:
     def pt_epic_setup(self):
         pt = self.pt
         p = pt['p']
-        p.update(veh=None, wpn=None, wammo=0)
+        p.update(wpn=None, wammo=0)
         pt.update(combo=dict(n=0, t=0.0, best=0, show=0.0, text='', max_n=0), chutes=[], drops=[], drop_t=random.uniform(18, 26),
-                  air=dict(meter=0.0, bomber=None, bombs=[], ready_said=False), rockets=[],
-                  svs=[dict(x=float(x), hp=VEH_HP, state='parked') for x in SV_POS])
+                  air=dict(meter=0.0, bomber=None, bombs=[], ready_said=False), rockets=[])
         for it in pt['items']:
             if it['x'] == 2750:
                 it['kind'] = 'rkt'
-        for xi, kind in ((1500, 'shot'), (3500, 'hmg')):
+        for xi, kind in ((1500, 'shot'), (3500, 'hmg'), (5500, 'shot'), (6900, 'rkt')):
             pt['items'].append(dict(x=float(xi), y=float(self.PT_GR - 30), kind=kind, t=0.0))
-        for pw in pt['pows']:
-            pw['item'] = {'hmg': 'shot', 'gren': 'rkt'}.get(pw['item'], pw['item'])
+        for pw, kind in zip(pt['pows'], ('shot', 'rkt', 'med', 'hmg', 'rkt')):
+            pw['item'] = kind
 
     # ------------------------------------------------------------------ cuchillero
     def pt_knife_move(self, e, dt, ad, alive):
@@ -98,28 +92,11 @@ class PortEpicMixin:
         p['wpn'], p['wammo'], p['hmg'] = kind, ammo, 0.0
         self.pop('¡%s!' % name, p['x'] - self.pt['cam'], p['y'] - 90, col)
 
-    def pt_veh_muzzle(self):
-        p = self.pt['p']
-        f = 1 if p['face'] > 0 else -1
-        ox, oy = p['x'] + f * 224 * SV_SCALE, p['y'] - 111 * SV_SCALE
-        tx, ty = self.aim[0] + self.pt['cam'], self.aim[1]
-        dx = max(10.0, (tx - ox) * f)
-        th = clamp(math.atan2(ty - oy, dx), -math.radians(55), math.radians(55))
-        return ox, oy, f * math.cos(th), math.sin(th)
-
     def pt_shoot_special(self):
-        """Disparo del SV-001, la escopeta o el lanzacohetes (el fusil normal está en pt_shoot)."""
+        """Disparo de la escopeta o el lanzacohetes (el fusil normal está en pt_shoot)."""
         pt = self.pt
         p = pt['p']
         if p['cd'] > 0 or p['dead']:
-            return
-        if p['veh']:
-            ox, oy, dx, dy = self.pt_veh_muzzle()
-            p['cd'] = 0.075 * self.up_reload()
-            p['flash'] = 0.05
-            a = math.atan2(dy, dx) + math.radians(random.uniform(-2.0, 2.0))
-            pt['bul'].append(dict(x=ox, y=oy, vx=math.cos(a) * 1000, vy=math.sin(a) * 1000, dmg=1.5 * self.up_dmg(), life=0.9))
-            self.audio.play('mg', .3)
             return
         pv = p.get('pv') or (p['x'], p['y'] - (50 if p['crouch'] else 67))
         mx, my, dx, dy = self.pt_muzzle('player', pv, p['face'], self.aim[0] + pt['cam'], self.aim[1])
@@ -144,20 +121,6 @@ class PortEpicMixin:
             p['wpn'] = None
             self.pop('SIN MUNICIÓN', p['x'] - pt['cam'], p['y'] - 90, (255, 150, 120))
 
-    def pt_veh_cannon(self):
-        pt = self.pt
-        p = pt['p']
-        v = p['veh']
-        if p['dead'] or v['cd'] > 0 or pt['phase'] != 'play':
-            return
-        v['cd'] = 0.85
-        v['recoil'] = 14.0
-        ox, oy, dx, dy = self.pt_veh_muzzle()
-        pt['rockets'].append(dict(x=ox, y=oy, vx=dx * 720, vy=dy * 720, t=0.0, life=1.4, R=96.0, dmg=9.0, pd=6, grav=0.0, kind='shell'))
-        self.audio.play('cannon', .5)
-        self.shake = max(self.shake, 6)
-        self.fx.add('glow', ox, oy, life=.15, r0=14, r1=44, col=(255, 210, 120))
-
     def pt_rockets_update(self, dt):
         pt = self.pt
         GR = self.PT_GR
@@ -180,68 +143,6 @@ class PortEpicMixin:
             if boom:
                 pt['rockets'].remove(r)
                 self.pt_blast(r['x'], min(r['y'], GR - 4), r['R'] * self.up_blast(), r['dmg'] * self.up_dmg(), r['pd'], 'p')
-
-    # ------------------------------------------------------------------ tanque SV-001
-    def pt_try_mount(self):
-        pt = self.pt
-        p = pt['p']
-        if p['dead'] or p['veh'] or not p['ground'] or pt['phase'] != 'play':
-            return False
-        for sv in pt['svs']:
-            if sv['state'] == 'parked' and abs(p['x'] - sv['x']) < 95 and abs(p['y'] - self.PT_GR) < 20:
-                sv['state'] = 'ridden'
-                p['veh'] = dict(hp=sv['hp'], max=VEH_HP, cd=0.0, recoil=0.0, hit=0.0, ph=0.0)
-                p['x'] = sv['x']
-                p['wpn'] = None
-                self.audio.play('win', .5)
-                self.shake = max(self.shake, 6)
-                self.banner('¡SV-001 A BORDO!', 'Clic: ametralladora | clic der./G: cañón | aplastá a la infantería', (140, 230, 255), 3.4)
-                return True
-        return False
-
-    def pt_veh_hit(self, dmg):
-        pt = self.pt
-        p = pt['p']
-        v = p['veh']
-        v['hp'] -= dmg * 0.7
-        v['hit'] = 0.15
-        p['inv'] = 0.3
-        pt['hurt'] = max(pt['hurt'], 0.2)
-        self.shake = max(self.shake, 4 + dmg * 0.2)
-        self.audio.play('hit', .5)
-        self.fx.add('spark', p['x'] + random.uniform(-50, 50), p['y'] - random.uniform(20, 90), random.uniform(-90, 90), random.uniform(-140, 0), 0.3,
-                    col=(255, 220, 140), drag=2, grav=400)
-        if v['hp'] <= 0:
-            self.pt_veh_explode()
-
-    def pt_veh_explode(self):
-        pt = self.pt
-        p = pt['p']
-        x, y = p['x'], p['y']
-        p['veh'] = None
-        pt['wrecks'].append(dict(kind='sv', x=x, y=y))
-        self.pt_blast(x, y - 40, 125, 9, 1, 'b')
-        for _ in range(4):
-            self.fx.explode(x + random.uniform(-60, 60), y - random.uniform(10, 80), 1.3, True)
-        self.shake = 18
-        p['vy'], p['ground'], p['inv'] = -560.0, False, 1.6
-        self.banner('¡SV-001 DESTRUIDO!', 'Saltaste a tiempo', (255, 140, 100), 2.4)
-
-    def pt_veh_image(self, face, fi, hit):
-        cache = self.__dict__.setdefault('_sv_cache', {})
-        key = (face > 0, fi % 8, hit)
-        img = cache.get(key)
-        if img is None:
-            base = self.pt_tank_img(dict(x=(fi % 8) * 14 / 8 + 0.01, hit=0.0, recoil=0))
-            base.fill((10, 34, 56, 0), special_flags=pygame.BLEND_RGB_ADD)
-            img = pygame.transform.smoothscale(base, (int(base.get_width() * SV_SCALE), int(base.get_height() * SV_SCALE)))
-            if face > 0:
-                img = pygame.transform.flip(img, True, False)
-            if hit:
-                img = img.copy()
-                img.fill((70, 70, 70, 0), special_flags=pygame.BLEND_RGB_ADD)
-            cache[key] = img
-        return img
 
     # ------------------------------------------------------------------ apoyo aéreo
     def pt_airstrike(self):
@@ -308,20 +209,6 @@ class PortEpicMixin:
             if cb['t'] <= 0:
                 cb['n'] = 0
         cb['show'] = max(0.0, cb['show'] - dt)
-        if alive and p['veh']:
-            v = p['veh']
-            v['cd'] = max(0.0, v['cd'] - dt)
-            v['recoil'] = max(0.0, v['recoil'] - 70 * dt)
-            v['hit'] = max(0.0, v['hit'] - dt)
-            v['ph'] += abs(p['vx']) * dt / 12.7
-            p['crouch'] = False
-            if abs(p['vx']) > 1:
-                for e in pt['enemies'][:]:
-                    if e['kind'] in CRUSHABLE and not e['para'] and abs(e['x'] - p['x']) < 74 and abs(e['y'] - p['y']) < 26:
-                        self.pop('¡APLASTADO!', e['x'] - pt['cam'], e['y'] - 90, (255, 220, 120))
-                        self.pt_kill(e, False)
-                if random.random() < dt * 14:
-                    self.fx.add('smoke', p['x'] - p['face'] * 80, p['y'] - 5, random.uniform(-30, 30), random.uniform(-30, -8), 0.5, 4, 14, (170, 150, 130), drag=2)
         # suministros en paracaídas
         pt['drop_t'] -= dt
         if pt['drop_t'] <= 0 and pt['phase'] == 'play':
@@ -368,22 +255,6 @@ class PortEpicMixin:
 
     def pt_epic_draw_back(self, cv, cam):
         pt = self.pt
-        p = pt['p']
-        t = self.t
-        GR = self.PT_GR
-        for sv in pt['svs']:
-            if sv['state'] != 'parked':
-                continue
-            sx = sv['x'] - cam
-            if not (-200 < sx < W + 200):
-                continue
-            img = self.pt_veh_image(1, 0, False)
-            cv.blit(img, (sx - img.get_width() // 2, GR - SV_GROUND))
-            if abs(p['x'] - sv['x']) < 260 and not p['veh']:
-                pul = 0.5 + 0.5 * math.sin(t * 5)
-                self.text(cv, 'SV-001', self.f_m, (140, 230, 255), sx, GR - 150 - 6 * pul, 'c')
-                self.text(cv, 'SALTÁ PARA SUBIR', self.f_s, (255, 240, 170), sx, GR - 124, 'c')
-                draw_circ(cv, sx, GR - 50, 100 + 6 * pul, (140, 230, 255), 50, 2)
         for d in pt['drops']:
             sx = d['x'] - cam
             if not (-100 < sx < W + 100):
@@ -400,7 +271,6 @@ class PortEpicMixin:
 
     def pt_epic_draw_front(self, cv, cam):
         pt = self.pt
-        p = pt['p']
         for r in pt['rockets']:
             sx, sy = r['x'] - cam, r['y']
             ang = math.degrees(math.atan2(-r['vy'], r['vx']))
@@ -414,17 +284,6 @@ class PortEpicMixin:
             pygame.draw.ellipse(cv, (40, 44, 48), (sx - 6, bm['y'] - 12, 12, 24))
             pygame.draw.ellipse(cv, (200, 70, 60), (sx - 5, bm['y'] - 4, 10, 6))
         self.pt_draw_bomber(cv, cam)
-        if p['veh'] and not p['dead']:
-            v = p['veh']
-            img = self.pt_veh_image(p['face'], int(v['ph']), v['hit'] > 0)
-            if not (p['inv'] > 0 and int(self.t * 20) % 2 == 0):
-                sx = p['x'] - cam
-                f = 1 if p['face'] > 0 else -1
-                cv.blit(img, (sx - img.get_width() // 2 - f * v['recoil'] * 0.4, p['y'] - SV_GROUND))
-                if p['flash'] > 0:
-                    ox, oy, dx, dy = self.pt_veh_muzzle()
-                    self.pt_flash(cv, ox - cam, oy, math.degrees(math.atan2(-dy, abs(dx))) * (1 if f > 0 else -1), f > 0)
-
     def pt_epic_hud(self, cv):
         pt = self.pt
         p = pt['p']
@@ -448,16 +307,8 @@ class PortEpicMixin:
         ready = air['meter'] >= 100 and air['bomber'] is None
         col = (140, 235, 255) if ready else (120, 170, 210)
         self.bar(cv, x + 12, y + 10, 276, 20, air['meter'] / 100.0, col, 'APOYO AÉREO [E] LISTO' if ready and int(t * 3) % 2 == 0 else 'APOYO AÉREO %d%%' % int(air['meter']))
-        if p['veh']:
-            v = p['veh']
-            hp = clamp(v['hp'] / v['max'], 0, 1)
-            self.bar(cv, x + 12, y + 38, 276, 20, hp, (110, 220, 255) if hp > 0.4 else (240, 90, 70), 'SV-001  %d' % max(0, v['hp']))
-            self.text(cv, 'CAÑÓN' if v['cd'] <= 0 else 'CAÑÓN...', self.f_s, (255, 230, 150) if v['cd'] <= 0 else (150, 150, 150), x + 12, y + 64)
-        elif p['wpn']:
+        if p['wpn']:
             name, ammo, wcol = WEAPONS[p['wpn']]
             self.bar(cv, x + 12, y + 38, 276, 20, p['wammo'] / float(ammo), wcol, '%s  %d' % (name, p['wammo']))
         else:
             self.text(cv, 'Combos y rescates cargan el apoyo aéreo', self.f_s, (150, 170, 200), x + 12, y + 42)
-        n_sv = sum(1 for sv in pt['svs'] if sv['state'] == 'parked')
-        if n_sv and not p['veh']:
-            self.text(cv, 'SV-001 disponibles: %d' % n_sv, self.f_s, (140, 230, 255), x + 12, y + 84)

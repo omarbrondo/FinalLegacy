@@ -517,6 +517,8 @@ class MapMixin:
             if not c['dead']:
                 c['hp'] = min(100, c['hp'] + 20)
         self.ammo = min(40, self.ammo + 12)
+        self.hull = min(self.hull_max, self.hull + 40)           # la tripulación repara el barco entre oleadas
+        self.fuel = min(100.0, self.fuel + 40)
         for c in self.cities:
             if not c['dead']:
                 self.city_refill(c, 40)
@@ -527,7 +529,7 @@ class MapMixin:
         self.port_tries = 0
         self.port_done = False
         self.audio.play('win', .7)
-        self.toast('Bonus +%d  |  Ciudades reparadas  |  +12 munición' % bonus, (120, 255, 160))
+        self.toast('Bonus +%d  |  Ciudades reparadas  |  +12 munición, +40 casco' % bonus, (120, 255, 160))
         self.autosave(True)                           # autoguardado al terminar la oleada
         self.start_upgrade()
 
@@ -552,7 +554,7 @@ class MapMixin:
             en['state'] = 'patrol'
         if en['state'] == 'chase':
             tx, ty = self.sx, self.sy
-            sp = (66 + 4 * self.wave) if is_boss else (96 + 5 * self.wave)
+            sp = (62 + 3 * self.wave) if is_boss else (88 + 3 * self.wave)
         else:
             tx, ty = en['wp']
             sp = 32 if is_boss else 52
