@@ -3,7 +3,7 @@ import math
 import pygame
 import random
 from .common import H, Particles, TK_HP, W, WIN_WAVE, angle_diff, clamp, draw_circ, glow, lerp
-from .tk_art import TK_ANG, TK_FOG, TK_NL
+from .tk_art import TK_ANG, TK_FOG, TK_NL, make_moon_sprite
 
 
 class TankMixin:
@@ -541,14 +541,7 @@ class TankMixin:
         for y in range(fh):
             f = y / fh
             pygame.draw.line(floor, (int(lerp(122, 30, f ** 0.6)), int(lerp(80, 32, f ** 0.6)), int(lerp(104, 40, f ** 0.6))), (0, y), (vp.w, y))
-        moon = pygame.Surface((120, 120), pygame.SRCALPHA)
-        for r in range(58, 0, -2):
-            pygame.draw.circle(moon, (255, 244, 210, int(46 * (1 - r / 58) ** 1.5)), (60, 60), r)
-        pygame.draw.circle(moon, (236, 232, 210), (60, 60), 30)
-        pygame.draw.circle(moon, (252, 250, 236), (54, 54), 26)
-        for ox, oy, rr in ((-9, -6, 7), (10, 8, 9), (4, -14, 4), (-12, 12, 5)):
-            pygame.draw.circle(moon, (200, 196, 176), (60 + ox, 60 + oy), rr)
-            pygame.draw.circle(moon, (222, 218, 198), (60 + ox - 1, 60 + oy - 1), max(1, rr - 2))
+        moon = make_moon_sprite()
         return sky.convert(), floor.convert(), moon.convert_alpha()
 
     def tk_prep(self):
@@ -805,7 +798,7 @@ class TankMixin:
                     cv.fill((v, v, min(255, v + 20)), (int(sx), int(sy), sz, sz))
         rel = angle_diff(yaw, 42)
         if abs(rel) < 70:
-            cv.blit(self.tk_moon, (int(vp.centerx + self.TK_F * math.tan(math.radians(rel)) - 60), hor - 210))
+            cv.blit(self.tk_moon, (int(vp.centerx + self.TK_F * math.tan(math.radians(rel)) - self.tk_moon.get_width() // 2), hor - 195 - self.tk_moon.get_height() // 2))
         pts = []
         for i in range(120):
             rel = angle_diff(yaw, i * 3.0)
