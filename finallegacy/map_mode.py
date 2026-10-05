@@ -140,7 +140,7 @@ class MapMixin:
             if keys[pygame.K_r] and abs(self.sv) < 40:
                 self.dock_t -= dt
                 changed = False
-                st = docking['stock']                 # el puerto tiene suministros limitados hasta la próxima oleada
+                st = docking['stock']                 # el puerto tiene suministros limitados hasta que se reponga
                 empty = []
                 if self.fuel < 100:
                     g = min(25 * dt, 100 - self.fuel, st['fuel'])
@@ -170,7 +170,7 @@ class MapMixin:
                         empty.append('munición')
                 if empty and self.t - getattr(self, 'stock_toast', -9) > 4:
                     self.stock_toast = self.t
-                    self.toast('%s sin %s hasta la próxima oleada' % (docking['name'], ', '.join(empty)), (255, 190, 120))
+                    self.toast('%s sin %s hasta que se reponga' % (docking['name'], ', '.join(empty)), (255, 190, 120))
                 if changed and self.dock_t <= 0:
                     self.dock_t = 0.28
                     self.audio.play('dock', .5)
@@ -192,6 +192,7 @@ class MapMixin:
             if d < 78 and en['cool'] <= 0:
                 return self.start_combat(en)
         self.radar_t = max(0.0, self.radar_t - dt)
+        self.city_regen(dt)
         if self.convoy is not None:
             self.upd_convoy(dt)
         else:
@@ -330,8 +331,9 @@ class MapMixin:
             self.add_score(pts)
             d = cv_['dst']
             d['hp'] = min(100.0, d['hp'] + 20)
+            self.city_refill(d, 30)
             self.audio.play('win', .7)
-            self.banner('¡CONVOY A SALVO!', '%s recibe suministros (+20%% ciudad)  |  +%d puntos' % (d['name'], pts), (120, 255, 160), 3.6)
+            self.banner('¡CONVOY A SALVO!', '%s recibe suministros (+20%% ciudad, +30 de cada recurso)  |  +%d puntos' % (d['name'], pts), (120, 255, 160), 3.6)
         else:
             self.audio.play('boom_l')
             self.shake = 10
@@ -569,8 +571,25 @@ class MapMixin:
 
     def city_stock(self, c):
         """Suministros que el puerto de la ciudad puede dar hasta que termine la oleada (menos si la ciudad está dañada)."""
-        k = 0.5 + 0.5 * clamp(c['hp'] / 100.0, 0.0, 1.0)
-        return dict(fuel=100.0 * k, repair=60.0 * k, ammo=float(int(24 * k)))
+        k = self.city_cap(c)
+        return dict(fuel=k, repair=k, ammo=k)
+
+    def city_cap(self, c):
+        """Tope de suministros de una ciudad: 100 de cada cosa, menos si está dañada."""
+        return 100.0 * (0.5 + 0.5 * clamp(c['hp'] / 100.0, 0.0, 1.0))
+
+    def city_refill(self, c, amount):
+        cap = self.city_cap(c)
+        for k in c['stock']:
+            c['stock'][k] = min(cap, c['stock'][k] + amount)
+
+    def city_regen(self, dt):
+        """Goteo pasivo: +1 de cada cosa cada 20 s (doble si no hay amenaza); la ciudad atacada o en alerta no recupera."""
+        threat = self.attack['city'] if self.attack is not None else (self.strike_city if self.warned else None)
+        rate = 0.1 if self.attack is None and not self.warned else 0.05
+        for c in self.cities:
+            if not c['dead'] and c is not threat:
+                self.city_refill(c, rate * dt)
 
     def nearest_dock(self):
         for c in self.cities:
@@ -599,7 +618,8 @@ class MapMixin:
                 c['hp'] = min(100, c['hp'] + 20)
         self.ammo = min(40, self.ammo + 12)
         for c in self.cities:
-            c['stock'] = self.city_stock(c)
+            if not c['dead']:
+                self.city_refill(c, 40)
         self.war_advance()
         self.spawn_nests()
         self.convoy_t = min(self.convoy_t, 35.0)       # cada oleada nueva trae un convoy pronto
@@ -678,6 +698,9 @@ class MapMixin:
                     pulse = 0.5 + 0.5 * math.sin(self.t * 3)
                     draw_circ(cv, dx_, dy_, 112 + pulse * 8, (120, 255, 200), 80, 2)
                     self.text(cv, 'PUERTO', self.f_s, (150, 255, 210), dx_, dy_ - 8, 'c')
+                    lo = min(c['stock'].values())
+                    self.text(cv, 'RESERVAS %d%%' % int(lo), self.f_s,
+                              (110, 235, 130) if lo > 50 else ((255, 200, 70) if lo > 20 else (240, 80, 70)), dx_, dy_ + 10, 'c')
         px_, py_, pr_, _ps = ENEMY_PORT
         sx, sy = px_ - cx, py_ - cy
         if -200 < sx < W + 200 and -200 < sy < H + 200:
@@ -798,7 +821,7 @@ class MapMixin:
         if dk:
             st = dk['stock']
             if st['fuel'] < 1 and st['repair'] < 1 and st['ammo'] < 1:
-                self.text(cv, '%s: suministros agotados hasta la próxima oleada' % dk['name'], self.f_m, (255, 170, 120), W // 2, H - 148, 'c')
+                self.text(cv, '%s: suministros agotados hasta que se reponga' % dk['name'], self.f_m, (255, 170, 120), W // 2, H - 148, 'c')
             else:
                 self.text(cv, 'PUERTO: mantené R para reabastecer  |  Combustible %d  Reparación %d  Munición %d' %
                           (st['fuel'], st['repair'], st['ammo']), self.f_m, (140, 255, 210), W // 2, H - 148, 'c')

@@ -529,6 +529,7 @@ class CoreMixin:
             for c in self.cities:
                 if not c['dead']:
                     c['hp'] = 100.0
+                    c['stock'] = self.city_stock(c)
             self.toast('MODO PRUEBA: casco, combustible, munición y ciudades al máximo', (255, 220, 120))
 
     def toggle_fullscreen(self):
