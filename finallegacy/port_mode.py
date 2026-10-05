@@ -67,6 +67,7 @@ class PortMixin:
             self.pt['items'].append(dict(x=float(xi), y=float(GR - 30), kind=kind, t=0.0))
         for xt in (2650, 3900, 4800):
             self.pt['enemies'].append(self.pt_enemy('turret', xt, GR, -1))
+        self.pt_epic_setup()
         self.fx = Particles()
         self.aim = [W / 2, 300.0]
         self.go('port')
@@ -118,14 +119,18 @@ class PortMixin:
 
     def pt_jump(self):
         p = self.pt['p']
+        if self.pt_try_mount():
+            return
         if p['ground'] and not p['dead'] and self.pt['phase'] == 'play':
-            p['vy'] = -760.0
+            p['vy'] = -560.0 if p['veh'] else -760.0
             p['ground'] = False
             self.audio.play('blip', .5)
 
     def pt_throw(self):
         pt = self.pt
         p = pt['p']
+        if p['veh']:
+            return self.pt_veh_cannon()
         if p['dead'] or p['gren'] <= 0 or p['gcd'] > 0 or pt['phase'] != 'play':
             return
         p['gren'] -= 1
@@ -142,6 +147,8 @@ class PortMixin:
         p = pt['p']
         if p['dead'] or p['inv'] > 0 or pt['phase'] != 'play':
             return
+        if p['veh']:
+            return self.pt_veh_hit(dmg)
         p['hp'] -= dmg
         pt['taken'] += dmg
         p['inv'] = 0.55
@@ -181,7 +188,10 @@ class PortMixin:
             pt['wrecks'].append(dict(kind='turret', x=e['x'], y=e['y']))
         else:
             c = dict(kind=e['kind'], x=e['x'], y=e['y'], face=e['face'], t=0.0, vx=-e['face'] * random.uniform(60, 150), air=False, vy=0.0, spin=0.0)
-            if blast or e['kind'] == 'flame':
+            if e['para']:                                   # muerto en el aire: cae al piso y el paracaídas se desinfla
+                c.update(air=True, vy=40.0, vx=0.0, spin=0.0)
+                pt['chutes'].append(dict(x=e['x'], y=e['y'] - 160, t=0.0, vx=random.uniform(-16, 16)))
+            elif blast or e['kind'] == 'flame':
                 c.update(air=True, vy=-random.uniform(380, 520), vx=(1 if e['x'] > pt['p']['x'] else -1) * random.uniform(120, 280), spin=random.uniform(-560, 560))
             pt['corpses'].append(c)
         if not blast or e['kind'] != 'tank':
@@ -189,8 +199,9 @@ class PortMixin:
         self.audio.play('boom_s', .6 if not big else .9)
         self.add_score(pts)
         self.pop('+%d' % pts, e['x'] - pt['cam'], e['y'] - 78, (255, 232, 150))
-        if e['kind'] in ('rifle', 'gren', 'knife', 'shield', 'flame') and random.random() < 0.22:
-            pt['items'].append(dict(x=e['x'], y=e['y'] - 30, kind=random.choice(('med', 'gren', 'gren')), t=0.0))
+        self.pt_combo_kill(e)
+        if e['kind'] in ('rifle', 'gren', 'knife', 'shield', 'flame') and random.random() < 0.22 and not e['para']:
+            pt['items'].append(dict(x=e['x'], y=e['y'] - 30, kind=random.choice(('med', 'gren', 'gren', 'shot', 'rkt')), t=0.0))
         if e['kind'] == 'flame':
             self.pt_blast(e['x'], e['y'] - 30, 80, 4, 14, 'b')
         if e['kind'] == 'tank':
@@ -269,7 +280,7 @@ class PortMixin:
         if k in ('rifle', 'knife', 'gren', 'shield', 'flame'):
             self.pt_land(e, dt)
             if k == 'knife':
-                sp = 215.0
+                sp = self.pt_knife_move(e, dt, ad, alive)
             elif k == 'shield':
                 sp = 78.0 if ad > 70 else 0.0
             elif k == 'flame':
@@ -290,10 +301,7 @@ class PortMixin:
             e['moving'] = sp != 0
             e['ph'] += abs(sp) * dt / 12.7
             if k == 'knife':
-                if ad < 46 and abs(p['y'] - e['y']) < 50 and e['cd'] <= 0 and alive:
-                    e['cd'] = 0.9
-                    e['slash'] = 0.3
-                    self.pt_hurt(14)
+                pass
             elif k == 'shield':
                 if ad < 84 and abs(p['y'] - e['y']) < 60 and e['cd'] <= 0 and alive:
                     e['cd'] = 1.1
@@ -566,8 +574,8 @@ class PortMixin:
         cam = pt['cam']
         if alive and pt['phase'] == 'play':
             mv = (1 if (keys[pygame.K_d] or keys[pygame.K_RIGHT]) else 0) - (1 if (keys[pygame.K_a] or keys[pygame.K_LEFT]) else 0)
-            p['crouch'] = bool(keys[pygame.K_s] or keys[pygame.K_DOWN]) and p['ground']
-            sp = 0.0 if p['crouch'] else 235.0
+            p['crouch'] = bool(keys[pygame.K_s] or keys[pygame.K_DOWN]) and p['ground'] and not p['veh']
+            sp = 0.0 if p['crouch'] else (190.0 if p['veh'] else 235.0)
             p['vx'] = mv * sp
             p['x'] += p['vx'] * dt
             if mv:
@@ -689,6 +697,8 @@ class PortMixin:
                 pt['bul'].remove(b)
         # balas enemigas
         pbox = (p['x'] - 14, p['y'] - (46 if p['crouch'] else 70), 28, 46 if p['crouch'] else 70)
+        if p['veh']:
+            pbox = (p['x'] - 72, p['y'] - 100, 144, 100)
         for b in pt['ebul'][:]:
             b['x'] += b['vx'] * dt
             b['y'] += b['vy'] * dt
@@ -768,9 +778,13 @@ class PortMixin:
                 elif it['kind'] == 'gren':
                     p['gren'] = min(9, p['gren'] + 4)
                     self.pop('+4 GRANADAS', p['x'] - pt['cam'], p['y'] - 80, (255, 220, 120))
+                elif it['kind'] in ('shot', 'rkt'):
+                    self.pt_weapon_pick(it['kind'])
                 else:
                     p['hmg'] = 14.0
+                    p['wpn'] = None
                     self.pop('¡AMETRALLADORA!', p['x'] - pt['cam'], p['y'] - 80, (255, 160, 90))
+        self.pt_epic_update(dt, alive, keys)
         self.port_hazards(dt, alive)
         self.fx.update(dt)
         # fin de la misión
@@ -817,6 +831,8 @@ class PortMixin:
         p = pt['p']
         if p['cd'] > 0 or p['dead']:
             return
+        if p['veh'] or p['wpn']:
+            return self.pt_shoot_special()
         hmg = p['hmg'] > 0
         p['cd'] = (0.075 if hmg else 0.115) * self.up_reload()
         p['flash'] = 0.05
@@ -1054,7 +1070,7 @@ class PortMixin:
             if not (-40 < sx < W + 40):
                 continue
             bob = math.sin(it['t'] * 5) * 3
-            col = {'med': (236, 240, 236), 'gren': (96, 120, 70), 'hmg': (250, 170, 70), 'mask': (70, 100, 70)}[it['kind']]
+            col = {'med': (236, 240, 236), 'gren': (96, 120, 70), 'hmg': (250, 170, 70), 'mask': (70, 100, 70), 'shot': (236, 200, 110), 'rkt': (240, 130, 100)}[it['kind']]
             glow(cv, sx, it['y'] + bob, 32, (120, 255, 160) if it['kind'] == 'med' else (255, 210, 80), 0.5)
             pygame.draw.rect(cv, (24, 26, 30), (sx - 15, it['y'] - 15 + bob, 30, 30), border_radius=5)
             pygame.draw.rect(cv, col, (sx - 13, it['y'] - 13 + bob, 26, 26), border_radius=4)
@@ -1070,7 +1086,7 @@ class PortMixin:
                 pygame.draw.circle(cv, (50, 70, 40), (sx, int(it['y'] + 2 + bob)), 8)
                 pygame.draw.circle(cv, (150, 180, 110), (sx - 2, int(it['y'] + bob)), 2)
             else:
-                self.text(cv, 'H', self.f_m, (60, 30, 10), sx, it['y'] - 12 + bob, 'c', shadow=False)
+                self.text(cv, {'shot': 'S', 'rkt': 'R'}.get(it['kind'], 'H'), self.f_m, (60, 30, 10), sx, it['y'] - 12 + bob, 'c', shadow=False)
         # restos
         for w_ in pt['wrecks']:
             sx = w_['x'] - cam
@@ -1083,12 +1099,20 @@ class PortMixin:
                 for k in range(4):
                     ph = (t * 1.6 + k * 0.27) % 1
                     glow(cv, sx - 60 + k * 44, w_['y'] - 110 - ph * 40, 26 - 10 * ph, (255, 150, 60), 1 - ph)
+            elif w_['kind'] == 'sv':
+                img = self.pt_veh_image(1, 0, False).copy()
+                img.fill((60, 56, 54, 255), special_flags=pygame.BLEND_RGBA_MULT)
+                cv.blit(img, (sx - img.get_width() // 2, w_['y'] - 112))
+                for k in range(3):
+                    ph = (t * 1.6 + k * 0.33) % 1
+                    glow(cv, sx - 30 + k * 30, w_['y'] - 60 - ph * 40, 20 - 8 * ph, (255, 150, 60), 1 - ph)
             else:
                 spr = self.pt_bk['base'].copy()
                 spr.fill((60, 56, 54, 255), special_flags=pygame.BLEND_RGBA_MULT)
                 cv.blit(spr, (sx - 55, w_['y'] - 66))
                 ph = (t * 1.4 + w_['x']) % 1
                 glow(cv, sx, w_['y'] - 50 - ph * 30, 18, (255, 140, 60), 1 - ph)
+        self.pt_epic_draw_back(cv, cam)
         for c in pt['corpses']:
             sx = c['x'] - cam
             if not (-100 < sx < W + 100):
@@ -1236,7 +1260,7 @@ class PortMixin:
                 pygame.draw.rect(cv, (8, 12, 24), (sx - 15, fy - 84, 30, 5))
                 pygame.draw.rect(cv, (240, 80, 70), (sx - 14, fy - 83, int(28 * e['hp'] / e['max']), 3))
         # jugador
-        if not p['dead']:
+        if not p['dead'] and not p['veh']:
             if not (p['inv'] > 0 and int(t * 20) % 2 == 0):
                 pv_ = p.get('pv') or (p['x'], p['y'] - (50 if p['crouch'] else 67))
                 aim = (self.aim[0] + cam - pv_[0], self.aim[1] - pv_[1])
@@ -1257,6 +1281,7 @@ class PortMixin:
         else:
             fi = min(5, int(p['dead_t'] * 12))
             self.pt_char(cv, 'player', int(pcx), int(p['y']), p['face'], 'die', fi, None, None)
+        self.pt_epic_draw_front(cv, cam)
         # proyectiles y casquillos
         for c in pt['cas']:
             sx, sy = c['x'] - cam, c['y']
@@ -1325,6 +1350,7 @@ class PortMixin:
         self.text(cv, 'GRANADAS %d' % p['gren'], self.f_s, (255, 230, 150), 26, H - 84)
         if p['hmg'] > 0:
             self.bar(cv, 26, H - 56, 306, 16, p['hmg'] / 14.0, (255, 160, 80), 'AMETRALLADORA %.1f' % p['hmg'])
+        self.pt_epic_hud(cv)
         if pt['go_t'] > 0 and pt['phase'] == 'play' and int(t * 3) % 2 == 0:
             self.text(cv, 'ADELANTE  >>>', self.f_l, (255, 230, 120), W - 180, 330, 'c')
         if pt['hurt'] > 0:

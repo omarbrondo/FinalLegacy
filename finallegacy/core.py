@@ -606,6 +606,8 @@ class CoreMixin:
                 self.pt_jump()
             elif self.state == 'port' and not self.paused and e.key == pygame.K_g:
                 self.pt_throw()
+            elif self.state == 'port' and not self.paused and e.key == pygame.K_e:
+                self.pt_airstrike()
             elif self.state == 'map' and e.key == pygame.K_l and not self.paused:
                 island = self.nearest_landing_island()
                 if island:
