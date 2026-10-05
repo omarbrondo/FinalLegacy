@@ -20,6 +20,8 @@ KIND_HINT = {
 PHRASES = ('FLOTA NORTE ATACA CIUDAD AMANECER', 'MISILES LISTOS ORDEN ESPERAR SEÑAL', 'REFUERZOS LLEGAN PUERTO MEDIANOCHE SILENCIO',
            'SUBMARINOS BAJO HIELO SEGUIR OBJETIVO', 'ANTENA ENEMIGA CAMBIAR CLAVE URGENTE', 'CONVOY SIN ESCOLTA RUTA SUR',
            'JEFE MARCHA ESCUDO ACTIVO FORTALEZA', 'BATERIAS COSTERAS APUNTAN BAHIA AZUL')
+LAND_RADARS = 1                                       # radares interceptados (en la oleada) para desbloquear el desembarco
+PORT_RADARS = 2                                       # ... y el asalto al puerto enemigo
 LOOT = ('SUMINISTROS', 'REPARACIONES', 'INTELIGENCIA', 'BOTÍN')
 
 
@@ -39,6 +41,19 @@ class RadioMixin:
             if d < r * 1.1 + extra and (best is None or d < best[0]):
                 best = (d, k)
         return best[1] if best else None
+
+    def radars_done(self):
+        return sum(1 for rd in self.radars.values() if rd['hacked'])
+
+    def invasion_locked(self, need, what, quiet=False):
+        """True si faltan radares interceptados para esta invasión (y avisa)."""
+        n = self.radars_done()
+        if n >= need:
+            return False
+        if not quiet:
+            self.toast('%s bloqueado: interceptá %d radar(es) enemigo(s) (%d/%d)' % (what, need, n, need), (255, 170, 120))
+            self.audio.play('blip', .5)
+        return True
 
     def radar_tick(self, dt):
         for rd in self.radars.values():
@@ -337,6 +352,11 @@ class RadioMixin:
             self.radar_t = max(self.radar_t, 90.0)
             self.banner('¡RADAR INTERCEPTADO!', '%s  |  Flota enemiga visible 90 s  |  Bonus +%d' % (txt, max(200, bonus)), (120, 255, 190), 4.2)
             self.toast('Transmisión: "%s"' % ' '.join(rd['words']), (160, 230, 255))
+            nr = self.radars_done()
+            if nr == LAND_RADARS:
+                self.toast('¡DESEMBARCO DESBLOQUEADO! (L junto a una isla de antena)', (140, 230, 255))
+            if nr == PORT_RADARS:
+                self.toast('¡ASALTO AL PUERTO DESBLOQUEADO! (T junto al puerto enemigo)', (140, 230, 255))
         elif how == 'lost':
             self.radars[k]['cd'] = 40.0
             self.hull = max(1.0, self.hull - 8)
