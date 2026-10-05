@@ -13,7 +13,7 @@ except Exception:                                   # pygame sin soporte de mand
     sdl_ctl = None
 
 DEAD = 0.22
-PLAY_STATES = ('map', 'defense', 'combat', 'ground', 'aerial', 'hack', 'radio', 'tank', 'port')
+PLAY_STATES = ('saves', 'map', 'defense', 'combat', 'ground', 'aerial', 'hack', 'radio', 'tank', 'port')
 
 
 class _Keys:
@@ -100,7 +100,7 @@ class GamepadMixin:
         pressed = {k for k, v in cur.items() if v and not self.pad_prev.get(k)}
         self.pad_prev = cur
         st = self.state
-        menu = st in ('title', 'gameover')
+        menu = st in ('title', 'gameover', 'saves')
         # teclas mantenidas: movimiento y acción de puerto/tierra
         v = set()
         if ly < -0.3 or up:
@@ -133,6 +133,9 @@ class GamepadMixin:
         if self.paused:
             if 'START' in pressed or 'B' in pressed:
                 key(pygame.K_p)
+            for b, k in (('X', pygame.K_s), ('Y', pygame.K_c), ('BACK', pygame.K_i)):          # pausa: guardar, cargar, inmortal
+                if b in pressed:
+                    key(k)
             return
         if 'START' in pressed:
             key(pygame.K_RETURN if menu else pygame.K_p)
@@ -141,6 +144,14 @@ class GamepadMixin:
         if 'BACK' in pressed:
             key(pygame.K_e if st == 'combat' else (pygame.K_TAB if sup else pygame.K_m))       # en combate naval, Back = huir
         if menu:
+            if st == 'saves':
+                for b, k in (('UP', pygame.K_UP), ('DN', pygame.K_DOWN), ('B', pygame.K_ESCAPE)):
+                    if b in pressed:
+                        key(k)
+            elif st == 'title':
+                for b, k in (('Y', pygame.K_c), ('X', pygame.K_i)):                          # título: cargar partida / inmortal
+                    if b in pressed:
+                        key(k)
             if 'A' in pressed:
                 key(pygame.K_RETURN)
             return

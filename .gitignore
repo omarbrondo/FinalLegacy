@@ -1,3 +1,5 @@
 __pycache__/
 *.pyc
 final_legacy_gfx.txt
+final_legacy_saves.json
+final_legacy_saves.json.tmp
