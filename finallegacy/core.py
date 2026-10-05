@@ -16,6 +16,7 @@ from .sprites import (
     ENEMY_TYPES, draw_cover, make_cargo,
     make_cloud, make_f117, make_f16, make_shadow,
     make_ship, make_soldier_frames, make_sub, make_turret)
+from .car_art import make_car_sprites
 from .tk_art import make_tank_sprites, make_tk_textures
 from .boss_art import BOSS_TYPES, make_boss_sprite
 
@@ -156,6 +157,7 @@ class CoreMixin:
         self.cockpit = self.make_cockpit()
         self.tk_tex = make_tk_textures()
         self.tk_spr = make_tank_sprites()
+        self.car_spr = make_car_sprites()
         self.pt_art_prebuild()
         self.tk_sky_bg, self.tk_floor_bg, self.tk_moon = self.make_tk_backdrops()
 

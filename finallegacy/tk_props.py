@@ -1,7 +1,9 @@
 """Mobiliario urbano del combate de tanques: farolas, autos y bicicletas (los tanques los aplastan)."""
 import math
+import pygame
 import random
 from .common import glow
+from .tk_art import TK_ANG, TK_FOG, TK_PXU
 
 CRUSH_R = {'car': 3.4, 'bike': 2.2, 'lamp': 1.9}
 POINTS = {'car': 25, 'bike': 10, 'lamp': 5}
@@ -128,14 +130,7 @@ class TankPropsMixin:
             a = math.radians(rot)
             s, c = math.sin(a), math.cos(a)
             if kind == 'car':
-                if st == 'crushed':
-                    add(strips, x, z, 1.05, 2.2, 0, 0.42, rot, T['crushed'], 4.4)
-                elif st == 'burnt':
-                    add(strips, x, z, 0.9, 2.1, 0.18, 1.0, rot, T['burnt'], 4.2)
-                    add(strips, x - 0.2 * s, z - 0.2 * c, 0.78, 1.1, 1.0, 1.5, rot, T['burnt'], 2.2)
-                else:
-                    add(strips, x, z, 0.9, 2.1, 0.18, 1.05, rot, T['car'][pr['var']], 4.2)
-                    add(strips, x - 0.25 * s, z - 0.25 * c, 0.8, 1.15, 1.05, 1.68, rot, T['cabin'], 2.3)
+                self.tk_add_car(strips, pr)
             elif kind == 'bike':
                 if st == 'crushed':
                     add(strips, x, z, 0.5, 0.95, 0, 0.12, rot, T['crushed'], 1.9)
@@ -152,6 +147,37 @@ class TankPropsMixin:
                     add(strips, x, z, 0.13, 0.13, 0, 7.0, 0, T['pole'], 0.26)
                     d = math.radians(pr['dirn'])
                     add(strips, x + 0.9 * math.sin(d), z + 0.9 * math.cos(d), 0.28, 0.9, 6.85, 7.15, pr['dirn'], T['lamp'], 1.8)
+
+    def tk_add_car(self, strips, pr):
+        """Auto como sprite 3D pre-renderizado (como los tanques), ordenado por profundidad con el resto de la escena."""
+        p = self.k['p']
+        c = self.tk_cam(pr['x'], 0, pr['z'])
+        z = c[2]
+        if z < 2.5 or z > 190:
+            return
+        st = pr['st']
+        key = (0, 'burnt') if st == 'burnt' else ((0 if pr['var'] % 2 else 3, 'crushed') if st == 'crushed' else (pr['var'] % 8, 'ok'))
+        frames = self.car_spr.get(key) or self.car_spr[(0, 'ok')]
+        hi = int(round(((pr['rot'] - p['yaw']) % 360) / (360.0 / TK_ANG))) % TK_ANG
+        img0, ax, ay = frames[hi]
+        sx, sy = self.tk_prj(c)
+        scale = (self.TK_F / z) / TK_PXU
+        vp = self.TK_VP
+        dx, dy = sx - ax * scale, sy - ay * scale
+        dw, dh = img0.get_width() * scale, img0.get_height() * scale
+        vx0, vx1 = max(dx, vp.x), min(dx + dw, vp.right)
+        vy0, vy1 = max(dy, vp.y), min(dy + dh, vp.bottom)
+        if vx1 - vx0 < 1 or vy1 - vy0 < 1:
+            return
+        sw, sh = img0.get_size()
+        r = pygame.Rect(int((vx0 - dx) / scale), int((vy0 - dy) / scale), 0, 0)
+        r.w = min(sw - r.x, int((vx1 - dx) / scale) - r.x + 2)
+        r.h = min(sh - r.y, int((vy1 - dy) / scale) - r.y + 2)
+        img = pygame.transform.scale(img0.subsurface(r), (max(1, int(r.w * scale)), max(1, int(r.h * scale))))
+        f = min(0.8, z / 170.0)
+        img.fill((int(255 * (1 - f)),) * 3 + (255,), special_flags=pygame.BLEND_RGBA_MULT)
+        img.fill(tuple(int(q * f) for q in TK_FOG) + (0,), special_flags=pygame.BLEND_RGB_ADD)
+        strips.append((z - 0.4, None, img, int(dx + r.x * scale), int(dy + r.y * scale)))
 
     def tk_props_glow(self, cv):
         """Luz de las farolas (más intensa de noche y con niebla) y fuego de los autos incendiados."""

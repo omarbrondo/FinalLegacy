@@ -416,7 +416,7 @@ def build_tank_model(heavy, seed):
     return hull, tur
 
 
-def render_solids(solids, rel_deg, size, px, pitch=TK_PITCH, shadow=False):
+def render_solids(solids, rel_deg, size, px, pitch=TK_PITCH, shadow=False, shadow_w=8.4):
     W_, H_ = size
     SS = 2
     surf = pygame.Surface((W_ * SS, H_ * SS), pygame.SRCALPHA)
@@ -425,7 +425,7 @@ def render_solids(solids, rel_deg, size, px, pitch=TK_PITCH, shadow=False):
     cx0, gy = W_ / 2.0, H_ * 0.80
     L = _unit((0.50, 0.72, -0.46))
     if shadow:
-        sw, sh_ = 8.4 * px * SS, 8.4 * px * SS * math.sin(p) * 0.9
+        sw, sh_ = shadow_w * px * SS, shadow_w * px * SS * math.sin(p) * 0.9
         sx0 = cx0 * SS - sw / 2
         pygame.draw.ellipse(surf, (0, 0, 0, 105), (sx0, gy * SS - sh_ / 2, sw, sh_))
 

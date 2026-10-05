@@ -36,6 +36,7 @@ python retro_legacy.py
 | `hazards.py` | Nubes tóxicas, máscara antigás y misil Tomahawk en infantería y puerto |
 | `heli_mode.py` | Helipuerto, Blackhawk (bidón de combustible) y misiones aire-tierra |
 | `war.py` | Huellas de la guerra en el mapa: restos, petróleo, islas dañadas y islotes que se mueven |
+| `car_art.py` | Autos 3D pre-renderizados (intactos, quemados y aplastados) |
 | `tk_props.py` | Farolas, autos y bicicletas en la ciudad del tanque (aplastables) |
 | `music.py` | Compositor de música por modo y oleada |
 | `render_fx.py` | Post-proceso (bloom, viñeta, color, grano) y sprites suaves de humo/fuego/brillo |
