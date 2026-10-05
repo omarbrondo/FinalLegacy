@@ -140,17 +140,37 @@ class MapMixin:
             if keys[pygame.K_r] and abs(self.sv) < 40:
                 self.dock_t -= dt
                 changed = False
+                st = docking['stock']                 # el puerto tiene suministros limitados hasta la próxima oleada
+                empty = []
                 if self.fuel < 100:
-                    self.fuel = min(100, self.fuel + 25 * dt)
-                    changed = True
+                    g = min(25 * dt, 100 - self.fuel, st['fuel'])
+                    if g > 0:
+                        self.fuel += g
+                        st['fuel'] -= g
+                        changed = True
+                    else:
+                        empty.append('combustible')
                 if self.hull < self.hull_max:
-                    self.hull = min(self.hull_max, self.hull + 8 * dt)
-                    changed = True
-                self.ammo_acc += 6 * dt
-                if self.ammo < 40 and self.ammo_acc >= 1:
-                    self.ammo += 1
-                    self.ammo_acc = 0
-                    changed = True
+                    g = min(8 * dt, self.hull_max - self.hull, st['repair'])
+                    if g > 0:
+                        self.hull += g
+                        st['repair'] -= g
+                        changed = True
+                    else:
+                        empty.append('reparaciones')
+                if self.ammo < 40:
+                    if st['ammo'] >= 1:
+                        self.ammo_acc += 6 * dt
+                        if self.ammo_acc >= 1:
+                            self.ammo += 1
+                            st['ammo'] -= 1
+                            self.ammo_acc = 0
+                            changed = True
+                    else:
+                        empty.append('munición')
+                if empty and self.t - getattr(self, 'stock_toast', -9) > 4:
+                    self.stock_toast = self.t
+                    self.toast('%s sin %s hasta la próxima oleada' % (docking['name'], ', '.join(empty)), (255, 190, 120))
                 if changed and self.dock_t <= 0:
                     self.dock_t = 0.28
                     self.audio.play('dock', .5)
@@ -547,6 +567,11 @@ class MapMixin:
         if low:
             pygame.draw.rect(cv, (255, 40, 40), (0, 0, W, H), 4 + int(6 * pul))
 
+    def city_stock(self, c):
+        """Suministros que el puerto de la ciudad puede dar hasta que termine la oleada (menos si la ciudad está dañada)."""
+        k = 0.5 + 0.5 * clamp(c['hp'] / 100.0, 0.0, 1.0)
+        return dict(fuel=100.0 * k, repair=60.0 * k, ammo=float(int(24 * k)))
+
     def nearest_dock(self):
         for c in self.cities:
             if not c['dead'] and dist(self.sx, self.sy, c['dock'][0], c['dock'][1]) < 120:
@@ -573,6 +598,8 @@ class MapMixin:
             if not c['dead']:
                 c['hp'] = min(100, c['hp'] + 20)
         self.ammo = min(40, self.ammo + 12)
+        for c in self.cities:
+            c['stock'] = self.city_stock(c)
         self.war_advance()
         self.spawn_nests()
         self.convoy_t = min(self.convoy_t, 35.0)       # cada oleada nueva trae un convoy pronto
@@ -769,8 +796,12 @@ class MapMixin:
                           (130, 240, 255), W // 2, H - 176, 'c')
         dk = self.nearest_dock()
         if dk:
-            self.text(cv, 'PUERTO: mantené R para reabastecer y reparar',
-                      self.f_m, (140, 255, 210), W // 2, H - 148, 'c')
+            st = dk['stock']
+            if st['fuel'] < 1 and st['repair'] < 1 and st['ammo'] < 1:
+                self.text(cv, '%s: suministros agotados hasta la próxima oleada' % dk['name'], self.f_m, (255, 170, 120), W // 2, H - 148, 'c')
+            else:
+                self.text(cv, 'PUERTO: mantené R para reabastecer  |  Combustible %d  Reparación %d  Munición %d' %
+                          (st['fuel'], st['repair'], st['ammo']), self.f_m, (140, 255, 210), W // 2, H - 148, 'c')
         elif self.near_helipad(260) and self.heli_sorties > 0:
             self.text(cv, 'HELIPUERTO: presioná B para despegar en el BLACKHAWK (misiones: %d)' % self.heli_sorties,
                       self.f_m, (130, 255, 190), W // 2, H - 148, 'c')
