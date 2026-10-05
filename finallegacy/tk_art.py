@@ -478,3 +478,47 @@ def make_tank_sprites():
             parts[name] = lst
         out[kind] = parts
     return out
+
+
+def make_moon_sprite(size=200, radius=42):
+    """Luna con relieve: halo suave, sombreado esférico, mares oscuros, cráteres con luz y una fase gibosa."""
+    rnd = random.Random(21)
+    SS = 4
+    c0 = size // 2
+    out = pygame.Surface((size, size), pygame.SRCALPHA)
+    for r in range(size // 2, 0, -2):                                   # halo
+        pygame.draw.circle(out, (255, 246, 214, int(40 * (1 - r / (size / 2)) ** 2.3)), (c0, c0), r)
+    big = pygame.Surface((size * SS, size * SS), pygame.SRCALPHA)
+    R = radius * SS
+    cc = c0 * SS
+    steps = 60
+    for i in range(steps):                                              # sombreado esférico con luz arriba a la izquierda
+        t = 1 - i / steps
+        k = (1 - t) ** 0.7
+        col = (int(lerp(196, 252, k)), int(lerp(194, 250, k)), int(lerp(178, 238, k)))
+        off = (1 - t) * 0.2 * R
+        pygame.draw.circle(big, col, (int(cc - off), int(cc - off)), max(1, int(R * t)))
+    mask = pygame.Surface(big.get_size(), pygame.SRCALPHA)
+    pygame.draw.circle(mask, (255, 255, 255, 255), (cc, cc), R)
+    marea = pygame.Surface(big.get_size(), pygame.SRCALPHA)
+    for _ in range(7):                                                  # mares: manchas irregulares oscuras
+        a, d = rnd.uniform(0, 6.28), rnd.uniform(0.05, 0.6) * R
+        bx, by, br = cc + math.cos(a) * d, cc + math.sin(a) * d, rnd.uniform(0.16, 0.34) * R
+        pts = [(bx + math.cos(2 * math.pi * j / 11) * br * rnd.uniform(0.6, 1.1), by + math.sin(2 * math.pi * j / 11) * br * rnd.uniform(0.5, 1.0)) for j in range(11)]
+        pygame.draw.polygon(marea, (150, 152, 152, 120), pts)
+    marea.blit(mask, (0, 0), special_flags=pygame.BLEND_RGBA_MIN)
+    big.blit(marea, (0, 0))
+    for _ in range(18):                                                 # cráteres
+        a, d = rnd.uniform(0, 6.28), math.sqrt(rnd.random()) * 0.86 * R
+        x, y, r = cc + math.cos(a) * d, cc + math.sin(a) * d, rnd.uniform(0.035, 0.1) * R
+        pygame.draw.circle(big, (152, 152, 146), (int(x), int(y)), int(r))
+        pygame.draw.circle(big, (206, 206, 196), (int(x + r * 0.15), int(y + r * 0.15)), max(1, int(r * 0.82)))
+        pygame.draw.arc(big, (252, 252, 244), (x - r, y - r, 2 * r, 2 * r), 2.4, 3.9, max(1, int(r * 0.16)))
+    sombra = pygame.Surface(big.get_size(), pygame.SRCALPHA)           # fase: sombra sobre el borde inferior derecho
+    for rr, al in ((1.08, 40), (1.03, 80), (0.98, 120), (0.93, 150)):
+        pygame.draw.circle(sombra, (10, 14, 34, al), (int(cc + 1.5 * R), int(cc + 0.72 * R)), int(R * rr))
+    sombra.blit(mask, (0, 0), special_flags=pygame.BLEND_RGBA_MIN)
+    big.blit(sombra, (0, 0))
+    big.blit(mask, (0, 0), special_flags=pygame.BLEND_RGBA_MIN)          # recorta todo al disco
+    out.blit(pygame.transform.smoothscale(big, (size, size)), (0, 0))
+    return out

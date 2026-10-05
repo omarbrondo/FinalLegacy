@@ -123,21 +123,15 @@ class TankPropsMixin:
         for pr in k['props']:
             dx, dz = pr['x'] - p['x'], pr['z'] - p['z']
             cz, cx = dx * sy_ + dz * cy_, dx * cy_ - dz * sy_
-            lim = 105 if pr['kind'] == 'lamp' else (80 if pr['kind'] == 'car' else 50)
+            lim = 105 if pr['kind'] == 'lamp' else (80 if pr['kind'] == 'car' else 70)
             if cz < -6 or cz > lim or abs(cx) > cz * 0.95 + 9:        # fuera de cámara o muy lejos: no se dibuja
                 continue
-            kind, st, x, z, rot = pr['kind'], pr['st'], pr['x'], pr['z'], pr['rot']
-            a = math.radians(rot)
-            s, c = math.sin(a), math.cos(a)
+            kind, st, x, z = pr['kind'], pr['st'], pr['x'], pr['z']
             if kind == 'car':
                 self.tk_add_car(strips, pr)
             elif kind == 'bike':
-                if st == 'crushed':
-                    add(strips, x, z, 0.5, 0.95, 0, 0.12, rot, T['crushed'], 1.9)
-                else:
-                    add(strips, x, z, 0.05, 0.85, 0.42, 0.9, rot, T['bike'], 1.7)
-                    for w in (-0.62, 0.62):
-                        add(strips, x + w * s, z + w * c, 0.04, 0.38, 0.0, 0.72, rot, T['bike'], 0.8)
+                key = (pr['var'] % 2, 'crushed') if st == 'crushed' else (pr['var'] % 6, 'ok')
+                self.tk_add_spr(strips, pr, self.bike_spr.get(key) or self.bike_spr[(0, 'ok')])
             else:                                                       # farola
                 if st == 'down':
                     d = math.radians(pr['dirn'])
@@ -150,14 +144,21 @@ class TankPropsMixin:
 
     def tk_add_car(self, strips, pr):
         """Auto como sprite 3D pre-renderizado (como los tanques), ordenado por profundidad con el resto de la escena."""
-        p = self.k['p']
         c = self.tk_cam(pr['x'], 0, pr['z'])
         z = c[2]
         if z < 2.5 or z > 190:
             return
         st = pr['st']
         key = (0, 'burnt') if st == 'burnt' else ((0 if pr['var'] % 2 else 3, 'crushed') if st == 'crushed' else (pr['var'] % 8, 'ok'))
-        frames = self.car_spr.get(key) or self.car_spr[(0, 'ok')]
+        self.tk_add_spr(strips, pr, self.car_spr.get(key) or self.car_spr[(0, 'ok')])
+
+    def tk_add_spr(self, strips, pr, frames):
+        """Sprite 3D pre-renderizado (auto o bicicleta) en su ángulo de vista, con niebla y orden de profundidad."""
+        p = self.k['p']
+        c = self.tk_cam(pr['x'], 0, pr['z'])
+        z = c[2]
+        if z < 2.5 or z > 190:
+            return
         hi = int(round(((pr['rot'] - p['yaw']) % 360) / (360.0 / TK_ANG))) % TK_ANG
         img0, ax, ay = frames[hi]
         sx, sy = self.tk_prj(c)
