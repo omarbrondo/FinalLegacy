@@ -295,108 +295,6 @@ class MapMixin:
                 return self.strike_deck.pop(i)
         return self.strike_deck.pop()
 
-    def begin_convoy(self):
-        """Convoy aliado entre dos ciudades: cazadores enemigos lo atacan; hay que escoltarlo."""
-        alive = [c for c in self.cities if not c['dead']]
-        if len(alive) < 2:
-            self.convoy_t = 20.0
-            return
-        src = random.choice(alive)
-        dst = max((c for c in alive if c is not src), key=lambda c: dist(c['x'], c['y'], src['x'], src['y']) + random.uniform(0, 600))
-        sx, sy = src['dock']
-        dx, dy = dst['dock']
-        cv_ = dict(x=float(sx), y=float(sy), h=bearing(dx - sx, dy - sy), v=0.0, hp=100.0, src=src, dst=dst, t=0.0)
-        self.convoy = cv_
-        n_r = 2 if self.wave < 4 else 3
-        mh = 9 + 2 * self.wave
-        for i in range(n_r):
-            f = random.uniform(0.35, 0.7)
-            px, py = sx + (dx - sx) * f, sy + (dy - sy) * f
-            for _ in range(40):
-                x, y = px + random.uniform(-350, 350), py + random.uniform(-350, 350)
-                if 100 < x < WORLD_W - 100 and 100 < y < WORLD_H - 100 and not self.on_land(x, y, 90) and dist(x, y, self.sx, self.sy) > 500:
-                    break
-            self.enemies.append(dict(x=x, y=y, h=random.uniform(0, 360), v=0.0, hp=mh, max=mh, state='patrol',
-                                     wp=(px, py), cool=0.0, is_boss=False, raider=True))
-        self.audio.play('alarm', .6)
-        self.banner('¡CONVOY EN PELIGRO!', 'Carguero de %s a %s  |  Cazadores enemigos al acecho: escoltalo' % (src['name'], dst['name']),
-                    (120, 255, 190), 4.4)
-
-    def end_convoy(self, ok):
-        cv_ = self.convoy
-        self.convoy = None
-        self.convoy_t = random.uniform(75, 105)
-        for en in self.enemies:
-            en.pop('raider', None)
-        if ok:
-            pts = 600 + 150 * self.wave
-            self.add_score(pts)
-            d = cv_['dst']
-            d['hp'] = min(100.0, d['hp'] + 20)
-            self.city_refill(d, 30)
-            self.audio.play('win', .7)
-            self.banner('¡CONVOY A SALVO!', '%s recibe suministros (+20%% ciudad, +30 de cada recurso)  |  +%d puntos' % (d['name'], pts), (120, 255, 160), 3.6)
-        else:
-            self.audio.play('boom_l')
-            self.shake = 10
-            self.ammo = max(0, self.ammo - 4)
-            self.banner('¡CONVOY HUNDIDO!', 'Sin suministros: -4 munición', (255, 90, 70), 3.4)
-
-    def upd_convoy(self, dt):
-        cv_ = self.convoy
-        cv_['t'] += dt
-        dx, dy = cv_['dst']['dock']
-        vx, vy = dx - cv_['x'], dy - cv_['y']
-        d = math.hypot(vx, vy) or 1.0
-        vx, vy = vx / d, vy / d
-        for ix, iy, ir, sd in self.islands:
-            dd = dist(cv_['x'], cv_['y'], ix, iy) or 1.0
-            lim = coast_r(ir, sd, math.atan2(cv_['y'] - iy, cv_['x'] - ix), 1.1) + 120
-            if dd < lim:
-                k = (lim - dd) / 120
-                vx += (cv_['x'] - ix) / dd * k * 2.6
-                vy += (cv_['y'] - iy) / dd * k * 2.6
-        want = bearing(vx, vy)
-        cv_['h'] = (cv_['h'] + clamp(angle_diff(cv_['h'], want), -30 * dt, 30 * dt)) % 360
-        cv_['v'] += ((70 if cv_['t'] > 3 else 0) - cv_['v']) * min(1, dt * 1.2)
-        mx, my = vec(cv_['h'], cv_['v'] * dt)
-        cv_['x'] += mx
-        cv_['y'] += my
-        if random.random() < dt * 12:
-            bx, by = vec(cv_['h'], -30)
-            self.fxm.add('foam', cv_['x'] + bx, cv_['y'] + by, life=1.3, r0=4, r1=12, col=(230, 245, 255))
-        atk = [en for en in self.enemies if en.get('raider') and dist(en['x'], en['y'], cv_['x'], cv_['y']) < 170]
-        if atk:
-            cv_['hp'] -= 6.0 * len(atk) * dt
-            if random.random() < dt * 8:
-                self.fxm.add('glow', cv_['x'] + random.uniform(-10, 10), cv_['y'] + random.uniform(-25, 25), life=.4, r0=6, r1=18, col=(255, 150, 60))
-            if int(cv_['t'] * 2) != int((cv_['t'] - dt) * 2):
-                self.audio.play('hit', .25)
-        if cv_['hp'] < 50 and random.random() < dt * 6:
-            self.fxm.add('smoke', cv_['x'], cv_['y'], 0, -18, 1.8, 5, 18, (60, 60, 60))
-        if cv_['hp'] <= 0:
-            self.end_convoy(False)
-        elif d < 160:
-            self.end_convoy(True)
-
-    def draw_convoy(self, cv, cx, cy, yy):
-        c = self.convoy
-        t = self.t
-        sx, sy = c['x'] - cx, c['y'] - cy
-        if -100 < sx < W + 100 and -100 < sy < H + 100:
-            self.blit_ship(cv, 'c_map', c['x'], c['y'], c['h'], cx, cy)
-            draw_circ(cv, sx, sy, 38, (120, 255, 190), 70, 2)
-            pygame.draw.rect(cv, (8, 12, 24), (sx - 24, sy - 52, 48, 7))
-            col = (80, 230, 110) if c['hp'] > 50 else ((255, 200, 70) if c['hp'] > 25 else (240, 80, 70))
-            pygame.draw.rect(cv, col, (sx - 23, sy - 51, int(46 * c['hp'] / 100), 5))
-        self.panel(cv, (W // 2 - 190, yy, 380, 46), 190)
-        self.text(cv, 'CONVOY a %s  |  casco %d%%' % (c['dst']['name'], c['hp']), self.f_s,
-                  (150, 255, 200) if c['hp'] > 40 else (255, 120, 100), W // 2, yy + 6, 'c')
-        left = dist(c['x'], c['y'], c['dst']['dock'][0], c['dst']['dock'][1])
-        self.text(cv, 'Faltan %d m  |  raiders vivos: %d' % (left, sum(1 for en in self.enemies if en.get('raider'))), self.f_s,
-                  (200, 220, 240), W // 2, yy + 26, 'c')
-        self.draw_pointer(cv, cx, cy, c['x'], c['y'], 'CONVOY', (120, 255, 190), 0.5 + 0.5 * math.sin(t * 5))
-
     def begin_rescue(self):
         """Náufragos: a veces bajo el alcance de una batería costera."""
         live = [n for n in self.nests if n['alive']]
@@ -813,7 +711,7 @@ class MapMixin:
         self.text(cv, 'ANTENAS %d/%d  (jefe: %d)' % (n_ant, len(self.antennas), need), self.f_s,
                   (130, 235, 255) if n_ant >= need else (255, 190, 120), W - 296 + 8, 116)
         nr = self.radars_done()
-        self.text(cv, 'RADARES %d/%d  (desemb. %d | puerto %d)' % (nr, len(self.radars), LAND_RADARS, PORT_RADARS), self.f_s,
+        self.text(cv, 'RADARES %d/%d  (L:%d P:%d)' % (nr, len(self.radars), LAND_RADARS, PORT_RADARS), self.f_s,
                   (130, 255, 190) if nr >= PORT_RADARS else ((255, 220, 120) if nr >= LAND_RADARS else (255, 150, 130)), W - 296 + 8, 136)
         bs = self.nearest_shield_boss()
         if bs:

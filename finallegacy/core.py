@@ -120,6 +120,7 @@ class CoreMixin:
         reg('s_map', make_sub(16, 62))
         reg('s_hull', make_sub(32, 128))
         reg('c_map', make_cargo(26, 70))
+        reg('esc_map', make_ship(16, 46, (70, 150, 110), (130, 200, 160), (255, 255, 255)))
         self.tur_p = make_turret(8, (70, 140, 170))
         self.tur_e = make_turret(8, (150, 60, 60))
         self.tur_b = make_turret(12, (150, 160, 178))
@@ -644,6 +645,8 @@ class CoreMixin:
                 self.go('map')
             elif self.state in ('ground', 'port') and e.key == pygame.K_t and not self.paused:
                 self.tomahawk()
+            elif self.state == 'map' and e.key == pygame.K_f and not self.paused:
+                self.cv_flak()
             elif self.state == 'map' and e.key == pygame.K_c and not self.paused:
                 self.heli_call()
             elif self.state == 'map' and e.key == pygame.K_b and not self.paused:
