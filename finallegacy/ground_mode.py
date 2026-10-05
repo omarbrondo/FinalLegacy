@@ -929,7 +929,7 @@ class GroundMixin:
                 left = MAX_LANDING_ATTEMPTS - self.landing_attempts[i]
                 self.toast('Desembarco fallido: -25 casco, -5 munición  (intentos: %d)' % left, (255, 140, 90))
                 if self.hull <= 0:
-                    return self.game_over('Tu barco se hundió')
+                    return self.lose_ship('Tu barco se hundió')
             elif i in self.antennas and not self.antennas[i]:
                 self.antennas[i] = True
                 n = sum(self.antennas.values())

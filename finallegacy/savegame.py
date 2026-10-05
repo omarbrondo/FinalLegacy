@@ -71,6 +71,8 @@ class SaveMixin:
                 p['hp'] = PLAYER_HP
             elif st == 'heli':
                 self.hm['p']['hp'] = 100.0
+            elif st == 'lifeboat':
+                self.lb['hp'] = 100.0
         except (AttributeError, KeyError, TypeError):
             pass
 
@@ -84,7 +86,7 @@ class SaveMixin:
         cities = [dict(hp=c['hp'], dead=c['dead'], stock=c['stock']) for c in self.cities]
         li = self.last_strike
         return dict(
-            v=SAVE_VER, stamp=time.time(), score=self.score, wave=self.wave, pending_upgrade=bool(pending_upgrade),
+            v=SAVE_VER, stamp=time.time(), score=self.score, wave=self.wave, lives=self.lives, next_life=self.next_life, pending_upgrade=bool(pending_upgrade),
             ship=dict(x=self.sx, y=self.sy, h=self.sh, v=self.sv), hull=self.hull, hull_max=self.hull_max, fuel=self.fuel, ammo=self.ammo,
             up=self.up, up_left=self.up_left, antennas=self.antennas, landing=self.landing_attempts, radars=self.radars,
             cleared=sorted(self.cleared_isl), cities=cities, port_tries=self.port_tries, port_done=self.port_done,
@@ -98,6 +100,7 @@ class SaveMixin:
     def sv_apply(self, d):
         self.reset()
         self.score, self.wave = int(d['score']), int(d['wave'])
+        self.lives, self.next_life = int(d.get('lives', 3)), int(d.get('next_life', 5000))
         s = d['ship']
         self.sx, self.sy, self.sh, self.sv = s['x'], s['y'], s['h'], s['v']
         self.hull, self.hull_max, self.fuel, self.ammo = d['hull'], d['hull_max'], d['fuel'], d['ammo']
