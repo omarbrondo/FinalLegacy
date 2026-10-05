@@ -185,7 +185,7 @@ class GamepadMixin:
             if st in ('aerial', 'ground'):
                 key(pygame.K_b if st == 'aerial' else pygame.K_g)
         if st == 'map':
-            for b, k in (('LB', pygame.K_l), ('RB', pygame.K_h), ('Y', pygame.K_t), ('B', pygame.K_b), ('LT', pygame.K_c)):
+            for b, k in (('LB', pygame.K_l), ('RB', pygame.K_h), ('Y', pygame.K_t), ('B', pygame.K_b), ('LT', pygame.K_c), ('A', pygame.K_f)):
                 if b in pressed:
                     key(k)
         else:
