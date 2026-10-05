@@ -446,6 +446,7 @@ class CoreMixin:
         self.cities = []
         for (name, x, y, r, seed) in CITY_DEFS:
             c = dict(name=name, x=x, y=y, r=r, hp=100.0, dead=False, seed=seed)
+            c['stock'] = self.city_stock(c)
             c['sky'] = self.make_skyline(seed)
             c['dock'] = (x, y + coast_r(r, seed, math.pi / 2, 1.04) + 46)
             self.cities.append(c)
