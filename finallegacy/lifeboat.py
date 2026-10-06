@@ -54,7 +54,7 @@ class LifeboatMixin(LifeboatArtMixin, LifeboatOpsMixin):
             ref['cool'] = max(ref['cool'], 20.0)
         self.lb = dict(city=city, T=T, t=0.0, p=0.0, x=W / 2 + 80.0, y=H - 150.0, vx=0.0, vy=0.0, hp=100.0, boost=100.0, boost_lock=False,
                        boosting=False, boats=[], planes=[], bullets=[], warns=[], boat_t=LB_INTRO + 3.5, plane_t=LB_INTRO + 7.0,
-                       phase='sail', pt=0.0, hurt=0.0, wake=0.0, low_warned=False, scroll=0.0, reefs=[],
+                       phase='sail', pt=0.0, hurt=0.0, wake=0.0, low_warned=False, scroll=0.0, pd=0.0, reefs=[],
                        reef_t=LB_INTRO + 4.5, bank_k=1.0, dock_y=322.0, **self.lb_ops_init())
         self.go('lifeboat')
         self.banners = []
@@ -94,6 +94,7 @@ class LifeboatMixin(LifeboatArtMixin, LifeboatOpsMixin):
             lb['vx'], lb['vy'] = 0.0, -20.0
             lb['scroll'] += LB_SCROLL * 0.3 * dt
             lb['p'] = min(1.0, lb['p'] + dt * 0.6)
+            lb['pd'] = 1.0
             if lb['pt'] > 3.0:
                 return self.lb_finish()
             self.lb_move_bullets(dt, harmless=True)
@@ -126,6 +127,7 @@ class LifeboatMixin(LifeboatArtMixin, LifeboatOpsMixin):
         lb['x'] = clamp(lb['x'] + lb['vx'] * dt, lo + 30, hi - 30)
         if playing:
             lb['p'] += dt * (LB_BOOST_RATE if lb['boosting'] else LB_RATE) / (lb['T'] * LB_NEED)
+        lb['pd'] = self.lb_progress_shown()
         left = lb['T'] - max(0.0, lb['t'] - LB_INTRO)
         if playing and left <= 10 and not lb['low_warned']:
             lb['low_warned'] = True
@@ -162,13 +164,26 @@ class LifeboatMixin(LifeboatArtMixin, LifeboatOpsMixin):
             self.shake = 14
             self.banner('LANCHA HUNDIDA', 'No hubo rescate', (255, 90, 80), 3.0)
 
-    def lb_touches_port(self):
+    def lb_pier_gap(self):
+        """Distancia (px) entre la proa y la punta del muelle central cuando el puerto ya se ve; None si todavía no aparece."""
         lb = self.lb
         kc = clamp((lb['p'] - 0.7) / 0.3, 0, 1)
         if kc <= 0:
-            return False
+            return None
         tip = -CITY_H + (CITY_H - 40) * kc + 362                              # punta de los muelles (ver lifeboat_art)
-        return lb['y'] - 22 <= tip
+        return (lb['y'] - 22) - tip
+
+    def lb_touches_port(self):
+        gap = self.lb_pier_gap()
+        return gap is not None and gap <= 0
+
+    def lb_progress_shown(self):
+        """Barra de avance: el tiempo recorrido o, si el puerto ya se ve, qué tan cerca está la proa del muelle (lo que sea mayor)."""
+        lb = self.lb
+        gap = self.lb_pier_gap()
+        if gap is None:
+            return lb['p']
+        return max(lb['p'], clamp(1.0 - gap / 330.0, 0.0, 1.0))
 
     def fx_burst(self, x, y, big=False):
         self.fxm.add('glow', x, y, life=0.5, r0=10, r1=44 if big else 26, col=(255, 170, 80))
