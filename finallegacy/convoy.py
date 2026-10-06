@@ -163,19 +163,20 @@ class ConvoyMixin:
         # rumbo y velocidad
         vx, vy = (dx - c['x']) / (d or 1.0), (dy - c['y']) / (d or 1.0)
         for ix, iy, ir, sd in self.islands:
-            if abs(ix - c['dst']['x']) < 1 and abs(iy - c['dst']['y']) < 1:        # la isla de destino no lo aleja: va derecho al muelle
-                continue
             dd = dist(c['x'], c['y'], ix, iy) or 1.0
-            lim = coast_r(ir, sd, math.atan2(c['y'] - iy, c['x'] - ix), 1.1) + 120
+            is_dst = abs(ix - c['dst']['x']) < 1 and abs(iy - c['dst']['y']) < 1
+            lim = coast_r(ir, sd, math.atan2(c['y'] - iy, c['x'] - ix), 1.0 if is_dst else 1.1) + (20 if is_dst else 120)   # al destino se acerca hasta tocar la costa
             if dd < lim:
                 k = (lim - dd) / 120
                 vx += (c['x'] - ix) / dd * k * 2.6
                 vy += (c['y'] - iy) / dd * k * 2.6
         want = bearing(vx, vy)
         c['h'] = (c['h'] + clamp(angle_diff(c['h'], want), -30 * dt, 30 * dt)) % 360
-        slow = 1.0 if d > 260 else clamp((d - 10) / 250.0, 0.3, 1.0)
+        dcity = dist(c['x'], c['y'], c['dst']['x'], c['dst']['y'])
+        dcoast = dcity - coast_r(c['dst']['r'], c['dst']['seed'], math.atan2(c['y'] - c['dst']['y'], c['x'] - c['dst']['x']), 1.0)
+        slow = 1.0 if dcoast > 260 else clamp((dcoast - 10) / 250.0, 0.3, 1.0)
         goal_v = (70 * slow if c['t'] > 3 else 0) if c['state'] == 'sail' else 0.0
-        c['v'] += (goal_v - c['v']) * min(1, dt * 1.2)
+        c['v'] += (goal_v - c['v']) * min(1, dt * (1.2 if c['state'] == 'sail' else 7.0))
         mx, my = vec(c['h'], c['v'] * dt)
         c['x'] += mx
         c['y'] += my
@@ -198,8 +199,8 @@ class ConvoyMixin:
         if c['hp'] < 30 and random.random() < dt * 5:
             self.fxm.add('glow', c['x'] + random.uniform(-8, 8), c['y'] + random.uniform(-20, 20), life=.35, r0=6, r1=16, col=(255, 130, 50))
         # llegada y descarga
-        c['stuck'] = c.get('stuck', 0.0) + dt if (d < 150 and c['v'] < 8) else 0.0
-        if c['state'] == 'sail' and (d < 46 or c['stuck'] > 1.5):                  # llegada = tocar el muelle
+        c['stuck'] = c.get('stuck', 0.0) + dt if (dcoast < 150 and c['v'] < 8) else 0.0
+        if c['state'] == 'sail' and (d < 46 or dcoast < 34 or c['stuck'] > 1.5):   # llegada = tocar el puerto (la costa de la ciudad o el muelle)
             c['state'] = 'unload'
             self.audio.play('win', .6)
             self.shake = max(self.shake, 3)
@@ -378,7 +379,10 @@ class ConvoyMixin:
         self.city_refill(d, amt)
         c['delivered'] += min(amt, max(0.0, self.city_cap(d) - before))
         if random.random() < dt * 9:
-            c['boxes'].append(dict(x0=c['x'], y0=c['y'], x1=d['dock'][0] + random.uniform(-30, 30), y1=d['dock'][1] + random.uniform(-30, 30),
+            a_ = math.atan2(c['y'] - d['y'], c['x'] - d['x'])
+            cr_ = coast_r(d['r'], d['seed'], a_, 1.0)
+            c['boxes'].append(dict(x0=c['x'], y0=c['y'], x1=d['x'] + math.cos(a_) * (cr_ - 10) + random.uniform(-20, 20),
+                                   y1=d['y'] + math.sin(a_) * (cr_ - 10) + random.uniform(-20, 20),
                                    t=0.0, col=random.choice(((196, 84, 62), (70, 126, 196), (226, 184, 66), (80, 160, 120)))))
         if c['unload'] >= UNLOAD_T:
             self.end_convoy(True)
