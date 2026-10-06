@@ -267,7 +267,7 @@ class NavalMixin:
             if ship['sink'] is not None:
                 ship['sink'] += dt
                 ship['v'] *= 0.97
-                if int(ship['sink'] * 5) != int((ship['sink'] - dt) * 5):
+                if int(ship['sink'] * 5) != int((ship['sink'] - dt) * 5) and ship['sink'] < (4.0 if (ship is e and c['is_boss']) else 2.6):
                     big_ = ship is e and c['is_boss']
                     self.fx.explode(ship['x'] + random.uniform(-30, 30) * (1.5 if big_ else 0.5), ship['y'] + random.uniform(-110, 110) if big_ else ship['y'] + random.uniform(-40, 40), 1.5 if big_ else 0.9, big_)
                     self.audio.play('boom_s', .6)

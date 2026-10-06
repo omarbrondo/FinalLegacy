@@ -67,7 +67,7 @@ class NavalComboMixin:
         p, e = c['p'], c['e']
         if b['sink'] is not None:
             b['sink'] += dt
-            if int(b['sink'] * 5) != int((b['sink'] - dt) * 5):
+            if int(b['sink'] * 5) != int((b['sink'] - dt) * 5) and b['sink'] < 2.0:
                 self.fx.explode(b['x'] + random.uniform(-26, 26), b['y'] + random.uniform(-26, 26), 0.9)
                 self.audio.play('boom_s', .5)
             return

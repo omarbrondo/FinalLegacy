@@ -712,7 +712,7 @@ class MapMixin:
         self.bar(cv, W - 296, 96, 282, 14, thr, (255, 90 + int(100 * (1 - thr)), 60), '')
         self.text(cv, 'BLACKHAWK: %d misión(es) | próxima a los %d pts | bidón (C): %s' % (
             self.heli_sorties, self.heli_next, 'en camino' if self.heli_fl else ('%ds' % math.ceil(self.heli_cd) if self.heli_cd > 0 else 'listo')),
-            self.f_s, (130, 255, 190), 14, 74)
+            self.f_s, (130, 255, 190), 14, 96)
         n_ant = sum(self.antennas.values())
         need = self.antennas_needed()
         self.text(cv, 'ANTENAS %d/%d  (jefe: %d)' % (n_ant, len(self.antennas), need), self.f_s,
