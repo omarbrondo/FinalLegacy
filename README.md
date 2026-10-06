@@ -34,6 +34,7 @@ python retro_legacy.py
 | `naval_combo.py` | Combate combinado: barco enemigo + batería costera cercana en un mismo combate |
 | `aerial_mode.py` | Batalla aérea estilo Twinbee |
 | `ground_mode.py` | Infantería cenital: invasión, desembarco con sigilo, defensa de antenas |
+| `splash.py` | Videos MP4 de presentación (logo e intro) con salto por clic |
 | `ground_city.py` | Distrito urbano de la invasión anfibia: manzanas, edificios y autos con colisión, navegación por calles |
 | `landing.py` | Desembarco épico: escuadra aliada, fases, búnkeres, clima y informe de misión |
 | `savegame.py` | Guardado/carga de partidas y modo inmortal |
@@ -104,7 +105,8 @@ La tecla **V** cambia la calidad: BÁSICA, HD (resplandor/bloom, gradación de c
 
 ## Pantalla completa y mando
 
-- **F11** o **Alt+Enter**: pantalla completa (se escala conservando la proporción). También `python retro_legacy.py --fullscreen`.
+- El juego **siempre abre en pantalla completa** (F11 o Alt+Enter alternan; `python retro_legacy.py --windowed` o `-w` lo abre en ventana).
+- **Videos de presentación**: si hay `videos/logo.mp4` y `videos/intro.mp4`, se reproducen con sonido antes del título (logo, después intro). Se saltan con clic, ESPACIO, ENTER, ESC o un botón del mando. Necesitan `pip install imageio-ffmpeg` (o ffmpeg instalado); si falta algo, el juego arranca sin ellos.
 - **Mando Xbox 360 / One** (y compatibles SDL): se detecta solo, también si lo conectás con el juego abierto.
   Palanca izq./cruceta: mover · palanca der.: apuntar · RT o A: disparar · LT, B o RB: granada/bomba ·
   X: recargar/reabastecer · Y: acción · LB: sigilo (mapa: desembarcar) · RB en el mapa: hackear · Start: pausa/empezar · Back: sonido.

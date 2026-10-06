@@ -9,6 +9,7 @@ from .naval_mode import NavalMixin
 from .aerial_mode import AerialMixin
 from .air_boss import AirBossMixin
 from .ground_mode import GroundMixin
+from .splash import play_splashes
 from .ground_city import GroundCityMixin
 from .port_mode import PortMixin
 from .tank_mode import TankMixin
@@ -38,6 +39,7 @@ class Game(CoreMixin, MapMixin, DefenseMixin, HackMixin, NavalMixin, AerialMixin
 
 def main():
     g = Game()
-    if '--fullscreen' in sys.argv or '-f' in sys.argv or os.environ.get('FL_FULLSCREEN'):
+    if not ('--windowed' in sys.argv or '-w' in sys.argv or os.environ.get('FL_WINDOWED')):     # por defecto, pantalla completa
         g.toggle_fullscreen()
+    play_splashes(g)
     g.run()
