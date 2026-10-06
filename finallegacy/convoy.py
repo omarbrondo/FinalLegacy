@@ -4,7 +4,7 @@ import pygame
 import random
 from .common import H, W, WORLD_H, WORLD_W, angle_diff, bearing, clamp, coast_r, dist, draw_circ, glow, vec
 
-UNLOAD_T = 3.4
+UNLOAD_T = 1.6
 FLAK_R = 300
 FLAK_CD = 6.0
 PLANE_SHAPE = ((0, -18), (4, -6), (22, 4), (22, 9), (4, 6), (3, 16), (10, 20), (10, 23), (0, 21), (-10, 23), (-10, 20), (-3, 16), (-4, 6), (-22, 9), (-22, 4), (-4, -6))
@@ -163,6 +163,8 @@ class ConvoyMixin:
         # rumbo y velocidad
         vx, vy = (dx - c['x']) / (d or 1.0), (dy - c['y']) / (d or 1.0)
         for ix, iy, ir, sd in self.islands:
+            if abs(ix - c['dst']['x']) < 1 and abs(iy - c['dst']['y']) < 1:        # la isla de destino no lo aleja: va derecho al muelle
+                continue
             dd = dist(c['x'], c['y'], ix, iy) or 1.0
             lim = coast_r(ir, sd, math.atan2(c['y'] - iy, c['x'] - ix), 1.1) + 120
             if dd < lim:
@@ -171,7 +173,7 @@ class ConvoyMixin:
                 vy += (c['y'] - iy) / dd * k * 2.6
         want = bearing(vx, vy)
         c['h'] = (c['h'] + clamp(angle_diff(c['h'], want), -30 * dt, 30 * dt)) % 360
-        slow = 1.0 if d > 260 else clamp((d - 40) / 220.0, 0.12, 1.0)
+        slow = 1.0 if d > 260 else clamp((d - 10) / 250.0, 0.3, 1.0)
         goal_v = (70 * slow if c['t'] > 3 else 0) if c['state'] == 'sail' else 0.0
         c['v'] += (goal_v - c['v']) * min(1, dt * 1.2)
         mx, my = vec(c['h'], c['v'] * dt)
@@ -196,10 +198,12 @@ class ConvoyMixin:
         if c['hp'] < 30 and random.random() < dt * 5:
             self.fxm.add('glow', c['x'] + random.uniform(-8, 8), c['y'] + random.uniform(-20, 20), life=.35, r0=6, r1=16, col=(255, 130, 50))
         # llegada y descarga
-        if c['state'] == 'sail' and d < 170:
+        c['stuck'] = c.get('stuck', 0.0) + dt if (d < 150 and c['v'] < 8) else 0.0
+        if c['state'] == 'sail' and (d < 46 or c['stuck'] > 1.5):                  # llegada = tocar el muelle
             c['state'] = 'unload'
-            self.audio.play('win', .5)
-            self.cv_say('CARGUERO', '¡En el puerto! Descargando... ¡aguanten!')
+            self.audio.play('win', .6)
+            self.shake = max(self.shake, 3)
+            self.cv_say('CARGUERO', '¡Llegamos al puerto! Descargando...')
         if c['state'] == 'unload':
             self.cv_unload(dt)
         if c['hp'] <= 0:
@@ -422,7 +426,7 @@ class ConvoyMixin:
                 pygame.draw.line(cv, (120, 255, 190), (sx + (dkx - sx) * f0, sy + (dky - sy) * f0), (sx + (dkx - sx) * f1, sy + (dky - sy) * f1), 2)
         if -200 < dkx < W + 200 and -200 < dky < H + 200:
             pul = 0.5 + 0.5 * math.sin(t * 4)
-            draw_circ(cv, dkx, dky, 70 + 10 * pul, (120, 255, 190), 70, 3)
+            draw_circ(cv, dkx, dky, 56 + 3 * pul, (120, 255, 190), 70, 3)
             self.text(cv, 'REABASTECIMIENTO', self.f_s, (150, 255, 210), dkx, dky - 100, 'c')
         for e in c['escorts']:
             if e['hp'] > 0 and -100 < e['x'] - cx < W + 100 and -100 < e['y'] - cy < H + 100:

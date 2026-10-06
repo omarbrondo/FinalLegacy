@@ -116,6 +116,37 @@ class LifeboatArtMixin:
             pygame.draw.circle(cv, col, (int(x + dx), int(y + dy)), rr)
         pygame.draw.circle(cv, (230, 240, 245), (int(x - 5), int(y - 7)), 4)
 
+    def lb_draw_mine(self, cv, m, t):
+        x, y = m['x'], m['y'] + math.sin(t * 2 + m['ph']) * 2
+        draw_circ(cv, x + 5, y + 8, 18, (0, 0, 0), 60)
+        draw_circ(cv, x, y, 24 + 2 * math.sin(t * 3 + m['ph']), (225, 245, 255), 55, 2)
+        for k in range(8):
+            a = k * math.pi / 4 + 0.3
+            pygame.draw.line(cv, (40, 42, 46), (x + math.cos(a) * 9, y + math.sin(a) * 9), (x + math.cos(a) * 19, y + math.sin(a) * 19), 4)
+            pygame.draw.circle(cv, (150, 154, 160), (int(x + math.cos(a) * 19), int(y + math.sin(a) * 19)), 3)
+        pygame.draw.circle(cv, (52, 56, 62), (int(x), int(y)), 13)
+        pygame.draw.circle(cv, (96, 102, 110), (int(x - 3), int(y - 3)), 8)
+        if int(t * 3 + m['ph']) % 2 == 0:
+            pygame.draw.circle(cv, (255, 60, 50), (int(x), int(y)), 4)
+            glow(cv, x, y, 22, (255, 60, 50), 0.8)
+
+    def lb_draw_pup(self, cv, u, t):
+        x, y = u['x'], u['y'] + math.sin(t * 3 + u['ph']) * 3
+        col = {'repair': (120, 255, 160), 'nitro': (120, 200, 255), 'shield': (150, 240, 255)}[u['kind']]
+        glow(cv, x, y, 40, col, 0.8)
+        draw_circ(cv, x + 4, y + 8, 18, (0, 0, 0), 55)
+        pygame.draw.rect(cv, (230, 232, 236), (x - 15, y - 15, 30, 30), border_radius=6)
+        pygame.draw.rect(cv, tuple(int(c * 0.6) for c in col), (x - 15, y - 15, 30, 30), 3, border_radius=6)
+        if u['kind'] == 'repair':
+            pygame.draw.rect(cv, (214, 40, 36), (x - 3, y - 10, 6, 20))
+            pygame.draw.rect(cv, (214, 40, 36), (x - 10, y - 3, 20, 6))
+        elif u['kind'] == 'nitro':
+            pygame.draw.polygon(cv, (30, 110, 220), [(x + 3, y - 12), (x - 7, y + 2), (x - 1, y + 2), (x - 3, y + 12), (x + 8, y - 3), (x + 2, y - 3)])
+        else:
+            pygame.draw.polygon(cv, (30, 150, 200), [(x - 9, y - 10), (x + 9, y - 10), (x + 9, y + 2), (x, y + 12), (x - 9, y + 2)])
+            pygame.draw.polygon(cv, (210, 250, 255), [(x - 5, y - 6), (x + 5, y - 6), (x + 5, y + 1), (x, y + 7), (x - 5, y + 1)])
+        self.text(cv, {'repair': 'SALUD', 'nitro': 'NITRO', 'shield': 'ESCUDO'}[u['kind']], self.f_s, col, x, y + 18, 'c')
+
     # ------------------------------------------------------------------ lancha salvavidas
     def lb_sprite(self):
         if getattr(self, '_lb_spr', None) is None:
@@ -333,6 +364,10 @@ class LifeboatArtMixin:
         # arrecifes
         for rf in lb['reefs']:
             self.lb_draw_reef(cv, rf, t)
+        for m in lb['mines']:
+            self.lb_draw_mine(cv, m, t)
+        for u in lb['pups']:
+            self.lb_draw_pup(cv, u, t)
         # lanchas enemigas (salen de detrás de las orillas)
         for b in lb['boats']:
             self.blit_ship(cv, 'g_boat', b['x'], b['y'], 90 if b['vx'] > 0 else 270)
@@ -364,6 +399,13 @@ class LifeboatArtMixin:
         for b in lb['bullets']:
             pygame.draw.line(cv, (255, 235, 140), (b['x'], b['y']), (b['x'] - b['vx'] * 0.035, b['y'] - b['vy'] * 0.035), 3)
             pygame.draw.circle(cv, (255, 120, 80), (int(b['x']), int(b['y'])), 3)
+        for s_ in lb['pshots']:
+            pygame.draw.line(cv, (200, 255, 150), (s_['x'], s_['y']), (s_['x'] - s_['vx'] * 0.03, s_['y'] - s_['vy'] * 0.03), 3)
+            pygame.draw.circle(cv, (255, 255, 200), (int(s_['x']), int(s_['y'])), 2)
+        for b in lb['boats']:                                     # barra de vida de las lanchas enemigas
+            if b['hp'] < 5:
+                pygame.draw.rect(cv, (8, 12, 24), (b['x'] - 20, b['y'] - 30, 40, 5))
+                pygame.draw.rect(cv, (240, 80, 70), (b['x'] - 19, b['y'] - 29, int(38 * clamp(b['hp'] / 5.0, 0, 1)), 3))
         # lancha salvavidas
         if lb['phase'] != 'dead' or lb['pt'] < 0.15:
             sp = abs(lb['vx']) + abs(lb['vy'])
@@ -380,6 +422,18 @@ class LifeboatArtMixin:
                 glow(cv, lb['x'], lb['y'], 36, (255, 80, 60), 0.7)
             if lb['boosting']:
                 glow(cv, lb['x'], lb['y'] + 44, 30, (140, 210, 255), 0.9)
+            if lb['shield'] > 0:
+                pul = 0.5 + 0.5 * math.sin(t * 8)
+                draw_circ(cv, lb['x'], lb['y'], 46, (120, 220, 255), 40 + 30 * pul)
+                draw_circ(cv, lb['x'], lb['y'], 46, (190, 245, 255), 200, 2)
+        # mira
+        if self.mouse_moved and lb['phase'] == 'sail':
+            ax, ay = clamp(self.aim[0], 0, W), clamp(self.aim[1], 0, H)
+            col = (255, 235, 130) if lb['fire_cd'] <= 0 else (170, 170, 150)
+            pygame.draw.circle(cv, col, (int(ax), int(ay)), 14, 2)
+            pygame.draw.circle(cv, col, (int(ax), int(ay)), 2)
+            for dx_, dy_ in ((-22, 0), (22, 0), (0, -22), (0, 22)):
+                pygame.draw.line(cv, col, (ax + dx_ // 2, ay + dy_ // 2), (ax + dx_, ay + dy_), 2)
         # HUD
         if lb['hurt'] > 0:
             ov = pygame.Surface((W, H), pygame.SRCALPHA)
@@ -398,11 +452,19 @@ class LifeboatArtMixin:
         self.bar(cv, 26, H - 86, 306, 24, lb['hp'] / 100.0, (80, 220, 110) if lb['hp'] > 35 else (240, 80, 70), 'LANCHA %d%%' % max(0, lb['hp']))
         bcol = (255, 120, 80) if lb['boost_lock'] else (140, 210, 255)
         self.bar(cv, 26, H - 56, 306, 24, lb['boost'] / 100.0, bcol, 'MOTOR A FONDO' if not lb['boost_lock'] else 'MOTOR RECALENTADO')
+        chips = []
+        if lb['shield'] > 0:
+            chips.append(('ESCUDO x%d' % lb['shield'], (150, 240, 255)))
+        if lb['nitro'] > 0:
+            chips.append(('NITRO %.1fs' % lb['nitro'], (130, 210, 255)))
+        for i, (txt, col_) in enumerate(chips):
+            self.panel(cv, (W - 272, H - 92 - i * 30, 140, 26), 170)
+            self.text(cv, txt, self.f_s, col_, W - 262, H - 87 - i * 30)
         self.panel(cv, (W - 272, H - 58, 258, 44), 160)
         self.text(cv, 'BUQUES', self.f_s, (170, 200, 235), W - 262, H - 46)
         self.draw_lives(cv, W - 200, H - 46)
         if lb['t'] > LB_INTRO_DRAW and lb['phase'] == 'sail':
-            self.text(cv, 'WASD mover  |  ESPACIO / SHIFT / clic: motor a fondo (avanzás más rápido)  |  esquivá ráfagas y arrecifes', self.f_s, (200, 220, 255), W // 2, H - 100, 'c')
+            self.text(cv, 'WASD mover  |  clic: ráfaga (apuntá con el mouse)  |  ESPACIO / clic der.: motor a fondo', self.f_s, (200, 220, 255), W // 2, H - 100, 'c')
 
 
 LB_INTRO_DRAW = 2.4
