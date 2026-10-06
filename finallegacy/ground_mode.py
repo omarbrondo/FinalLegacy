@@ -10,7 +10,7 @@ from .common import (
     glow, lerp, vec)
 from .sprites import ENEMY_TYPES, draw_cover
 from .landing import WX_LABEL
-from .ground_city import ATT_R, GC_R, SOL_SCALE
+from .ground_city import ATT_R, GC_R, SOL_SCALE, THEME_BY_NAME
 
 
 class GroundMixin:
@@ -73,10 +73,10 @@ class GroundMixin:
             covers.append(dict(x=x, y=y, r=r, kind=kind, seed=random.randrange(10 ** 6)))
         return covers
 
-    def init_ground(self, mode, seed, city, covers_n, avoid, spawn, kinds, queue=None, island_idx=None, R=ARENA_R, antenna=None, district=False):
+    def init_ground(self, mode, seed, city, covers_n, avoid, spawn, kinds, queue=None, island_idx=None, R=ARENA_R, antenna=None, district=False, theme='port'):
         land, off = self.make_ground(seed, R, seed if mode == 'invasion' else None, antenna is not None, district)
         if district:
-            rects, info = self.gc_paint(land, W // 2 - off[0], R, seed)
+            rects, info = self.gc_paint(land, W // 2 - off[0], R, seed, theme)
             covers = self.gc_covers(info, seed)
         else:
             covers = self.gen_covers(seed, R, covers_n, avoid + [(spawn[0], spawn[1], 90)])
@@ -195,7 +195,7 @@ class GroundMixin:
         queue = sorted([(random.uniform(0.5, 6 + n * 1.1), k, random.randrange(3)) for k in kinds], key=lambda q: q[0])
         if antenna is None:
             spawn = (W / 2, H / 2 + 100)
-            self.init_ground('invasion', city['seed'], city, 0, [], spawn, kinds, queue, R=GC_R, district=True)
+            self.init_ground('invasion', city['seed'], city, 0, [], spawn, kinds, queue, R=GC_R, district=True, theme=THEME_BY_NAME.get(city['name'], 'port'))
         else:
             spawn = (W / 2, H / 2 + 175)
             self.init_ground('invasion', city['seed'], city, 7, [(W / 2, H / 2, 150)], spawn, kinds, queue, antenna=antenna)
