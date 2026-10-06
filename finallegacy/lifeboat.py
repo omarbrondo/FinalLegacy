@@ -186,7 +186,9 @@ class LifeboatMixin(LifeboatArtMixin, LifeboatOpsMixin):
     def lb_update_boats(self, dt, w):
         lb = self.lb
         for b in lb['boats'][:]:
-            b['x'] += b['vx'] * dt
+            self.lb_boat_steer(b, dt)
+            b['x'] += b['vx'] * dt * b['spd']
+            b['y'] += b['vy'] * dt
             if (b['vx'] > 0 and b['x'] > W + 90) or (b['vx'] < 0 and b['x'] < -90):
                 lb['boats'].remove(b)
                 continue
@@ -205,6 +207,36 @@ class LifeboatMixin(LifeboatArtMixin, LifeboatOpsMixin):
                 if b['cd'] <= 0 and 40 < b['x'] < W - 40:
                     b['cd'] = random.uniform(3.0, 4.2)
                     b['burst'], b['bt'] = 5, 0.0
+
+    def lb_boat_steer(self, b, dt):
+        """Las lanchas enemigas ven arrecifes y minas por delante: esquivan por arriba o por abajo y, si no hay lugar, frenan."""
+        lb = self.lb
+        b.setdefault('vy', 0.0)
+        b.setdefault('spd', 1.0)
+        sgn = 1.0 if b['vx'] > 0 else -1.0
+        scroll = 70.0 * (1.7 if lb['boosting'] else 1.0)
+        want_vy, want_spd = 0.0, 1.0
+        worst = None
+        for o in lb['reefs'] + lb['mines']:
+            dx = (o['x'] - b['x']) * sgn
+            if dx < -20 or dx > 210:
+                continue
+            t_hit = max(0.0, dx) / max(20.0, abs(b['vx']))
+            py = o['y'] + scroll * t_hit
+            if abs(py - b['y']) < 62 and (worst is None or dx < worst[0]):
+                worst = (dx, py)
+        if worst is not None:
+            dx, py = worst
+            up = py > b['y']                                           # el obstáculo cruzará por debajo: subir
+            if (up and b['y'] > 105) or (not up and b['y'] < 360):
+                want_vy = -95.0 if up else 95.0
+            else:
+                want_spd = 0.25                                        # sin lugar para esquivar: casi se detiene a esperar que pase
+            if abs(want_vy) < 1 and dx < 90:
+                want_spd = 0.25
+        b['vy'] += (want_vy - b['vy']) * min(1.0, dt * 5)
+        b['spd'] += (want_spd - b['spd']) * min(1.0, dt * 4)
+        b['y'] = clamp(b['y'], 90, 380)
 
     def lb_update_reefs(self, dt, playing):
         lb = self.lb

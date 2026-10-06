@@ -370,7 +370,8 @@ class LifeboatArtMixin:
             self.lb_draw_pup(cv, u, t)
         # lanchas enemigas (salen de detrás de las orillas)
         for b in lb['boats']:
-            self.blit_ship(cv, 'g_boat', b['x'], b['y'], 90 if b['vx'] > 0 else 270)
+            tilt = clamp(b.get('vy', 0.0) * 0.25, -22, 22)
+            self.blit_ship(cv, 'g_boat', b['x'], b['y'], (90 + tilt) if b['vx'] > 0 else (270 - tilt))
             if b['burst'] > 0:
                 glow(cv, b['x'] + math.copysign(10, b['vx']), b['y'], 14, (255, 220, 140), 0.9)
         self.fxm.draw(cv)
