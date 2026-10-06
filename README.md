@@ -44,6 +44,7 @@ python retro_legacy.py
 | `upgrade_mode.py` | Pantalla de mejoras entre oleadas (elegir 1 de 3) |
 | `hazards.py` | Nubes tóxicas, máscara antigás y misil Tomahawk en infantería y puerto |
 | `heli_mode.py` | Helipuerto, Blackhawk (bidón de combustible) y misiones aire-tierra |
+| `heli_art.py` | Arte del Blackhawk (a escala de barco) y de los objetivos de las misiones aéreas |
 | `naval_fx.py` | Efectos del combate naval: daños, hundimiento partido, clima, locutor |
 | `naval_arms.py` | Descarga especial, torpedos, humo y control de daños |
 | `naval_fleet.py` | Escoltas, aviones, aliado, flanqueo y artillería en las batallas navales |
@@ -86,7 +87,7 @@ Cada modo suma contenido nuevo a medida que avanzan las oleadas:
 Una isla del mapa (con una H, también en el radar) tiene un helipuerto con un Blackhawk negro.
 
 - **C** (LT en el mando): el Blackhawk viene volando, se detiene sobre tu barco y baja en paracaídas un barril de combustible (+60%). Espera de 80 s; no sirve con el tanque casi lleno.
-- Cada **3000 puntos** (y cada vez más) ganás una misión. Acercate al helipuerto y presioná **B**: elegís entre **despejar una isla de antena**, cazar un buque enemigo o destruir una batería costera.
+- La primera misión llega a los **3000 puntos** y cada una siguiente pide el doble de distancia: +6000, +12000, +24000 y después +24000 por misión (a los 3000, 9000, 21000, 45000, 69000... puntos). Acercate al helipuerto y presioná **B**: elegís entre **despejar una isla de antena**, cazar un buque enemigo o destruir una batería costera.
 - Si despejás una isla, al llegar con el barco y presionar **L** instalás la antena **sin combate**.
 - Misión aire-tierra (vista cenital): WASD volar, mouse apuntar, clic ametralladora, ESPACIO o clic derecho cohetes. Esquivá los misiles tierra-aire.
 
