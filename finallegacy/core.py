@@ -957,10 +957,10 @@ class CoreMixin:
         if show_fuel:
             self.bar(cv, 26, H - 86, 306, 24, self.fuel / 100, (80, 180, 255) if self.fuel > 20 else (240, 80, 70), 'COMBUSTIBLE %d%%' % self.fuel)
         self.bar(cv, 26, H - 56, 306, 24, self.ammo / 40, (255, 210, 70) if self.ammo > 6 else (240, 80, 70), 'MUNICION %d' % self.ammo)
-        self.panel(cv, (14, 12, 250, 56), 160)
+        self.panel(cv, (14, 12, 250, 78), 160)
         self.text(cv, 'PUNTOS %07d' % self.score, self.f_m, (255, 255, 255), 26, 18)
         self.text(cv, 'OLEADA %d/%d   REC %d' % (self.wave, WIN_WAVE, self.hiscore), self.f_s, (160, 200, 240), 26, 42)
-        self.draw_lives(cv, 186, 24)
+        self.draw_lives(cv, 26, 66)
 
     def draw_cities_hud(self, cv):
         self.panel(cv, (W - 296, 12, 282, 56), 160)
