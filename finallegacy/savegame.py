@@ -95,7 +95,7 @@ class SaveMixin:
             timers=dict(convoy=self.convoy_t, rescue=self.rescue_t, crate=self.crate_t, radar=self.radar_t),
             enemies=self.enemies, nests=self.nests, crates=self.crates,
             war=dict(moved=self.war['moved'], wrecks=self.war['wrecks'], slicks=self.war['slicks'], debris=self.war['debris'], scars=self.war['scars']),
-            heli=dict(sorties=self.heli_sorties, next=self.heli_next, cd=self.heli_cd))
+            heli=dict(sorties=self.heli_sorties, next=self.heli_next, cd=self.heli_cd, earned=self.heli_earned))
 
     def sv_apply(self, d):
         self.reset()
@@ -130,6 +130,7 @@ class SaveMixin:
         self.war.update(wrecks=w['wrecks'], slicks=w['slicks'], debris=w['debris'], scars=w['scars'])
         hl = d['heli']
         self.heli_sorties, self.heli_next, self.heli_cd = hl['sorties'], hl['next'], hl['cd']
+        self.heli_earned = int(hl.get('earned', hl['sorties']))
         self.port_tries, self.port_done = int(d['port_tries']), bool(d['port_done'])
         self.cam = [self.sx - W / 2, self.sy - H / 2]
         self.fxm = Particles()

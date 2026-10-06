@@ -3,70 +3,19 @@ import math
 import pygame
 import random
 from .common import EXTRA_ISLANDS, H, HELIPAD, W, Particles, angle_diff, bearing, clamp, dist, draw_circ, glow, vec
+from .heli_art import BH_TAIL_ROTOR, BH_HUB, blackhawk_rotor_overlay, make_blackhawk, make_heli_targets
 
-HELI_SORTIE_PTS = 3000          # puntaje para ganar una misión de combate
+HELI_SORTIE_PTS = 3000          # puntaje para la primera misión de combate; cada una siguiente pide el doble de distancia (tope HELI_GAP_MAX)
+HELI_GAP_MAX = 24000
 HELI_FUEL_CD = 80.0             # espera entre bidones
 TURN = 260.0
-
-
-def make_blackhawk():
-    """UH-60 Blackhawk negro visto desde arriba, mirando al norte (sin rotor: se dibuja aparte)."""
-    s = pygame.Surface((170, 210), pygame.SRCALPHA)
-    cx = 85
-    black, dk, md, hi = (14, 15, 18), (26, 28, 33), (42, 45, 52), (74, 80, 90)
-    # tren de aterrizaje
-    for sd in (-1, 1):
-        pygame.draw.circle(s, (8, 8, 10), (cx + sd * 25, 76), 5)
-        pygame.draw.circle(s, (8, 8, 10), (cx + sd * 20, 150), 4)
-    pygame.draw.circle(s, (8, 8, 10), (cx, 178), 3)
-    # cola con deriva inclinada y estabilizador
-    pygame.draw.polygon(s, dk, [(cx - 9, 120), (cx + 9, 120), (cx + 5, 186), (cx - 5, 186)])
-    pygame.draw.polygon(s, md, [(cx - 3, 150), (cx + 3, 150), (cx + 9, 196), (cx - 3, 196)])
-    pygame.draw.rect(s, dk, (cx - 26, 170, 52, 11), border_radius=4)
-    pygame.draw.rect(s, black, (cx - 26, 170, 52, 11), 1, border_radius=4)
-    pygame.draw.line(s, hi, (cx - 22, 172), (cx + 22, 172), 1)
-    pygame.draw.circle(s, black, (cx - 11, 192), 3)
-    # alas cortas con soportes de armamento
-    pygame.draw.rect(s, dk, (cx - 58, 96, 116, 14), border_radius=5)
-    pygame.draw.rect(s, black, (cx - 58, 96, 116, 14), 1, border_radius=5)
-    for sd in (-1, 1):
-        px = cx + sd * 52
-        pygame.draw.rect(s, black, (px - 6, 86, 12, 40), border_radius=5)
-        pygame.draw.rect(s, md, (px - 4, 88, 4, 34), border_radius=2)
-        pygame.draw.circle(s, (120, 70, 40), (px, 86), 4)
-        pygame.draw.circle(s, (120, 70, 40), (px, 126), 4)
-    # fuselaje: morro, cabina y compartimiento de carga
-    pygame.draw.ellipse(s, dk, (cx - 21, 36, 42, 54))
-    pygame.draw.ellipse(s, dk, (cx - 27, 66, 54, 78))
-    pygame.draw.ellipse(s, black, (cx - 27, 66, 54, 78), 2)
-    pygame.draw.ellipse(s, md, (cx - 17, 76, 34, 58))
-    pygame.draw.line(s, black, (cx - 27, 100), (cx - 27, 126), 3)
-    pygame.draw.line(s, black, (cx + 27, 100), (cx + 27, 126), 3)
-    pygame.draw.line(s, hi, (cx - 14, 84), (cx - 14, 128), 1)
-    # parabrisas
-    pygame.draw.polygon(s, (20, 36, 48), [(cx - 14, 46), (cx + 14, 46), (cx + 20, 72), (cx - 20, 72)])
-    pygame.draw.polygon(s, (60, 100, 124), [(cx - 12, 48), (cx - 1, 48), (cx - 4, 70), (cx - 17, 70)])
-    pygame.draw.line(s, black, (cx, 46), (cx, 72), 2)
-    pygame.draw.line(s, hi, (cx - 20, 72), (cx + 20, 72), 1)
-    # motores y escapes
-    for sd in (-1, 1):
-        pygame.draw.ellipse(s, black, (cx + sd * 12 - 6, 92, 12, 40))
-        pygame.draw.ellipse(s, hi, (cx + sd * 12 - 2, 96, 3, 24))
-        pygame.draw.ellipse(s, (6, 6, 8), (cx + sd * 12 - 4, 128, 8, 10))
-        pygame.draw.line(s, (4, 4, 6), (cx + sd * 27, 106), (cx + sd * 43, 102), 3)   # ametralladoras de puerta
-    # antena y luces
-    pygame.draw.line(s, md, (cx, 140), (cx, 156), 2)
-    pygame.draw.circle(s, (170, 40, 40), (cx - 58, 103), 2)
-    pygame.draw.circle(s, (40, 160, 80), (cx + 58, 103), 2)
-    pygame.draw.circle(s, black, (cx, 104), 7)
-    pygame.draw.circle(s, md, (cx, 104), 4)
-    return s
 
 
 class HeliMixin:
     # ------------------------------------------------------------ MAPA: helipuerto y llamadas
     def heli_init(self):
         self.heli_sorties = 0
+        self.heli_earned = 0
         self.heli_next = HELI_SORTIE_PTS
         self.heli_cd = 0.0
         self.heli_fl = None
@@ -74,7 +23,9 @@ class HeliMixin:
         self.cleared_isl = set()
         if not hasattr(self, 'bh_img'):
             self.bh_img = make_blackhawk()
-            self.bh_small = pygame.transform.smoothscale(self.bh_img, (68, 84))
+            self.bh_small = pygame.transform.smoothscale(self.bh_img, (72, 84))
+            self.ht_art = make_heli_targets()
+            self.ht_flash = {}
 
     def near_helipad(self, rng=300):
         return dist(self.sx, self.sy, HELIPAD[0], HELIPAD[1]) < rng
@@ -83,7 +34,8 @@ class HeliMixin:
         self.heli_cd = max(0.0, self.heli_cd - dt)
         while self.score >= self.heli_next:
             self.heli_sorties += 1
-            self.heli_next += HELI_SORTIE_PTS + 1000 * self.heli_sorties
+            self.heli_next += min(HELI_SORTIE_PTS * 2 ** (self.heli_earned + 1), HELI_GAP_MAX)
+            self.heli_earned += 1
             self.audio.play('win', .6)
             self.banner('¡BLACKHAWK LISTO PARA COMBATE!', 'Acercate al helipuerto y presioná B para elegir la misión', (130, 255, 190), 3.6)
         f = self.heli_fl
@@ -215,7 +167,7 @@ class HeliMixin:
             pygame.draw.rect(cv, (60, 64, 70), (sx + 30, sy + 18, 34, 22), 2, border_radius=3)
             ready = self.heli_sorties > 0
             if self.heli_fl is None:
-                cv.blit(self.bh_small, (sx - 34, sy - 44))
+                cv.blit(self.bh_small, (sx - 36, sy - 42))
             lab = 'HELIPUERTO - BLACKHAWK%s' % (' LISTO (B)' if ready else '')
             self.text(cv, lab, self.f_s, (130, 255, 190) if ready else (190, 215, 205), sx, sy + hr * 0.95, 'c')
             if self.near_helipad(420) and ready:
@@ -237,7 +189,7 @@ class HeliMixin:
                 pygame.draw.rect(cv, (60, 130, 70), (bx_ - 9, by2 - 8, 18, 22), border_radius=3)
                 pygame.draw.rect(cv, (230, 220, 90), (bx_ - 9, by2 - 2, 18, 4))
             if -140 < fx_ < W + 140 and -140 < fy_ < H + 140:
-                self.draw_blackhawk(cv, fx_, fy_, f['h'], f['rot'], 0.8, True)
+                self.draw_blackhawk(cv, fx_, fy_, f['h'], f['rot'], 0.6, True)
             else:
                 ang = math.atan2(fy_ - H / 2, fx_ - W / 2)
                 ax_, ay_ = W / 2 + math.cos(ang) * 340, H / 2 + math.sin(ang) * 270
@@ -252,21 +204,18 @@ class HeliMixin:
             img = pygame.transform.smoothscale(img, (int(img.get_width() * scale), int(img.get_height() * scale)))
         r = pygame.transform.rotate(img, -h)
         if shadow:
-            sh = pygame.mask.from_surface(r).to_surface(setcolor=(0, 0, 0, 80), unsetcolor=(0, 0, 0, 0))
-            cv.blit(sh, (x - r.get_width() // 2 + 12 * scale + 4, y - r.get_height() // 2 + 18 * scale + 4))
+            sh = pygame.mask.from_surface(r).to_surface(setcolor=(0, 0, 0, 70), unsetcolor=(0, 0, 0, 0))
+            cv.blit(sh, (x - r.get_width() // 2 + 14 * scale + 3, y - r.get_height() // 2 + 20 * scale + 3))
         cv.blit(r, (x - r.get_width() // 2, y - r.get_height() // 2))
-        rl = 92 * scale
-        draw_circ(cv, x, y, rl, (200, 205, 200), 26)
-        for k in range(3):
-            a = rot + k * 2.094
-            pygame.draw.line(cv, (18, 18, 20), (x - math.cos(a) * rl, y - math.sin(a) * rl), (x + math.cos(a) * rl, y + math.sin(a) * rl),
-                             max(1, int(3 * scale)))
-        tx, ty = vec(h + 180, 96 * scale)
-        tr = 16 * scale
-        draw_circ(cv, x + tx, y + ty, tr, (200, 205, 200), 40)
+        ov, (ox, oy) = blackhawk_rotor_overlay(scale, rot, rot * 1.7)
+        cv.blit(ov, (x - ox, y - oy))
+        tx, ty = vec(h + 180, (BH_TAIL_ROTOR[1] - BH_HUB[1]) * scale)
+        tr = 11 * scale
+        draw_circ(cv, x + tx, y + ty, tr, (200, 205, 200), 34)
         a2 = rot * 1.7
-        pygame.draw.line(cv, (36, 40, 36), (x + tx - math.cos(a2) * tr, y + ty - math.sin(a2) * tr),
-                         (x + tx + math.cos(a2) * tr, y + ty + math.sin(a2) * tr), 2)
+        for q in (0.0, 1.5708):
+            pygame.draw.line(cv, (28, 30, 28), (x + tx - math.cos(a2 + q) * tr, y + ty - math.sin(a2 + q) * tr),
+                             (x + tx + math.cos(a2 + q) * tr, y + ty + math.sin(a2 + q) * tr), max(1, int(2 * scale)))
 
     # ------------------------------------------------------------ MISIÓN AIRE-TIERRA
     def start_heli(self, kind, tg):
@@ -633,50 +582,33 @@ class HeliMixin:
         self.go('map')
 
     # ------------------------------------------------------------ DIBUJO
+    def heli_flash_img(self, key, surf):
+        im = self.ht_flash.get(key)
+        if im is None:
+            im = surf.copy()
+            im.fill((120, 120, 110, 0), special_flags=pygame.BLEND_RGB_ADD)
+            self.ht_flash[key] = im
+        return im
+
     def draw_heli_target(self, cv, t, tt):
         x, y = int(t['x']), int(t['y'])
         k = t['k']
+        art = self.ht_art[k]
+        base = art['base']
         if t['dead']:
-            draw_circ(cv, x, y, t['r'] + 6, (24, 22, 22), 200)
-            draw_circ(cv, x, y, t['r'] - 3, (50, 44, 40), 170)
+            w = art['wreck']
+            cv.blit(w, (x - w.get_width() // 2, y - w.get_height() // 2))
             if random.random() < 0.15:
                 self.fx.add('smoke', x + random.uniform(-8, 8), y, random.uniform(-6, 6), -28, 1.8, 5, 18, (40, 40, 44))
             glow(cv, x, y, 18 + 5 * math.sin(tt * 9 + x), (255, 110, 40), 0.6)
             return
         hit = t['flash'] > 0
-        draw_circ(cv, x + 4, y + 6, t['r'] + 4, (0, 0, 0), 70)
-        if k == 'aa':
-            pygame.draw.circle(cv, (110, 100, 80), (x, y), t['r'] + 4)
-            pygame.draw.circle(cv, (80, 84, 70) if not hit else (220, 220, 220), (x, y), t['r'])
-            for sd in (-5, 5):
-                ox, oy = vec(t['ang'] + 90, sd)
-                ex, ey = vec(t['ang'], 26)
-                pygame.draw.line(cv, (30, 32, 30), (x + ox, y + oy), (x + ox + ex, y + oy + ey), 4)
-            pygame.draw.circle(cv, (56, 60, 52), (x, y), 8)
-        elif k == 'bunker':
-            r = pygame.Rect(x - t['r'], y - t['r'], t['r'] * 2, t['r'] * 2)
-            pygame.draw.rect(cv, (128, 126, 118) if not hit else (230, 230, 230), r, border_radius=8)
-            pygame.draw.rect(cv, (70, 70, 66), r, 3, border_radius=8)
-            ex, ey = vec(t['ang'], 20)
-            pygame.draw.line(cv, (20, 22, 20), (x, y), (x + ex, y + ey), 6)
-            pygame.draw.circle(cv, (50, 52, 48), (x, y), 8)
-        elif k == 'sam':
-            pygame.draw.rect(cv, (92, 100, 84) if not hit else (230, 230, 230), (x - 18, y - 14, 36, 28), border_radius=4)
-            for sd in (-8, 8):
-                ex, ey = vec(t['ang'], 24)
-                pygame.draw.line(cv, (200, 200, 190), (x + sd, y), (x + sd + ex * 0.5, y + ey * 0.5), 5)
-                pygame.draw.circle(cv, (220, 70, 50), (int(x + sd + ex * 0.5), int(y + ey * 0.5)), 3)
-            pygame.draw.circle(cv, (50, 54, 46), (x, y), 6)
-        elif k == 'depot':
-            for ox, oy in ((-12, -8), (12, -8), (0, 12)):
-                pygame.draw.circle(cv, (150, 70, 60) if not hit else (240, 240, 240), (x + ox, y + oy), 12)
-                pygame.draw.circle(cv, (230, 200, 70), (x + ox, y + oy), 12, 2)
-                pygame.draw.circle(cv, (200, 110, 90), (x + ox - 3, y + oy - 3), 4)
-        elif k == 'radar':
-            pygame.draw.circle(cv, (110, 112, 116), (x, y), 14)
-            a = math.radians(t['ang'])
-            pygame.draw.ellipse(cv, (200, 205, 210) if not hit else (255, 255, 255), (x - 18, y - 7, 36, 14))
-            pygame.draw.line(cv, (60, 62, 66), (x - math.cos(a) * 16, y - math.sin(a) * 16), (x + math.cos(a) * 16, y + math.sin(a) * 16), 3)
+        cv.blit(self.heli_flash_img(k, base) if hit else base, (x - base.get_width() // 2, y - base.get_height() // 2))
+        top = art['top']
+        if top is not None:
+            head = t['ang'] + 90 if k == 'radar' else t['ang']
+            rt = pygame.transform.rotate(self.heli_flash_img(k + 't', top) if hit else top, -head)
+            cv.blit(rt, (x - rt.get_width() // 2, y - rt.get_height() // 2))
         if t['hp'] < t['max'] and t['rel'] is None or (t['rel'] is not None and t['hp'] < t['max']):
             pygame.draw.rect(cv, (8, 12, 24), (x - 16, y - t['r'] - 12, 32, 5))
             pygame.draw.rect(cv, (240, 80, 70), (x - 15, y - t['r'] - 11, int(30 * t['hp'] / t['max']), 3))
@@ -738,7 +670,7 @@ class HeliMixin:
         for b in m['pb']:
             pygame.draw.line(cv, (255, 240, 160), (b['x'], b['y']), (b['x'] - b['vx'] * 0.03, b['y'] - b['vy'] * 0.03), 2)
         if not p['dead']:
-            self.draw_blackhawk(cv, p['x'], p['y'], p['h'], p['rot'], 0.95)
+            self.draw_blackhawk(cv, p['x'], p['y'], p['h'], p['rot'], 0.8)
             if p['flash'] > 0:
                 glow(cv, p['x'], p['y'], 60, (255, 90, 70), p['flash'] * 2)
         self.fx.draw(cv)
