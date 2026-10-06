@@ -293,18 +293,27 @@ class MapMixin:
             self.wave_clear()
 
     def next_strike_kind(self):
-        """Baraja de ataques: sale cada tipo con frecuencia pareja y nunca repite el anterior."""
+        """Baraja de ataques: sale cada tipo con frecuencia pareja, nunca repite el anterior y hay un solo ataque aéreo por oleada."""
+        def ok(k):
+            return k != self.strike_kind and not (k == 'aerial' and getattr(self, 'aerial_wave', 0) == self.wave)
+        kind = None
         if self.strike_n <= 1:
-            return 'missile'
-        if self.strike_n == 2 and self.wave == 1:        # el segundo ataque de la oleada 1 es aéreo, para conocerlo temprano
-            return 'aerial'
-        if not self.strike_deck:
-            self.strike_deck = ['missile', 'aerial', 'tank', 'aerial', 'ground', 'missile']
-            random.shuffle(self.strike_deck)
-        for i, k in enumerate(self.strike_deck):
-            if k != self.strike_kind:
-                return self.strike_deck.pop(i)
-        return self.strike_deck.pop()
+            kind = 'missile'
+        elif self.strike_n == 2 and self.wave == 1:      # el segundo ataque de la oleada 1 es aéreo, para conocerlo temprano
+            kind = 'aerial'
+        else:
+            if not any(ok(k) for k in self.strike_deck):
+                self.strike_deck = ['missile', 'aerial', 'tank', 'aerial', 'ground', 'missile']
+                random.shuffle(self.strike_deck)
+            for i, k in enumerate(self.strike_deck):
+                if ok(k):
+                    kind = self.strike_deck.pop(i)
+                    break
+            if kind is None:
+                kind = next(k for k in ('missile', 'tank', 'ground') if k != self.strike_kind)
+        if kind == 'aerial':
+            self.aerial_wave = self.wave
+        return kind
 
     def begin_rescue(self):
         """Náufragos: a veces bajo el alcance de una batería costera."""
