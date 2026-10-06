@@ -22,13 +22,26 @@ PALS = [
     dict(wall=(56, 92, 138), roof=(112, 152, 192), roof2=(100, 140, 182), hi=(170, 202, 230), lo=(60, 92, 130)),
     dict(wall=(78, 84, 96), roof=(128, 134, 146), roof2=(118, 124, 136), hi=(176, 182, 192), lo=(84, 88, 98)),
 ]
+# carácter de cada ciudad: manzanas (interior < 330 px del centro / exterior), paletas de edificios, autos y barricadas
+THEMES = {
+    'port': dict(inner=(('tower', 'split', 'quad', 'park'), (30, 25, 20, 5)), outer=(('quad', 'park', 'parking', 'docks', 'split'), (8, 8, 14, 55, 15)),
+                 dock_min=300, pals=(0, 4, 1, 4), cars=None, bars=9),
+    'resid': dict(inner=(('tower', 'split', 'quad', 'park'), (4, 26, 45, 25)), outer=(('quad', 'park', 'parking', 'split'), (40, 35, 10, 15)),
+                  dock_min=9999, pals=(1, 2, 1, 2, 0), cars=None, bars=7),
+    'resort': dict(inner=(('tower', 'split', 'quad', 'park'), (24, 34, 26, 16)), outer=(('quad', 'park', 'parking', 'split'), (30, 32, 10, 28)),
+                   dock_min=9999, pals=(3, 2, 3, 0), cars=[(240, 240, 244), (70, 150, 200), (240, 200, 70), (236, 120, 120), (80, 190, 170)], bars=7),
+    'fort': dict(inner=(('tower', 'split', 'quad', 'park'), (22, 42, 36, 0)), outer=(('quad', 'parking', 'docks', 'split'), (20, 22, 20, 38)),
+                 dock_min=380, pals=(4, 0, 4), cars=[(86, 98, 66), (110, 116, 100), (70, 76, 84), (96, 88, 62)], bars=18),
+}
+THEME_BY_NAME = {'PUERTO BRONDO': 'port', 'NUEVA ESPERANZA': 'resid', 'BAHIA AZUL': 'resort', 'FORT LEGACY': 'fort'}
 CAR_COLS = [(190, 60, 54), (60, 100, 168), (214, 200, 70), (220, 220, 224), (70, 76, 84), (60, 140, 96), (230, 130, 50)]
 BOX_COLS = [(184, 62, 52), (58, 100, 162), (212, 152, 52), (70, 140, 92), (150, 152, 158)]
 
 
 class GroundCityMixin:
     # ------------------------------------------------------------------ trazado
-    def gc_layout(self, R, seed):
+    def gc_layout(self, R, seed, theme='port'):
+        th = THEMES[theme]
         rnd = random.Random(seed * 7 + 3)
         blocks = {}
         for i in range(-4, 5):
@@ -41,18 +54,19 @@ class GroundCityMixin:
             d = math.hypot(i * PITCH, j * PITCH)
             if (i, j) == (0, 0):
                 continue
-            if d < 330:
-                blocks[(i, j)] = rnd.choices(('tower', 'split', 'quad', 'park'), (38, 30, 24, 8))[0]
-            else:
-                kind = rnd.choices(('quad', 'park', 'parking', 'docks', 'split'), (18, 22, 18, 24, 18))[0]
-                blocks[(i, j)] = 'split' if kind == 'docks' and d < 380 else kind
+            kinds, wts = th['inner'] if d < 330 else th['outer']
+            kind = rnd.choices(kinds, wts)[0]
+            blocks[(i, j)] = 'split' if kind == 'docks' and d < th['dock_min'] else kind
         return blocks
 
     # ------------------------------------------------------------------ pintura
-    def gc_paint(self, land, ext, R, seed):
+    def gc_paint(self, land, ext, R, seed, theme='port'):
         """Pinta el distrito sobre la superficie de la isla. Devuelve (rectángulos sólidos en coordenadas de mundo, info)."""
         rnd = random.Random(seed * 13 + 5)
-        blocks = self.gc_layout(R, seed)
+        th = THEMES[theme]
+        blocks = self.gc_layout(R, seed, theme)
+        pals = [PALS[k] for k in th['pals']]
+        self._gc_cols = th['cars'] or CAR_COLS
         X0, Y0 = ext, ext
         solids = []                     # (x, y, w, d) relativos al centro
         builds = []
@@ -109,7 +123,7 @@ class GroundCityMixin:
                 segs.append((i * PITCH, j * PITCH + 100, 'h'))
         rnd.shuffle(segs)
         far = [s for s in segs if math.hypot(s[0], s[1]) > 190]
-        bar = far[:9]
+        bar = far[:th['bars']]
         spots = []
         for sx, sy, ax in bar:
             side = rnd.choice((-1, 1))
@@ -150,20 +164,20 @@ class GroundCityMixin:
             elif kind in ('tower', 'split', 'quad'):
                 pygame.draw.rect(land, (126, 128, 130), (lx, ly, 126, 126))
                 if kind == 'tower':
-                    builds.append((u - 55, v - 55, 110, 110, rnd.randint(24, 36), rnd.choice(PALS), rnd.randrange(10 ** 6)))
+                    builds.append((u - 55, v - 55, 110, 110, rnd.randint(24, 36), rnd.choice(pals), rnd.randrange(10 ** 6)))
                 elif kind == 'split':
                     if rnd.random() < 0.5:
                         lots = [(u - 63, v - 59, 58, 118), (u + 5, v - 59, 58, 118)]
                     else:
                         lots = [(u - 59, v - 63, 118, 58), (u - 59, v + 5, 118, 58)]
                     for (bx, by, bw, bd) in lots:
-                        builds.append((bx, by, bw, bd, rnd.randint(18, 30), rnd.choice(PALS), rnd.randrange(10 ** 6)))
+                        builds.append((bx, by, bw, bd, rnd.randint(18, 30), rnd.choice(pals), rnd.randrange(10 ** 6)))
                 else:
                     for (bx, by) in ((u - 63, v - 63), (u + 7, v - 63), (u - 63, v + 7), (u + 7, v + 7)):
                         if rnd.random() < 0.18:
                             props.append(('tree', bx + 28, by + 28, 14, rnd.randrange(10 ** 6)))
                         else:
-                            builds.append((bx, by, 56, 56, rnd.randint(12, 24), rnd.choice(PALS), rnd.randrange(10 ** 6)))
+                            builds.append((bx, by, 56, 56, rnd.randint(12, 24), rnd.choice(pals), rnd.randrange(10 ** 6)))
             elif kind == 'park':
                 pygame.draw.rect(land, (84, 146, 72), (lx, ly, 126, 126))
                 for _ in range(160):
@@ -244,7 +258,7 @@ class GroundCityMixin:
     def _gc_car(self, s, x, y, horiz, sd):
         rnd = random.Random(sd)
         burnt = rnd.random() < 0.22
-        col = (42, 40, 40) if burnt else rnd.choice(CAR_COLS)
+        col = (42, 40, 40) if burnt else rnd.choice(getattr(self, '_gc_cols', CAR_COLS))
         dark = tuple(max(0, c - 50) for c in col)
         w, d = (CAR_L, CAR_W) if horiz else (CAR_W, CAR_L)
         r = pygame.Rect(x - w // 2, y - d // 2, w, d)
