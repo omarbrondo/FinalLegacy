@@ -6,6 +6,7 @@ import pygame
 import random
 from .common import H, W, bearing, clamp, dist, vec
 from .lifeboat_art import LB_INTRO_DRAW, PLANE_KEYS, LifeboatArtMixin
+from .lifeboat_ops import LB_BOAT_HP, LifeboatOpsMixin
 
 START_LIVES = 3
 MAX_LIVES = 5
@@ -20,7 +21,7 @@ LB_SCROLL = 70.0                      # velocidad de desplazamiento de las orill
 REEF_DMG = 8.0
 
 
-class LifeboatMixin(LifeboatArtMixin):
+class LifeboatMixin(LifeboatArtMixin, LifeboatOpsMixin):
     # ------------------------------------------------------------------ vidas
     def lives_reset(self):
         self.lives = START_LIVES
@@ -54,7 +55,7 @@ class LifeboatMixin(LifeboatArtMixin):
         self.lb = dict(city=city, T=T, t=0.0, p=0.0, x=W / 2 + 80.0, y=H - 150.0, vx=0.0, vy=0.0, hp=100.0, boost=100.0, boost_lock=False,
                        boosting=False, boats=[], planes=[], bullets=[], warns=[], boat_t=LB_INTRO + 3.5, plane_t=LB_INTRO + 7.0,
                        phase='sail', pt=0.0, hurt=0.0, wake=0.0, low_warned=False, scroll=0.0, reefs=[],
-                       reef_t=LB_INTRO + 4.5, bank_k=1.0, dock_y=322.0)
+                       reef_t=LB_INTRO + 4.5, bank_k=1.0, dock_y=322.0, **self.lb_ops_init())
         self.go('lifeboat')
         self.banners = []
         self.shake = 14
@@ -101,11 +102,13 @@ class LifeboatMixin(LifeboatArtMixin):
         playing = lb['t'] > LB_INTRO
         dx = (1 if (keys[pygame.K_d] or keys[pygame.K_RIGHT]) else 0) - (1 if (keys[pygame.K_a] or keys[pygame.K_LEFT]) else 0)
         dy = (1 if (keys[pygame.K_s] or keys[pygame.K_DOWN]) else 0) - (1 if (keys[pygame.K_w] or keys[pygame.K_UP]) else 0)
-        want = (keys[pygame.K_SPACE] or keys[pygame.K_LSHIFT] or keys[pygame.K_RSHIFT] or pygame.mouse.get_pressed()[0]) and playing
+        want = (keys[pygame.K_SPACE] or keys[pygame.K_LSHIFT] or keys[pygame.K_RSHIFT] or pygame.mouse.get_pressed()[2]) and playing
         if lb['boost_lock'] and lb['boost'] > 30:
             lb['boost_lock'] = False
-        lb['boosting'] = bool(want) and lb['boost'] > 0 and not lb['boost_lock']
-        if lb['boosting']:
+        lb['boosting'] = (bool(want) and lb['boost'] > 0 and not lb['boost_lock']) or lb['nitro'] > 0
+        if lb['nitro'] > 0:
+            lb['boost'] = 100.0
+        elif lb['boosting']:
             lb['boost'] = max(0.0, lb['boost'] - 38 * dt)
             if lb['boost'] <= 0:
                 lb['boost_lock'] = True
@@ -148,6 +151,7 @@ class LifeboatMixin(LifeboatArtMixin):
         if playing and lb['p'] < 0.9:
             self.lb_spawn(dt, w)
         self.lb_update_reefs(dt, playing)
+        self.lb_ops_update(dt, playing)
         self.lb_update_boats(dt, w)
         self.lb_update_planes(dt, w)
         self.lb_move_bullets(dt)
@@ -172,17 +176,19 @@ class LifeboatMixin(LifeboatArtMixin):
             lb['boat_t'] = max(4.6, 7.2 - 0.35 * w) + random.uniform(0, 2.0)
             side = random.choice((-1, 1))
             lb['boats'].append(dict(x=-70.0 if side > 0 else W + 70.0, y=random.uniform(110, 330), vx=side * random.uniform(62, 88), side=side,
-                                    cd=random.uniform(1.2, 2.0), burst=0, bt=0.0))
+                                    cd=random.uniform(1.2, 2.0), burst=0, bt=0.0, hp=LB_BOAT_HP))
         if lb['plane_t'] <= 0 and not lb['planes'] and not lb['warns']:
             lb['plane_t'] = max(7.0, 10.5 - 0.4 * w) + random.uniform(0, 3.0)
             side = random.choice((-1, 1))
-            lb['warns'].append(dict(side=side, y=clamp(lb['y'] + random.uniform(-150, 40), 130, H - 120), t=1.4, key=random.choice(PLANE_KEYS)))
+            lb['warns'].append(dict(side=side, y=clamp(lb['y'] + random.uniform(-150, 40), 130, H - 120), t=0.4, key=random.choice(PLANE_KEYS)))
             self.audio.play('alarm', .3)
 
     def lb_update_boats(self, dt, w):
         lb = self.lb
         for b in lb['boats'][:]:
-            b['x'] += b['vx'] * dt
+            self.lb_boat_steer(b, dt)
+            b['x'] += b['vx'] * dt * b['spd']
+            b['y'] += b['vy'] * dt
             if (b['vx'] > 0 and b['x'] > W + 90) or (b['vx'] < 0 and b['x'] < -90):
                 lb['boats'].remove(b)
                 continue
@@ -202,6 +208,36 @@ class LifeboatMixin(LifeboatArtMixin):
                     b['cd'] = random.uniform(3.0, 4.2)
                     b['burst'], b['bt'] = 5, 0.0
 
+    def lb_boat_steer(self, b, dt):
+        """Las lanchas enemigas ven arrecifes y minas por delante: esquivan por arriba o por abajo y, si no hay lugar, frenan."""
+        lb = self.lb
+        b.setdefault('vy', 0.0)
+        b.setdefault('spd', 1.0)
+        sgn = 1.0 if b['vx'] > 0 else -1.0
+        scroll = 70.0 * (1.7 if lb['boosting'] else 1.0)
+        want_vy, want_spd = 0.0, 1.0
+        worst = None
+        for o in lb['reefs'] + lb['mines']:
+            dx = (o['x'] - b['x']) * sgn
+            if dx < -20 or dx > 210:
+                continue
+            t_hit = max(0.0, dx) / max(20.0, abs(b['vx']))
+            py = o['y'] + scroll * t_hit
+            if abs(py - b['y']) < 62 and (worst is None or dx < worst[0]):
+                worst = (dx, py)
+        if worst is not None:
+            dx, py = worst
+            up = py > b['y']                                           # el obstáculo cruzará por debajo: subir
+            if (up and b['y'] > 105) or (not up and b['y'] < 360):
+                want_vy = -95.0 if up else 95.0
+            else:
+                want_spd = 0.25                                        # sin lugar para esquivar: casi se detiene a esperar que pase
+            if abs(want_vy) < 1 and dx < 90:
+                want_spd = 0.25
+        b['vy'] += (want_vy - b['vy']) * min(1.0, dt * 5)
+        b['spd'] += (want_spd - b['spd']) * min(1.0, dt * 4)
+        b['y'] = clamp(b['y'], 90, 380)
+
     def lb_update_reefs(self, dt, playing):
         lb = self.lb
         spd = LB_SCROLL * (1.7 if lb['boosting'] else 1.0)
@@ -217,14 +253,11 @@ class LifeboatMixin(LifeboatArtMixin):
                 lb['reefs'].remove(rf)
             elif lb['phase'] == 'sail' and dist(rf['x'], rf['y'], lb['x'], lb['y']) < 26:
                 lb['reefs'].remove(rf)
-                lb['hp'] -= REEF_DMG
-                lb['hurt'] = 0.25
-                lb['vx'] *= 0.3
-                lb['vy'] *= 0.3
-                self.shake = max(self.shake, 8)
                 self.fxm.splash(rf['x'], rf['y'], 1.3)
                 self.audio.play('hit', .5)
-                self.pop('ARRECIFE -%d' % REEF_DMG, lb['x'], lb['y'] - 26, (255, 150, 100))
+                if self.lb_hurt(REEF_DMG, rf['x'], rf['y'], 'ARRECIFE'):
+                    lb['vx'] *= 0.3
+                    lb['vy'] *= 0.3
 
     def lb_update_planes(self, dt, w):
         lb = self.lb
@@ -267,12 +300,9 @@ class LifeboatMixin(LifeboatArtMixin):
                 continue
             if dist(b['x'], b['y'], lb['x'], lb['y']) < 17 and lb['phase'] == 'sail':
                 lb['bullets'].remove(b)
-                lb['hp'] -= LB_BULLET_DMG
-                lb['hurt'] = 0.25
-                self.shake = max(self.shake, 5)
                 self.fxm.add('spark', b['x'], b['y'], random.uniform(-100, 100), random.uniform(-100, 100), 0.3, col=(255, 220, 140), drag=2)
                 self.audio.play('hit', .35)
-                self.pop('-%d' % LB_BULLET_DMG, lb['x'], lb['y'] - 22, (255, 110, 100))
+                self.lb_hurt(LB_BULLET_DMG, b['x'], b['y'], '')
 
     # ------------------------------------------------------------------ rescate
     def lb_finish(self):
