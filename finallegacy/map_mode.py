@@ -5,7 +5,7 @@ import random
 from .radio_mode import LAND_RADARS, PORT_RADARS
 from .common import (
     ANTENNA_ISLANDS, BOSS_NAMES, ENEMY_PORT,
-    EXTRA_ISLANDS, H, HELIPAD, MAX_LANDING_ATTEMPTS, SHIELD_R,
+    EXTRA_ISLANDS, H, HELIPAD, MAX_LANDING_ATTEMPTS, SHIELD_DPS_CORE, SHIELD_DPS_EDGE, SHIELD_R,
     SKY_W, VMAX, W, WIN_WAVE,
     WORLD_H, WORLD_W, angle_diff, bearing,
     clamp, coast_r, dist, draw_circ,
@@ -176,19 +176,25 @@ class MapMixin:
                     self.dock_t = 0.28
                     self.audio.play('dock', .5)
         # enemigos
+        self.shield_int = max(0.0, getattr(self, 'shield_int', 0.0) - dt)
         for en in self.enemies:
             self.ai_map(en, dt)
             d = dist(self.sx, self.sy, en['x'], en['y'])
             if en.get('shield'):
                 en['hack_cd'] = max(0.0, en['hack_cd'] - dt)
-                if d < SHIELD_R:
-                    k = d or 1.0
-                    self.sx = en['x'] + (self.sx - en['x']) / k * SHIELD_R
-                    self.sy = en['y'] + (self.sy - en['y']) / k * SHIELD_R
-                    self.sv *= 0.6
-                    if self.t - getattr(self, 'shield_toast', -9) > 3:
+                if d < SHIELD_R:                                   # interferencia: no bloquea, pero daña el casco (más cerca del jefe, más daño)
+                    depth = 1.0 - d / SHIELD_R
+                    self.hull -= (SHIELD_DPS_EDGE + (SHIELD_DPS_CORE - SHIELD_DPS_EDGE) * depth) * dt
+                    self.shield_int = 0.25
+                    if self.t - getattr(self, 'shield_tick', -9) > 0.5:
+                        self.shield_tick = self.t
+                        self.audio.play('hit', .3)
+                        self.shake = max(self.shake, 3)
+                    if self.t - getattr(self, 'shield_toast', -9) > 4:
                         self.shield_toast = self.t
-                        self.toast('Escudo digital: presioná H para hackearlo', (255, 120, 220))
+                        self.toast('¡Interferencia del escudo! Alejate o presioná H para hackearlo', (255, 120, 220))
+                    if self.hull <= 0:
+                        return self.lose_ship('Tu buque fue destruido por la interferencia del escudo')
                 continue
             if d < 78 and en['cool'] <= 0:
                 return self.start_combat(en, self.nb_find_nest())

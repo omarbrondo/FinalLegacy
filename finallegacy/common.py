@@ -40,6 +40,7 @@ BOSS_NAMES = ('LEVIATAN', 'TIFON', 'COLOSO', 'ABISMO', 'TITAN', 'APOCALIPSIS')
 
 
 SHIELD_R = 230                 # radio del escudo digital del jefe en el mapa
+SHIELD_DPS_EDGE, SHIELD_DPS_CORE = 4.0, 13.0   # daño por segundo de la interferencia: en el borde del escudo / pegado al jefe
 
 
 ANTENNA_ISLANDS = list(range(9))   # islas donde se puede desembarcar e instalar antena (índices de EXTRA_ISLANDS)

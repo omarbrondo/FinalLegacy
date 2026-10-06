@@ -892,6 +892,14 @@ class CoreMixin:
                 self.text(cv, b[1], self.f_m, (235, 240, 255), W // 2, 232, 'c', alpha=a)
         for s, x, y, life, col in self.pops:
             self.text(cv, s, self.f_m, col, int(x), int(y), 'c', alpha=int(255 * clamp(life * 1.5, 0, 1)))
+        if self.state == 'map' and getattr(self, 'shield_int', 0.0) > 0:          # interferencia del escudo de un jefe
+            kk = clamp(self.shield_int / 0.25, 0, 1)
+            ov = pygame.Surface((W, H), pygame.SRCALPHA)
+            pygame.draw.rect(ov, (255, 70, 210, int(120 * kk)), (0, 0, W, H), 20)
+            for _ in range(7):
+                pygame.draw.rect(ov, (255, 130, 235, int(90 * kk)), (0, random.randrange(H), W, random.randint(2, 6)))
+            cv.blit(ov, (0, 0))
+            self.text(cv, '¡INTERFERENCIA DEL ESCUDO!', self.f_m, (255, 140, 235), W // 2, H // 2 - 130, 'c')
         self.draw_god_tag(cv)
         if self.paused:
             self.dim(cv, 130)
