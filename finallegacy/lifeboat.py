@@ -5,7 +5,7 @@ import math
 import pygame
 import random
 from .common import H, W, bearing, clamp, dist, vec
-from .lifeboat_art import LB_INTRO_DRAW, PLANE_KEYS, LifeboatArtMixin
+from .lifeboat_art import CITY_H, LB_INTRO_DRAW, PLANE_KEYS, LifeboatArtMixin
 from .lifeboat_ops import LB_BOAT_HP, LifeboatOpsMixin
 
 START_LIVES = 3
@@ -93,7 +93,7 @@ class LifeboatMixin(LifeboatArtMixin, LifeboatOpsMixin):
             lb['y'] += (lb['dock_y'] + 36 - lb['y']) * min(1, dt * 1.6)
             lb['vx'], lb['vy'] = 0.0, -20.0
             lb['scroll'] += LB_SCROLL * 0.3 * dt
-            lb['p'] = 1.0
+            lb['p'] = min(1.0, lb['p'] + dt * 0.6)
             if lb['pt'] > 3.0:
                 return self.lb_finish()
             self.lb_move_bullets(dt, harmless=True)
@@ -135,7 +135,7 @@ class LifeboatMixin(LifeboatArtMixin, LifeboatOpsMixin):
             lb['wake'] = 0.05
             self.fxm.add('foam', lb['x'] - lb['vx'] * 0.1, lb['y'] - lb['vy'] * 0.1 + 18, life=1.2, r0=4, r1=13, col=(235, 246, 255))
         # llegada o fin del tiempo
-        if lb['p'] >= 1.0:
+        if lb['p'] >= 1.0 or self.lb_touches_port():                         # llegar = tocar el muelle, sin tener que subirse a la ciudad
             lb['phase'], lb['pt'] = 'arrive', 0.0
             lb['boats'].clear()
             lb['planes'].clear()
@@ -161,6 +161,14 @@ class LifeboatMixin(LifeboatArtMixin, LifeboatOpsMixin):
             self.audio.play('boom_l')
             self.shake = 14
             self.banner('LANCHA HUNDIDA', 'No hubo rescate', (255, 90, 80), 3.0)
+
+    def lb_touches_port(self):
+        lb = self.lb
+        kc = clamp((lb['p'] - 0.7) / 0.3, 0, 1)
+        if kc <= 0:
+            return False
+        tip = -CITY_H + (CITY_H - 40) * kc + 362                              # punta de los muelles (ver lifeboat_art)
+        return lb['y'] - 22 <= tip
 
     def fx_burst(self, x, y, big=False):
         self.fxm.add('glow', x, y, life=0.5, r0=10, r1=44 if big else 26, col=(255, 170, 80))
