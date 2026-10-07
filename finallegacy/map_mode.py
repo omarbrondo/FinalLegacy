@@ -581,8 +581,8 @@ class MapMixin:
         self.port_tries = 0
         self.port_done = False
         self.audio.play('win', .7)
-        self.toast('Bonus +%d  |  Ciudades reparadas  |  +12 munición, +40 casco' % bonus, (120, 255, 160))
         self.autosave(True)                           # autoguardado al terminar la oleada
+        self.say('secretaria', 'Oleada superada. Bonificación de %d puntos; ciudades reparadas, +12 munición y +40 casco.' % bonus, 'ok', 'right', 640)
         self.start_upgrade()
 
     def ai_map(self, en, dt):
