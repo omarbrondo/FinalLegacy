@@ -106,8 +106,7 @@ class ConvoyMixin:
         """F: fuego antiaéreo del barco: destruye bombas, daña aviones y avisa si no hay convoy."""
         c = self.convoy
         if c is None:
-            self.toast('No hay convoy al que cubrir', (255, 200, 120))
-            return
+            return self.raid_flak()
         if c['flak_cd'] > 0:
             self.toast('Antiaéreo recargando: %d s' % math.ceil(c['flak_cd']), (255, 200, 120))
             return

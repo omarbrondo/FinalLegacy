@@ -201,12 +201,18 @@ class MapMixin:
         self.radar_t = max(0.0, self.radar_t - dt)
         self.city_regen(dt)
         self.radar_tick(dt)
+        if self.raid is not None:
+            self.upd_raid(dt)
+        elif (self.convoy is None and self.attack is None and self.rescue is None and self.wave >= 2 and self.enemies):
+            self.raid_t -= dt
+            if self.raid_t <= 0:
+                self.begin_raid()
         if self.convoy is not None:
             self.upd_convoy(dt)
         else:
             # el reloj corre siempre; si justo hay un ataque o alerta en curso, el convoy sale apenas termine
             self.convoy_t -= dt
-            if self.convoy_t <= 0 and self.wave >= 2 and self.attack is None and not self.warned and self.rescue is None:
+            if self.convoy_t <= 0 and self.wave >= 2 and self.attack is None and not self.warned and self.rescue is None and self.raid is None:
                 self.begin_convoy()
         if self.rescue is not None:
             self.upd_rescue(dt)
@@ -737,6 +743,8 @@ class MapMixin:
             yy += 52
         if self.convoy is not None:
             self.draw_convoy(cv, cx, cy, yy)
+        if self.raid is not None:
+            self.draw_raid(cv, cx, cy)
         thr = 1.0 if self.attack is not None else 1 - clamp(self.strike_t / 60.0, 0, 1)
         self.text(cv, 'AMENAZA ENEMIGA', self.f_s, (255, 190, 170), W - 296 + 8, 76)
         self.bar(cv, W - 296, 96, 282, 14, thr, (255, 90 + int(100 * (1 - thr)), 60), '')
