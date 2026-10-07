@@ -9,6 +9,7 @@ from .war import DECOR0
 RADAR_IDX = (1, 5, 8, 10, 13, 15)                      # islotes decorativos que tienen un radar (no se mudan de lugar)
 SCOPE = pygame.Rect(120, 170, 660, 300)
 F_MIN, F_MAX = 0.8, 6.0
+CHIP_NAMES = {'tune': 'SINTONÍA', 'drift': 'DERIVA', 'jam': 'INTERFERENCIA', 'dual': '2 CANALES', 'sweep': 'BARRIDO'}
 KIND_NAMES = {'tune': 'SINTONÍA', 'drift': 'SEÑAL A LA DERIVA', 'jam': 'INTERFERENCIA', 'dual': 'DOS CANALES', 'sweep': 'BARRIDO DE ESPECTRO'}
 KIND_HINT = {
     'tune': 'A/D frecuencia  |  W/S amplitud: calzá la onda amarilla con la celeste',
@@ -472,15 +473,18 @@ class RadioMixin:
         low = st['time'] < 8 and rd['phase'] == 'play'
         tcol = (255, 90, 80) if low else ((255, 210, 80) if st['time'] < 15 else (110, 240, 255))
         self.text(cv, '%02d.%02d' % (int(st['time']), int((st['time'] % 1) * 100)), self.f_clk, tcol, W - 44, 10, 'r')
-        self.text(cv, 'INTENTOS %d/3' % (rd['fails'] + 1 if rd['fails'] < 3 else 3), self.f_s, (150, 190, 220), W - 44, 86, 'r')
+        self.text(cv, 'INTENTOS %d/3' % (rd['fails'] + 1 if rd['fails'] < 3 else 3), self.f_s, (150, 190, 220), W - 44, 72, 'r')
         # estaciones y mensaje descifrado
+        x = 56
         for i, kd in enumerate(rd['kinds']):
-            x = 56 + i * 150
             done = i < rd['stage'] or (i == rd['stage'] and rd['phase'] in ('ok', 'win'))
             cur_ = i == rd['stage']
-            pygame.draw.rect(cv, (10, 28, 38), (x, 560, 138, 34), border_radius=6)
-            pygame.draw.rect(cv, (90, 255, 150) if done else ((255, 220, 100) if cur_ else (50, 80, 100)), (x, 560, 138, 34), 2, border_radius=6)
-            self.text(cv, KIND_NAMES[kd][:14], self.f_s, (200, 225, 250) if (done or cur_) else (110, 130, 150), x + 69, 568, 'c')
+            name = CHIP_NAMES[kd]
+            cw = self.f_s.size(name)[0] + 28
+            pygame.draw.rect(cv, (10, 28, 38), (x, 560, cw, 34), border_radius=6)
+            pygame.draw.rect(cv, (90, 255, 150) if done else ((255, 220, 100) if cur_ else (50, 80, 100)), (x, 560, cw, 34), 2, border_radius=6)
+            self.text(cv, name, self.f_s, (200, 225, 250) if (done or cur_) else (110, 130, 150), x + cw // 2, 566, 'c')
+            x += cw + 10
         shown = []
         n_ok = rd['stage'] + (1 if rd['phase'] in ('ok', 'win') else 0)
         for i, w in enumerate(rd['words']):
@@ -490,7 +494,8 @@ class RadioMixin:
                 shown.append(''.join(random.choice('#%&$@?01') if int(t * 8 + i + j) % 3 else '.' for j in range(len(w))))
         self.panel(cv, (40, 620, W - 80, 70), 180)
         self.text(cv, 'TRANSMISIÓN ENEMIGA', self.f_s, (150, 190, 220), 60, 628)
-        self.text(cv, '  '.join(shown), self.f_l, (90, 255, 170), 60, 650, shadow=False)
+        msg = '  '.join(shown)
+        self.text(cv, msg, self.fit_font(msg, W - 160, self.f_l, self.f_m, self.f_s), (90, 255, 170), 60, 650, shadow=False)
         self.text(cv, KIND_HINT[kind] + '  |  TAB: abortar', self.f_s, (180, 205, 235), 56, H - 40)
         if rd['phase'] == 'ok':
             k = clamp(rd['pt'] / 0.25, 0, 1)
@@ -508,7 +513,8 @@ class RadioMixin:
             self.dim(cv, 90)
             self.text(cv, 'COMUNICACIONES', self.f_xl, (110, 255, 170), W // 2, 215, 'c')
             self.text(cv, 'INTERCEPTADAS', self.f_xl, (110, 255, 170), W // 2, 295, 'c')
-            self.text(cv, '"%s"' % ' '.join(rd['words']), self.f_l, (255, 240, 170), W // 2, 395, 'c')
+            full = '"%s"' % ' '.join(rd['words'])
+            self.text(cv, full, self.fit_font(full, W - 100, self.f_l, self.f_m, self.f_s), (255, 240, 170), W // 2, 395, 'c')
             self.text(cv, 'Descifrando recompensa...', self.f_m, (170, 210, 240), W // 2, 450, 'c')
 
     def draw_sweep(self, cv, st):

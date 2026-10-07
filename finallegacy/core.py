@@ -366,6 +366,13 @@ class CoreMixin:
         dst.blit(img, r)
         return r
 
+    def fit_font(self, s, maxw, *fonts):
+        """La primera fuente (de mayor a menor) con la que el texto entra en maxw píxeles."""
+        for f in fonts:
+            if f.size(s)[0] <= maxw:
+                return f
+        return fonts[-1]
+
     def panel(self, dst, rect, alpha=150):
         key = (rect[2], rect[3], alpha)
         s = self.panels.get(key)
