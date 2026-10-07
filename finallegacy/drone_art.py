@@ -46,14 +46,20 @@ def make_drone_sprite():
     ell((150, 162, 182), -26, -22, 34, 9)
     poly((38, 44, 54), [(-70, 6), (70, 6), (92, 24), (-92, 24)])                          # panel inferior
     pygame.draw.ellipse(s, (22, 26, 32), (cx - 100 * S, cy - 50 * S, 200 * S, 100 * S), 3 * S)
-    for k in (-1, 1):                                                                     # rejillas de ventilación
-        for i in range(4):
-            pygame.draw.line(s, (30, 34, 42), P(k * (38 + i * 11), -2), P(k * (34 + i * 11), 14), 2 * S)
-    ell((12, 14, 18), 0, 34, 34, 18)                                                      # cámara (cardán)
-    ell((40, 44, 52), 0, 32, 30, 15)
-    ell((20, 22, 26), 0, 34, 20, 10)
-    ell((170, 24, 26), 0, 34, 13, 6)
-    ell((255, 120, 110), -3, 32, 6, 2)
+    pygame.draw.line(s, (28, 32, 40), P(-86, 8), P(86, 8), 2 * S)                           # junta entre cascos
+    pygame.draw.rect(s, (56, 62, 74), (cx - 40 * S, cy - 30 * S, 80 * S, 22 * S), border_radius=9 * S)     # batería (sobre el lomo)
+    pygame.draw.rect(s, (120, 130, 148), (cx - 40 * S, cy - 30 * S, 80 * S, 22 * S), 2 * S, border_radius=9 * S)
+    for i in range(3):
+        pygame.draw.rect(s, (86, 230, 150) if i < 2 else (40, 70, 56), (cx + (-22 + i * 16) * S, cy - 22 * S, 10 * S, 6 * S), border_radius=2 * S)
+    pygame.draw.line(s, (44, 48, 56), P(58, -34), P(70, -66), 3 * S)                        # antena
+    ell((255, 190, 70), 70, -68, 5, 4)
+    ell((10, 12, 16), 0, 36, 38, 22)                                                      # cámara (cardán)
+    ell((86, 94, 108), 0, 33, 35, 19)
+    ell((24, 26, 32), 0, 35, 29, 15)
+    ell((12, 16, 24), 0, 35, 22, 11)
+    ell((46, 110, 190), 0, 35, 15, 7)
+    ell((190, 225, 255), -5, 33, 6, 2)
+    ell((255, 80, 70), 12, 38, 3, 2)
     ell((230, 60, 60), -92, 6, 7, 5)                                                      # luces de posición
     ell((70, 255, 130), 92, 6, 7, 5)
     return pygame.transform.smoothscale(s, (SW, SH)).convert_alpha()
@@ -80,7 +86,7 @@ def draw_drone(cv, sprite, sx, sy, u, t, rot, glow_fn):
             pygame.draw.line(disc, (236, 242, 252, 190), (c0 - bx, c1 - by), (c0 + bx, c1 + by), max(2, int(5 * k)))
         cv.blit(disc, (px - c0, py - c1))
     pulse = 0.5 + 0.5 * math.sin(t * 6)
-    glow_fn(cv, sx, cy + 34 * k, int(46 * k) + 8, (255, 60, 50), 0.35 + 0.35 * pulse)
+    glow_fn(cv, sx + 12 * k, cy + 38 * k, int(16 * k) + 8, (255, 70, 60), 0.3 + 0.4 * pulse)
     if int(t * 2.5) % 2 == 0:
         glow_fn(cv, cx + 92 * k, cy + 6 * k, int(18 * k) + 6, (70, 255, 130), 0.7)
         glow_fn(cv, cx - 92 * k, cy + 6 * k, int(18 * k) + 6, (255, 70, 70), 0.7)
