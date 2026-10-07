@@ -6,6 +6,9 @@ from .common import H, Particles, W, WIN_WAVE, angle_diff, bearing, clamp, coast
 from .sprites import make_shadow
 
 
+from .comms import AIR_LINES
+
+
 class AerialMixin:
     # ---------------------------------------------------------- BATALLA AÉREA (estilo Twinbee)
     AIR_SCROLL = 80.0
@@ -273,6 +276,7 @@ class AerialMixin:
                 from .air_boss import AIR_BOSSES
                 spec = AIR_BOSSES[a['boss']['k']]
                 self.banner('¡ALERTA! %s' % spec['name'], '', (255, 90, 70), 2.6)
+                self.say('jefe_avion', AIR_LINES[a['boss']['k'] % 6][0], 'bad', v=a['boss']['k'] % 6 + 1, name=spec['name'])
                 self.say('piloto', '¡Jefe a la vista! ' + spec['hint'], 'bad')
         # enemigos
         for f in a['foes'][:]:
@@ -409,6 +413,8 @@ class AerialMixin:
         # jefe derrotado / jugador caído
         if b and not a['boss_dead'] and b['hp'] <= 0:
             a['boss_dead'] = True
+            from .air_boss import AIR_BOSSES
+            self.say('jefe_avion', AIR_LINES[b['k'] % 6][1], 'warn', v=b['k'] % 6 + 1, name=AIR_BOSSES[b['k']]['name'])
             self.add_score(4000)
             for _ in range(10):
                 self.air_boom(b['x'] + random.uniform(-90, 90), b['y'] + random.uniform(-60, 60), 1.6, True, 'boom_l')
