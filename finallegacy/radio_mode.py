@@ -409,7 +409,7 @@ class RadioMixin:
             pygame.draw.line(cv, (6, 16, 22), (0, i), (W, i))
         self.text(cv, 'INTERCEPCIÓN DE RADIO', self.f_l, (110, 240, 255), 56, 24)
         self.text(cv, 'RADAR ENEMIGO', self.f_s, (255, 150, 130), 56, 100)
-        self.text(cv, 'ESTACIÓN %d/%d  ·  %s' % (rd['stage'] + 1, len(rd['kinds']), KIND_NAMES[kind]), self.f_m, (255, 220, 120), 56, 68)
+        self.text(cv, 'ESTACIÓN %d/%d  |  %s' % (rd['stage'] + 1, len(rd['kinds']), KIND_NAMES[kind]), self.f_m, (255, 220, 120), 56, 68)
         # pantalla del osciloscopio
         pygame.draw.rect(cv, (6, 20, 28), SCOPE.inflate(24, 24), border_radius=14)
         pygame.draw.rect(cv, (40, 110, 130), SCOPE.inflate(24, 24), 3, border_radius=14)
@@ -487,7 +487,7 @@ class RadioMixin:
             if i < n_ok:
                 shown.append(w)
             else:
-                shown.append(''.join(random.choice('#%&$@?01') if int(t * 8 + i + j) % 3 else '·' for j in range(len(w))))
+                shown.append(''.join(random.choice('#%&$@?01') if int(t * 8 + i + j) % 3 else '.' for j in range(len(w))))
         self.panel(cv, (40, 620, W - 80, 70), 180)
         self.text(cv, 'TRANSMISIÓN ENEMIGA', self.f_s, (150, 190, 220), 60, 628)
         self.text(cv, '  '.join(shown), self.f_l, (90, 255, 170), 60, 650, shadow=False)

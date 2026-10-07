@@ -183,6 +183,9 @@ class GamepadMixin:
                     if b in pressed:
                         key(k)
             elif st == 'title':
+                for b, k in (('UP', pygame.K_UP), ('DN', pygame.K_DOWN), ('LF', pygame.K_LEFT), ('RG', pygame.K_RIGHT), ('B', pygame.K_ESCAPE)):
+                    if b in pressed:
+                        key(k)
                 for b, k in (('Y', pygame.K_c), ('X', pygame.K_i)):                          # título: cargar partida / inmortal
                     if b in pressed:
                         key(k)

@@ -24,16 +24,14 @@ from .boss_art import BOSS_TYPES, make_boss_sprite
 
 class CoreMixin:
     def __init__(self):
-        pygame.display.set_caption('RETRO LEGACY - Edición Omar Brondo')
+        pygame.display.set_caption('RETRO LEGACY')
         try:
             self.screen = pygame.display.set_mode((W, H), pygame.SCALED)
         except pygame.error:                      # sin renderizador: ventana común (sin escalado)
             self.screen = pygame.display.set_mode((W, H))
         self.canvas = pygame.Surface((W, H))
         self.clock = pygame.time.Clock()
-        names = 'couriernew,consolas,dejavusansmono,liberationmono,monospace'
-        mk = lambda s: pygame.font.SysFont(names, s, bold=True)
-        self.f_s, self.f_m, self.f_l, self.f_xl = mk(15), mk(20), mk(32), mk(80)
+        self.f_s, self.f_m, self.f_l, self.f_xl = (self.make_font(s, w) for s, w in ((14, 600), (19, 700), (30, 700), (74, 800)))
         self.screen.fill((6, 10, 22))
         self.text(self.screen, 'CARGANDO SONIDOS Y GRAFICOS...', self.f_m, (160, 200, 255), W // 2, H // 2 - 10, 'c')
         pygame.display.flip()
@@ -62,6 +60,17 @@ class CoreMixin:
         self.fxm = Particles()
         self.reset()
         self.go('title')
+
+    def make_font(self, size, weight=700):
+        """Orbitron (carpeta fonts/); si falta, una fuente monoespaciada del sistema."""
+        path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'fonts', 'Orbitron.ttf')
+        try:
+            f = pygame.font.Font(path, size)
+            f.bold = weight >= 600                     # Orbitron es de un solo peso: el trazo grueso es sintético
+            return f
+        except Exception:
+            names = 'couriernew,consolas,dejavusansmono,liberationmono,monospace'
+            return pygame.font.SysFont(names, int(size * 1.07), bold=True)
 
     # ------------------------------------------------------------ assets
     def build_assets(self):
@@ -492,6 +501,8 @@ class CoreMixin:
     def go(self, state):
         self.state = state
         self.fade = 1.0
+        if state == 'title':
+            self.menu_reset()
         pygame.mouse.set_visible(state in ('upgrade',) or state not in ('defense', 'combat', 'aerial', 'ground', 'tank', 'port', 'heli', 'radio', 'lifeboat'))
         calm = state in ('title', 'map', 'upgrade', 'helisel')
         ctx = {'helisel': 'upgrade', 'gameover': None, 'lifeboat': 'defense'}.get(state, state)
@@ -560,6 +571,8 @@ class CoreMixin:
         if e.type == pygame.QUIT:
             pygame.quit()
             sys.exit()
+        if self.menu_event(e):
+            return
         if e.type == pygame.MOUSEMOTION:
             self.mouse_moved = True
             self.aim = [float(e.pos[0]), float(e.pos[1])]
@@ -913,37 +926,6 @@ class CoreMixin:
             cv.blit(self.fade_surf, (0, 0))
 
     # ---- título
-    def draw_title(self, cv):
-        t = self.t
-        self.draw_ocean(cv, t * 30, t * 8, t)
-        self.dim(cv, 45)
-        x = (t * 70) % (W + 300) - 150
-        self.blit_ship(cv, 'p_map', x, 640, 90)
-        x2 = W + 150 - (t * 55) % (W + 300)
-        self.blit_ship(cv, 'e_map', x2, 700, 270)
-        for ln, y, col in (('RETRO', 90, (255, 220, 110)), ('LEGACY', 175, (255, 160, 70))):
-            for dx, dy in ((-3, 0), (3, 0), (0, -3), (0, 3), (-3, -3), (3, 3), (-3, 3), (3, -3)):
-                self.text(cv, ln, self.f_xl, (30, 10, 0), W // 2 + dx, y + dy, 'c', shadow=False)
-            self.text(cv, ln, self.f_xl, col, W // 2, y, 'c', shadow=False)
-        self.text(cv, 'EDICIÓN OMAR BRONDO', self.f_l, (120, 220, 255), W // 2, 275, 'c')
-        self.panel(cv, (W // 2 - 380, 316, 760, 304), 170)
-        lines = ['MAPA   W/S acelerar-frenar   A/D girar   R (en puerto) reabastecer   L desembarcar',
-                 'DEFENSA   Mouse o flechas apuntan   Clic/ESPACIO lanzan interceptor',
-                 'COMBATE   Mouse apunta, clic lanza un misil recto (¡adelantate!)   E: huir',
-                 'TIERRA   WASD soldado   Clic disparar   R recargar   ESPACIO granada',
-                 'TANQUE   W/S avanzar   A/D girar   ESPACIO o clic: cañón',
-                 'JEFE   Instalá antenas en las islas (L) y hackeá su escudo con H cerca del buque',
-                 'AIRE   WASD mover   ESPACIO disparar   B bomba',
-                 'MANDO   Izq. mover  Der. apuntar  RT/A disparar  LT/B granada  X recargar  Y acción',
-                 'P pausa (S guardar, C cargar)  M sonido  V gráficos  F11 pantalla completa  F1 CRT',
-                 'C cargar partida   I modo inmortal [%s]   F2-F10, F12, N modo prueba' % ('SÍ' if self.god else 'NO')]
-        for i, ln in enumerate(lines):
-            self.text(cv, ln, self.f_s, (220, 232, 255), W // 2 - 360, 336 + i * 28)
-        if int(t * 2) % 2 == 0:
-            self.text(cv, 'PRESIONÁ ENTER PARA ZARPAR', self.f_l, (255, 255, 255), W // 2, 636, 'c')
-        self.text(cv, 'Récord: %d' % self.hiscore, self.f_m, (255, 230, 120), W // 2, 686, 'c')
-        self.text(cv, 'Hundí %d oleadas y salvá al menos una ciudad para ganar' % WIN_WAVE, self.f_s, (160, 190, 220), W // 2, 740, 'c')
-
     # ---- game over
     def draw_gameover(self, cv):
         self.draw_ocean(cv, self.t * 10, 0, self.t)
