@@ -37,7 +37,8 @@ class HeliMixin:
             self.heli_next += min(HELI_SORTIE_PTS * 2 ** (self.heli_earned + 1), HELI_GAP_MAX)
             self.heli_earned += 1
             self.audio.play('win', .6)
-            self.banner('¡BLACKHAWK LISTO PARA COMBATE!', 'Acercate al helipuerto y presioná B para elegir la misión', (130, 255, 190), 3.6)
+            self.banner('¡BLACKHAWK LISTO PARA COMBATE!', 'Helipuerto disponible', (130, 255, 190), 2.8)
+            self.say('piloto', 'Blackhawk listo. Acercate al helipuerto y presioná B para elegir la misión.', 'ok')
         f = self.heli_fl
         if f is None:
             return
@@ -270,7 +271,8 @@ class HeliMixin:
                        pb=[], rk=[], eb=[], sam=[], n0=len(T) + (1 if ship else 0))
         self.aim = [W / 2, H / 2]
         self.go('heli')
-        self.banner(title, 'WASD volar | Mouse apuntar | Clic: ametralladora | ESPACIO/clic der.: cohetes', (130, 255, 190), 3.6)
+        self.banner(title, 'Blackhawk en misión', (130, 255, 190), 2.8)
+        self.say('piloto', 'En el aire. WASD para volar, mouse para apuntar, clic para la ametralladora y ESPACIO para los cohetes.', 'info')
 
     def heli_target(self, kd, x, y):
         hp, r = {'aa': (6, 17), 'bunker': (16, 28), 'sam': (9, 20), 'depot': (10, 26), 'radar': (6, 20)}[kd]
@@ -409,6 +411,7 @@ class HeliMixin:
                 m['phase'], m['pt'] = 'result', 0.0
                 m['ok'] = False
                 self.banner('BLACKHAWK DERRIBADO', 'La misión fracasó', (255, 80, 70), 3.0)
+                self.say('piloto', '¡Nos derribaron! Mayday, mayday...', 'bad')
             elif done:
                 m['phase'], m['pt'] = 'result', 0.0
                 m['ok'] = True
@@ -572,7 +575,8 @@ class HeliMixin:
                     self.enemies.remove(tg)
             elif m['kind'] == 'island':
                 self.cleared_isl.add(tg['idx'])
-                self.banner('¡ISLA DESPEJADA!', 'Acercate con el barco y presioná L: instalás la antena sin resistencia', (120, 220, 255), 4.0)
+                self.banner('¡ISLA DESPEJADA!', 'Antena sin resistencia', (120, 220, 255), 3.0)
+                self.say('piloto', '¡Isla despejada! Acercate con el barco y presioná L: instalás la antena sin resistencia.', 'ok')
             else:
                 tg['alive'] = False
             self.ammo = min(40, self.ammo + 8)

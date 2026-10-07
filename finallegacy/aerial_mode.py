@@ -36,8 +36,8 @@ class AerialMixin:
         for _ in range(9):
             self.air_spawn_cloud(random.uniform(0, H))
         self.go('aerial')
-        self.banner('¡BATALLA AÉREA!', 'WASD mover | mantener ESPACIO/clic: disparar | B/clic der.: bomba a objetivos terrestres',
-                    (100, 180, 255), 4.0)
+        self.banner('¡BATALLA AÉREA!', 'Derribá a los cazas enemigos', (100, 180, 255), 3.0)
+        self.say('piloto', 'Despegamos. WASD para moverte, ESPACIO para disparar y B para bombardear objetivos en tierra.', 'info')
 
     def air_spawn_island(self, x, y):
         a = self.a
@@ -272,7 +272,8 @@ class AerialMixin:
                 self.audio.play('alarm')
                 from .air_boss import AIR_BOSSES
                 spec = AIR_BOSSES[a['boss']['k']]
-                self.banner('¡ALERTA! %s' % spec['name'], spec['hint'], (255, 90, 70), 3.6)
+                self.banner('¡ALERTA! %s' % spec['name'], '', (255, 90, 70), 2.6)
+                self.say('piloto', '¡Jefe a la vista! ' + spec['hint'], 'bad')
         # enemigos
         for f in a['foes'][:]:
             f['t'] += dt
@@ -424,6 +425,7 @@ class AerialMixin:
                 self.audio.play('win', .7)
                 self.banner('¡VICTORIA AÉREA!', 'Bajas: %d   Jefe +4000   Bonus +%d   (+8 munición)' % (a['kills'], bonus),
                             (120, 255, 160), 3.2)
+                self.say('piloto', '¡Cielo despejado! Volvemos a la base.', 'ok')
         if not p['dead'] and p['hp'] <= 0:
             p['dead'] = True
             self.air_boom(p['x'], p['y'], 1.8, True, 'boom_l')
@@ -431,6 +433,7 @@ class AerialMixin:
             if a['phase'] == 'play':
                 a['phase'], a['fail'], a['pt'] = 'result', True, -1.0
                 self.banner('¡AVIÓN DERRIBADO!', 'El ataque aéreo daña la ciudad', (255, 80, 70), 3.0)
+                self.say('piloto', '¡Me dieron! Perdí el avión... la ciudad queda expuesta.', 'bad')
         self.fx.update(dt)
         if a['phase'] == 'result':
             a['pt'] += dt

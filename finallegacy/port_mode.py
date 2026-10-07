@@ -75,8 +75,8 @@ class PortMixin:
         self.fx = Particles()
         self.aim = [W / 2, 300.0]
         self.go('port')
-        self.banner('¡ASALTO AL PUERTO ENEMIGO!', 'A/D mover | W/ESPACIO saltar | S agacharse | Clic: disparar | G/clic der.: granada',
-                    (255, 120, 90), 4.4)
+        self.banner('¡ASALTO AL PUERTO ENEMIGO!', 'Tomá el puerto', (255, 120, 90), 3.0)
+        self.say('soldado', 'Asalto al puerto. A/D para moverte, W o ESPACIO para saltar, S para agacharte, clic para disparar y G para granada.', 'info')
 
     def pt_enemy(self, kind, x, y, face):
         hp = {'rifle': 3, 'knife': 2, 'gren': 3, 'sniper': 4, 'shield': 6, 'flame': 5, 'turret': 12, 'tank': 70 + 24 * self.wave}[kind]
@@ -103,9 +103,11 @@ class PortMixin:
                 pt['enemies'].append(e)
                 self.audio.play('alarm')
                 if e['variant'] == 'heli':
-                    self.banner('¡HELICÓPTERO DE ASALTO!', 'Disparale hacia arriba y cubrite de los misiles', (255, 90, 70), 3.4)
+                    self.banner('¡HELICÓPTERO DE ASALTO!', 'Disparale hacia arriba', (255, 90, 70), 2.6)
+                    self.say('soldado', '¡Helicóptero de asalto! Disparale hacia arriba y cubrite de los misiles.', 'bad')
                 else:
-                    self.banner('¡TANQUE DE PUERTO!', 'Saltá sus proyectiles y no pares de disparar', (255, 90, 70), 3.4)
+                    self.banner('¡TANQUE DE PUERTO!', 'Tanque enemigo', (255, 90, 70), 2.6)
+                    self.say('soldado', '¡Tanque en el puerto! Saltá sus proyectiles y no pares de disparar.', 'bad')
                 continue
             if kind == 'sniper':
                 ahead = [pl for pl in pt['plats'] if cam + 200 < pl['x'] < cam + W - 100] or pt['plats'][:1]
