@@ -95,6 +95,7 @@ class GroundMixin:
                              cd=0.0, gren=4, gcd=0.0, ph=0.0, flash=0.0, bloom=0.0, dead=False, dead_t=0.0,
                              wpn='rifle', pmag=12, sneak=False, noise=0.0, noise_r=0.0, noise_t=0.0))
         self.g['sscale'] = SOL_SCALE if district else 1.0
+        self.g['pfem'] = self.roll_player_fem()
         if district:
             self.gc_setup(rects, info)
         self.aim = [W / 2, 200.0]
@@ -1170,9 +1171,9 @@ class GroundMixin:
                     fx_, fy_ = vec(s['h'], 46 * g.get('sscale', 1.0))
                     glow(cv, sx + fx_, sy + fy_, 20, (255, 200, 120))
             elif s['dead']:
-                self.blit_soldier(cv, 'p', sx, sy, s['h'], 0, dead=True)
+                self.blit_soldier(cv, 'pf' if g.get('pfem') else 'p', sx, sy, s['h'], 0, dead=True)
             else:
-                self.blit_soldier(cv, 'p', sx, sy, s['h'], int(s['ph']) % 4)
+                self.blit_soldier(cv, 'pf' if g.get('pfem') else 'p', sx, sy, s['h'], int(s['ph']) % 4)
                 if s['flash'] > 0:
                     fx_, fy_ = vec(s['h'], 46 * g.get('sscale', 1.0))
                     glow(cv, sx + fx_, sy + fy_, 22, (255, 230, 150))

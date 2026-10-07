@@ -63,6 +63,10 @@ class CoreMixin:
         self.reset()
         self.go('title')
 
+    def roll_player_fem(self):
+        """Sexo del soldado en cada batalla a pie: al azar salvo que PLAYER_FEMALE lo fije."""
+        return random.random() < 0.5 if PLAYER_FEMALE is None else bool(PLAYER_FEMALE)
+
     def make_font(self, size, weight=700):
         """Orbitron (carpeta fonts/); si falta, una fuente monoespaciada del sistema."""
         path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'fonts', 'Orbitron.ttf')
@@ -139,7 +143,7 @@ class CoreMixin:
         for k_ in range(len(BOSS_TYPES)):
             reg('b%d_map' % k_, make_boss_sprite(k_, 46, 126))
             reg('b%d_hull' % k_, make_boss_sprite(k_, 98, 270))
-        self.sol = {'p': make_soldier_frames('rifle', 'p', PLAYER_FEMALE, (176, 118, 62)), 'a': make_soldier_frames('rifle', 'a'),
+        self.sol = {'p': make_soldier_frames('rifle', 'p'), 'pf': make_soldier_frames('rifle', 'p', True, (176, 118, 62)), 'a': make_soldier_frames('rifle', 'a'),
                     'af': make_soldier_frames('rifle', 'a', True, (150, 70, 40))}
         for kd in ENEMY_TYPES:
             self.sol['e_' + kd] = make_soldier_frames(kd, 'e')

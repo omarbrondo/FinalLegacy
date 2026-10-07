@@ -48,7 +48,7 @@ class PortMixin:
         grp(6800, [('rifle', 'R'), ('rifle', 'L'), ('rifle', 'R'), ('rifle', 'L'), ('knife', 'R'), ('knife', 'R'), ('sniper', 'P'), ('rifle', 'S'), ('rifle', 'S'), ('rifle', 'S')] + [('shield', 'R')] * (1 + ex // 2))
         grp(7600, [('flame', 'R'), ('flame', 'R'), ('shield', 'R'), ('shield', 'R'), ('gren', 'R'), ('gren', 'L'), ('sniper', 'P'), ('sniper', 'P'), ('rifle', 'S'), ('rifle', 'S'), ('knife', 'L')] + [('knife', 'R')] * ex, True)
         grp(L - 1500, [('tank', 'R')], True)
-        self.pt = dict(
+        self.pt = dict(pfem=self.roll_player_fem(),
             plats=plats, groups=groups, cam=0.0, lock=None, t=0.0, phase='play', pt=0.0, fail=False, kills=0,
             p=dict(x=120.0, y=float(GR), vx=0.0, vy=0.0, ground=True, hp=PLAYER_HP, face=1, cd=0.0, gren=6, hmg=0.0, inv=0.0,
                    ph=0.0, crouch=False, dead=False, gcd=0.0, flash=0.0, thr=0.0, dead_t=0.0, dust=0.0),
@@ -914,7 +914,7 @@ class PortMixin:
         """Dibuja un soldado pre-renderizado (cuerpo + brazos/arma rotados). aim=(dx, dy) hacia donde apunta."""
         art = self.pt_art
         base = kind
-        if (kind == 'player' and PLAYER_FEMALE) or fem:
+        if (kind == 'player' and self.pt.get('pfem')) or fem:
             if kind + '_f' in art['body']:
                 kind = kind + '_f'
         frames = art['body'][kind][pose]
