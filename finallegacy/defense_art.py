@@ -23,34 +23,36 @@ def make_side_ship():
         pygame.draw.rect(s, col, (x * S, y * S, w * S, h * S), width, border_radius=int(r * S))
 
     hull = [(8, 64), (278, 64), (298, 48), (284, 80), (262, 104), (30, 104), (10, 92)]
-    poly((46, 56, 70), hull)
-    poly((70, 84, 104), [(8, 64), (278, 64), (298, 48), (287, 76), (10, 78)])                         # costado iluminado
-    poly((30, 38, 52), [(10, 92), (30, 104), (262, 104), (284, 80), (270, 90), (18, 90)])             # fondo del casco
-    poly((120, 34, 38), [(22, 98), (264, 98), (270, 92), (16, 92)])                                    # línea de flotación roja
-    pygame.draw.line(s, (170, 186, 208), P(10, 64), P(278, 64), 2 * S)                                 # borde de cubierta
+    poly((25, 95, 125), hull)
+    poly((70, 140, 170), [(8, 64), (278, 64), (298, 48), (287, 76), (10, 78)])                        # costado iluminado
+    poly((110, 170, 190), [(8, 64), (278, 64), (298, 48), (290, 60), (10, 68)])                        # franja de cubierta
+    poly((18, 62, 82), [(10, 92), (30, 104), (262, 104), (284, 80), (270, 90), (18, 90)])             # fondo del casco
+    poly((255, 210, 70), [(22, 98), (264, 98), (268, 94), (18, 94)])                                    # línea de flotación amarilla del barco
+    poly((255, 210, 70), [(278, 64), (298, 48), (292, 64)])                                            # marca de proa
+    pygame.draw.line(s, (196, 226, 236), P(10, 64), P(278, 64), 2 * S)                                 # borde de cubierta
     for x in range(30, 270, 22):                                                                       # planchas del casco
-        pygame.draw.line(s, (40, 50, 66), P(x, 66), P(x - 4, 90), 1 * S)
+        pygame.draw.line(s, (36, 100, 128), P(x, 66), P(x - 4, 90), 1 * S)
     for x in range(40, 250, 30):                                                                       # portillos
         pygame.draw.circle(s, (250, 220, 130), P(x, 76), 2 * S)
-    rect((34, 40, 54), 120, 50, 100, 14, 2)                                                            # superestructura
-    rect((70, 82, 104), 120, 50, 100, 5, 2)
-    rect((92, 104, 128), 140, 36, 62, 14, 3)                                                           # puente
-    rect((60, 70, 90), 140, 36, 62, 4, 2)
+    rect((45, 110, 140), 120, 50, 100, 14, 2)                                                            # superestructura
+    rect((110, 170, 190), 120, 50, 100, 5, 2)
+    rect((70, 140, 170), 140, 36, 62, 14, 3)                                                           # puente
+    rect((110, 170, 190), 140, 36, 62, 4, 2)
     for k in range(6):
         rect((255, 226, 140), 146 + k * 9, 42, 6, 5)
-    rect((54, 62, 80), 168, 24, 6, 14)                                                                 # mástil
-    pygame.draw.line(s, (170, 180, 196), P(171, 24), P(171, 6), 2 * S)
-    pygame.draw.ellipse(s, (150, 160, 180), (151 * S, 14 * S, 40 * S, 7 * S))                           # radar giratorio
+    rect((45, 110, 140), 168, 24, 6, 14)                                                                 # mástil
+    pygame.draw.line(s, (196, 226, 236), P(171, 24), P(171, 6), 2 * S)
+    pygame.draw.ellipse(s, (170, 215, 230), (151 * S, 14 * S, 40 * S, 7 * S))                           # radar giratorio
     pygame.draw.circle(s, (255, 70, 60), P(171, 6), 3 * S)
-    rect((70, 78, 94), 102, 36, 16, 28, 2)                                                             # chimenea
-    rect((40, 44, 56), 102, 36, 16, 5, 2)
+    rect((70, 140, 170), 102, 36, 16, 28, 2)                                                             # chimenea
+    rect((25, 95, 125), 102, 36, 16, 5, 2)
     rect((255, 200, 70), 102, 46, 16, 4)
     for i in range(6):                                                                                 # celdas de misiles en cubierta
-        rect((26, 30, 40), 40 + i * 10, 56, 8, 7, 1)
-        rect((90, 100, 118), 41 + i * 10, 57, 6, 2)
-    rect((60, 66, 80), 220, 52, 30, 12, 3)                                                             # base de la torreta
-    pygame.draw.circle(s, (86, 96, 116), P(*GUN), 9 * S)
-    pygame.draw.circle(s, (40, 46, 58), P(*GUN), 9 * S, 2 * S)
+        rect((20, 70, 92), 40 + i * 10, 56, 8, 7, 1)
+        rect((150, 205, 222), 41 + i * 10, 57, 6, 2)
+    rect((45, 110, 140), 220, 52, 30, 12, 3)                                                             # base de la torreta
+    pygame.draw.circle(s, (95, 170, 200), P(*GUN), 9 * S)
+    pygame.draw.circle(s, (25, 95, 125), P(*GUN), 9 * S, 2 * S)
     return pygame.transform.smoothscale(s, (SHIP_W, SHIP_H)).convert_alpha()
 
 
