@@ -269,15 +269,7 @@ class MapMixin:
                 self.begin_attack(self.antenna_city(random.choice(inst)), 'antenna')
             else:
                 self.strike_kind = self.next_strike_kind()
-                if self.strike_kind == 'missile':
-                    self.warned = True
-                    self.audio.play('alarm')
-                    self.banner('¡ALERTA DE MISILES!', 'Objetivo: ' + self.strike_city['name'], (255, 80, 70), 3.8)
-                else:
-                    self.begin_attack(self.strike_city, self.strike_kind)
-        if self.warned and self.strike_t <= 0:
-            self.start_defense(self.strike_city)
-            return
+                self.begin_attack(self.strike_city, self.strike_kind)
         if self.attack is not None and self.upd_attack(dt):
             return
         # ciudades dañadas echan humo
@@ -374,7 +366,7 @@ class MapMixin:
         return dict(name='ANTENA %s' % self.isl_name(i), x=x, y=y, r=r, hp=100.0, dead=False, seed=sd, dock=(x, y), antenna=i)
 
     ATTACK_TXT = {'antenna': ('Comandos enemigos asaltan tu antena', (120, 220, 255)), 'tank': ('Tanques enemigos entran en', (120, 255, 160)), 'ground': ('Desembarco enemigo en', (255, 150, 60)),
-                  'aerial': ('Cazas enemigos sobre', (150, 100, 255))}
+                  'aerial': ('Cazas enemigos sobre', (150, 100, 255)), 'missile': ('Lluvia de misiles contra', (255, 80, 70))}
 
     def begin_attack(self, city, kind):
         """Ataque a una ciudad: hay que llegar con el barco antes de que se acabe el tiempo."""
@@ -400,33 +392,56 @@ class MapMixin:
             if at['kind'] == 'antenna':
                 self.start_ground(c, antenna=c['antenna'])
             else:
-                {'tank': self.start_tank, 'ground': self.start_ground, 'aerial': self.start_aerial}[at['kind']](c)
+                {'tank': self.start_tank, 'ground': self.start_ground, 'aerial': self.start_aerial, 'missile': self.start_defense}[at['kind']](c)
             return True
+        self.attack_blip(at, dt)
+        if at['t'] <= 0:
+            return self.attack_late()
+        return False
+
+    def attack_blip(self, at, dt):
         step = 0.5 if at['t'] < 5 else 1.0
-        if at['t'] < 10 and int(at['t'] / step) != int((at['t'] + dt) / step):
+        if 0 < at['t'] < 10 and int(at['t'] / step) != int((at['t'] + dt) / step):
             self.audio.play('blip', .5)
-        if at['t'] <= 0 and at['kind'] == 'antenna':
+
+    def attack_tick(self, dt):
+        """El reloj del ataque sigue corriendo mientras peleás un combate naval por el camino. Devuelve True si la partida terminó."""
+        at = self.attack
+        if at is None:
+            return False
+        c = at['city']
+        if c['dead'] or (at['kind'] == 'antenna' and not self.antennas[c['antenna']]):
             self.attack = None
+            self.strike_t = 30.0
+            return False
+        at['t'] -= dt
+        self.attack_blip(at, dt)
+        if at['t'] <= 0:
+            return self.attack_late()
+        return False
+
+    def attack_late(self):
+        """Se acabó el tiempo sin llegar a la ciudad. Devuelve True si la partida terminó."""
+        at = self.attack
+        c = at['city']
+        self.attack = None
+        self.audio.play('boom_l')
+        self.shake = 14
+        if at['kind'] == 'antenna':
             self.antennas[c['antenna']] = False
-            self.audio.play('boom_l')
-            self.shake = 14
             self.banner('¡ANTENA DESTRUIDA!', '%s cayó en manos enemigas' % c['name'], (255, 90, 70), 3.4)
             self.strike_t = max(32.0, random.uniform(48, 62) - self.wave * 2)
             return False
-        if at['t'] <= 0:
-            self.attack = None
-            c['hp'] = max(0.0, c['hp'] - 45)
-            self.audio.play('boom_l')
-            self.shake = 14
-            if c['hp'] <= 0:
-                c['dead'] = True
-                self.banner('¡CIUDAD CAPTURADA!', c['name'], (255, 70, 60), 3.4)
-            else:
-                self.banner('¡LLEGASTE TARDE!', '%s sufrió daños graves (-45%%)' % c['name'], (255, 90, 70), 3.4)
-            self.strike_t = max(32.0, random.uniform(48, 62) - self.wave * 2)
-            if all(x['dead'] for x in self.cities):
-                self.game_over('Todas las ciudades fueron destruidas')
-                return True
+        c['hp'] = max(0.0, c['hp'] - 45)
+        if c['hp'] <= 0:
+            c['dead'] = True
+            self.banner('¡CIUDAD CAPTURADA!', c['name'], (255, 70, 60), 3.4)
+        else:
+            self.banner('¡LLEGASTE TARDE!', '%s sufrió daños graves (-45%%)' % c['name'], (255, 90, 70), 3.4)
+        self.strike_t = max(32.0, random.uniform(48, 62) - self.wave * 2)
+        if all(x['dead'] for x in self.cities):
+            self.game_over('Todas las ciudades fueron destruidas')
+            return True
         return False
 
     def draw_pointer(self, cv, cx, cy, wx, wy, label, col, pul=0.5):
@@ -483,7 +498,7 @@ class MapMixin:
         sec = max(0.0, at['t'])
         self.text(cv, '%02d.%03d' % (int(sec), int((sec % 1) * 1000)), self.f_l, col, W // 2 - 70, 42, 'c')
         d = dist(self.sx, self.sy, c['x'], c['y'])
-        self.text(cv, '%s  |  %d m' % ({'tank': 'TANQUES', 'ground': 'DESEMBARCO', 'aerial': 'CAZAS', 'antenna': 'COMANDOS'}[at['kind']], int(d)),
+        self.text(cv, '%s  |  %d m' % ({'tank': 'TANQUES', 'ground': 'DESEMBARCO', 'aerial': 'CAZAS', 'antenna': 'COMANDOS', 'missile': 'MISILES'}[at['kind']], int(d)),
                   self.f_s, (210, 220, 240), W // 2 + 110, 52, 'c')
         self.draw_pointer(cv, cx, cy, c['x'], c['y'], c['name'], col, pul)
         if low:

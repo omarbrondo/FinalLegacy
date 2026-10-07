@@ -130,6 +130,8 @@ class NavalMixin:
     def upd_combat(self, dt):
         c = self.c
         p, e = c['p'], c['e']
+        if self.attack is not None and self.attack_tick(dt):          # el ataque a la ciudad sigue corriendo durante el combate
+            return
         if c['hs'] > 0:                                   # golpe grande: el tiempo se congela un instante
             c['hs'] -= dt
             self.fx.update(dt * 0.1)
@@ -690,6 +692,12 @@ class NavalMixin:
         pygame.draw.rect(cv, (8, 12, 24), (W // 2 - 60, H - 40, 120, 10))
         pygame.draw.rect(cv, (120, 255, 160) if rl >= 1 else (255, 200, 80), (W // 2 - 59, H - 39, int(118 * rl), 8))
         self.text(cv, 'Clic/ESPACIO: misil  |  la ametralladora (MG) dispara sola  |  ' + ('sin huida: contrahackeo' if c.get('pen') else 'E huir'), self.f_s, (200, 220, 255), W // 2, H - 84, 'c')
+        at = self.attack
+        if at is not None:
+            pul = 0.5 + 0.5 * math.sin(self.t * (12 if at['t'] < 10 else 5))
+            self.panel(cv, (W - 330, 96, 316, 40), 190)
+            self.text(cv, 'ATAQUE EN %s' % at['city']['name'][:14], self.f_s, (255, 200, 150), W - 320, 100)
+            self.text(cv, '%d s' % max(0, math.ceil(at['t'])), self.f_m, (255, int(110 + 100 * pul), 80) if at['t'] < 15 else (255, 220, 120), W - 24, 102, 'r')
         self.nv_draw_calls(cv)
         self.na_hud(cv)
         self.ng_hud(cv)
