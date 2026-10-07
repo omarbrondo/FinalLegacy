@@ -346,16 +346,14 @@ class DefenseMixin:
     def draw_defense(self, cv):
         d = self.d
         t = self.t
-        cv.blit(self.sky, (0, 0))
-        for x, y, ph in self.stars:
-            v = int(120 + 100 * math.sin(t * 2 + ph))
-            cv.set_at((x, y), (v, v, v))
+        prof = self.wprof()                                      # el clima y la hora de la oleada son los mismos que en el mapa
+        self.def_draw_sky(cv, t, prof)
         # mar
         cv.set_clip(pygame.Rect(0, HZ, W, H - HZ))
         self.draw_ocean(cv, 0, 0, t)
-        self.dim(cv, 30, pygame.Rect(0, HZ, W, H - HZ))
+        self.dim(cv, 30 if prof['night'] else (14 if prof['storm'] else 0), pygame.Rect(0, HZ, W, H - HZ))
         cv.set_clip(None)
-        pygame.draw.line(cv, (255, 150, 90), (0, HZ), (W, HZ), 2)
+        pygame.draw.line(cv, (255, 150, 90) if prof['night'] else (210, 230, 245), (0, HZ), (W, HZ), 2)
         city = d['city']
         self.def_draw_skyline(cv, d, t)
         for f in d['fires']:
@@ -372,12 +370,14 @@ class DefenseMixin:
             pts = m['trail']
             for i in range(1, len(pts)):
                 k = i / len(pts)
-                pygame.draw.line(cv, (int(255 * k), int(120 * k), int(80 * k)), pts[i - 1], pts[i], 2)
+                pygame.draw.line(cv, (int(255 * k), int(120 * k), int(80 * k)) if prof['night'] else (int(200 * k), int(40 * k), int(30 * k)), pts[i - 1], pts[i], 2 if prof['night'] else 3)
             k = m['k']
             col = {'fast': (255, 220, 80), 'decoy': (120, 200, 255), 'evasive': (200, 120, 255),
                    'mirv': (255, 150, 40), 'boss': (255, 40, 40)}.get(k, (255, 90, 60))
             rr = 3 if k != 'boss' else 11
             glow(cv, m['x'], m['y'], 16 if k != 'boss' else 48, col)
+            if not prof['night']:
+                pygame.draw.circle(cv, (50, 20, 30), (int(m['x']), int(m['y'])), rr + 2)
             pygame.draw.circle(cv, (255, 235, 210) if m['flash'] <= 0 else (255, 255, 255), (int(m['x']), int(m['y'])), rr)
             if k == 'mirv':
                 pygame.draw.circle(cv, (255, 230, 120), (int(m['x']), int(m['y'])), 7, 1)
@@ -390,7 +390,7 @@ class DefenseMixin:
             pts = it['trail']
             for i in range(1, len(pts)):
                 k = i / len(pts)
-                pygame.draw.line(cv, (int(160 * k), int(255 * k), int(200 * k)), pts[i - 1], pts[i], 2)
+                pygame.draw.line(cv, (int(160 * k), int(255 * k), int(200 * k)) if prof['night'] else (int(20 * k), int(120 * k), int(90 * k)), pts[i - 1], pts[i], 2 if prof['night'] else 3)
             glow(cv, it['x'], it['y'], 12, (120, 255, 200))
             pygame.draw.circle(cv, (255, 255, 255), (int(it['x']), int(it['y'])), 2)
         for b in d['blasts']:
@@ -401,14 +401,7 @@ class DefenseMixin:
             draw_circ(cv, b['x'], b['y'], rad, (255, 240, 200), 200 * k)
             draw_circ(cv, b['x'], b['y'], rad, (255, 255, 255), 255 * k, 3)
         self.fx.draw(cv)
-        kk = (self.wave - 1) % 4
-        if kk:
-            tint = {1: (255, 140, 60, 36), 2: (10, 16, 50, 70), 3: (80, 90, 110, 60)}[kk]
-            ov = pygame.Surface((W, HZ), pygame.SRCALPHA)
-            ov.fill(tint)
-            cv.blit(ov, (0, 0))
-            if kk == 3 and random.random() < 0.012:
-                cv.fill((70, 70, 90), (0, 0, W, HZ), special_flags=pygame.BLEND_RGB_ADD)
+        self.def_draw_weather(cv, t, prof)
         # mira
         ax, ay = int(self.aim[0]), int(self.aim[1])
         pygame.draw.circle(cv, (120, 255, 190), (ax, ay), 18, 2)
