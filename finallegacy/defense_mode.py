@@ -9,17 +9,38 @@ class DefenseMixin:
     # ---------------------------------------------------------- DEFENSA
     def start_defense(self, city):
         w = self.wave
-        n = min(9 + 2 * w, 24)
+        # tres olas de misiles con pausas, salvas masivas y un asalto final cada vez más intenso (unos 45 a 60 s en total)
+        base = min(8 + 2 * w, 16)
+        sizes = [base, int(base * 1.1), int(base * 1.3)]
+        gaps = [1.1, 0.9, 0.7]
+        t0, queue, rounds = 1.8, [], []
+        for sz, gp in zip(sizes, gaps):
+            a = t0
+            for _ in range(sz):
+                queue.append(t0)
+                t0 += random.uniform(gp * 0.6, gp * 1.4)
+            rounds.append((a, t0))
+            t0 += 9.0
+        n = len(queue)
+        events = []
+        for r, (a, b) in enumerate(rounds):
+            events.append((a - 1.2, 'round', r))
+            events.append((b + 7.0, 'check', r))
+        if w >= 2:
+            events.append(((rounds[1][0] + rounds[1][1]) / 2, 'salvo', 5))
+        events.append((rounds[2][0] + (rounds[2][1] - rounds[2][0]) * 0.45, 'salvo', 7 if w >= 3 else 6))
+        events.sort()
         self.fx = Particles()
         plan = []
         for i in range(min(1 + w // 2, 4)):
-            plan.append((random.uniform(2.5, 5.0 + n * 0.45) + i * 1.5,
+            plan.append((random.uniform(rounds[1][0], rounds[2][1]),
                          'bomber' if (w >= 3 and random.random() < 0.4) else 'jet', random.choice((-1, 1))))
         plan.sort()
         self.d = dict(city=city, missiles=[], inter=[], blasts=[], fires=[], t=0.0, total=n, killed=0, hits=0,
-                      queue=sorted(random.uniform(0.6, 3.0 + n * 0.55) for _ in range(n)), cool=0.0, phase='play', planes=[], plan=plan, shots=0, pkilled=0,
+                      queue=queue, cool=0.0, phase='play', planes=[], plan=plan, shots=0, pkilled=0,
                       pt=0.0, shipx=W / 2, shipy=HZ + 100, sky_x=(W - SKY_W) / 2, destroyed=False, combo=0, dbl=0.0,
-                      bosst=(random.uniform(7, 12) if self.wave >= 3 else None), flash=0.0, shock=None, alarm=0.0)
+                      bosst=((rounds[2][0] + 4.0) if self.wave >= 3 else None), flash=0.0, shock=None, alarm=0.0,
+                      events=events, round=0, rh=0, final=False, rounds=rounds)
         self.aim = [W / 2, 280.0]
         self.go('defense')
         self.banner('DEFENDÉ ' + city['name'], 'Mouse/flechas: apuntar  |  Clic/ESPACIO: interceptor', (255, 120, 90), 3.0)
@@ -137,7 +158,7 @@ class DefenseMixin:
             self.toast('¡Sin munición!', (255, 90, 80))
             return
         d['shots'] += 1
-        if d['shots'] % 2:                      # los interceptores gastan medio cargador: hay el doble de misiles
+        if d['shots'] % 3 == 1:                 # los interceptores gastan un tercio de cargador: hay el triple de misiles
             self.ammo -= 1
         d['cool'] = 0.16 * self.up_reload()
         gx, gy = d['shipx'] + 82, d['shipy'] - 6
@@ -167,6 +188,9 @@ class DefenseMixin:
         while d['queue'] and d['queue'][0] <= d['t']:
             d['queue'].pop(0)
             self.spawn_missile()
+        while d['events'] and d['events'][0][0] <= d['t']:
+            _, kind_, arg = d['events'].pop(0)
+            self.def_event(kind_, arg)
         d['dbl'] = max(0.0, d['dbl'] - dt)
         d['flash'] = max(0.0, d['flash'] - dt * 0.8)
         if d['shock'] is not None:
@@ -277,7 +301,7 @@ class DefenseMixin:
         if self.hull <= 0:
             return self.lose_ship('Tu buque fue hundido por los misiles')
         if d['phase'] == 'play' and not d['queue'] and not d['missiles'] and not d['inter'] and not d['blasts'] \
-                and not d['planes'] and not d['plan']:
+                and not d['planes'] and not d['plan'] and not d['events']:
             d['phase'] = 'result'
             d['pt'] = 0.0
             if d['hits'] == 0:
@@ -290,6 +314,37 @@ class DefenseMixin:
             d['pt'] += dt
             if d['pt'] > 2.8:
                 self.end_defense()
+
+    def def_event(self, kind, arg):
+        """Hitos del ataque: inicio de cada ola, salvas masivas y bonus por olas sin impactos."""
+        d = self.d
+        if kind == 'round':
+            d['round'] = arg + 1
+            d['rh'] = d['hits']
+            if arg:
+                self.ammo = min(40, self.ammo + 8)
+                self.toast('Reabastecimiento: +8 munición', (140, 255, 190))
+            if arg == 2:
+                d['final'] = True
+                self.audio.play('alarm', .6)
+                self.banner('¡ASALTO FINAL!', 'Ola 3/3: la ofensiva más intensa', (255, 70, 50), 3.4)
+            elif arg == 1:
+                self.audio.play('ping', .6)
+                self.banner('OLA 2/3', 'Llegan más y más rápido', (255, 190, 90), 2.8)
+            else:
+                self.banner('OLA 1/3', 'Interceptá los misiles antes de que toquen la ciudad', (255, 120, 90), 3.0)
+        elif kind == 'salvo':
+            self.audio.play('alarm', .5)
+            self.banner('¡SALVA MASIVA!', '%d misiles a la vez' % arg, (255, 90, 60), 2.8)
+            self.shake = max(self.shake, 6)
+            for i in range(arg):
+                self.spawn_missile(None, x0=W * (i + 0.5) / arg + random.uniform(-30, 30), y0=-10.0 - random.uniform(0, 70))
+            d['total'] += arg
+        elif kind == 'check':
+            if d['hits'] == d['rh'] and d['phase'] == 'play':
+                pts = 200 + 100 * arg
+                self.add_score(pts)
+                self.toast('¡OLA %d SIN IMPACTOS!  +%d' % (arg + 1, pts), (120, 255, 190))
 
     def nuke_blast(self, m):
         """La ojiva llega al suelo: flash, onda expansiva y edificios derrumbados."""
@@ -414,6 +469,12 @@ class DefenseMixin:
         if d['flash'] > 0:
             v = int(255 * min(1.0, d['flash']))
             cv.fill((v, v, v), special_flags=pygame.BLEND_RGB_ADD)
+        if d['final'] and d['phase'] == 'play':
+            pul = 0.5 + 0.5 * math.sin(t * 4)
+            vg = pygame.Surface((W, H), pygame.SRCALPHA)
+            for i in range(5):
+                pygame.draw.rect(vg, (255, 60, 30, int((24 + 22 * pul) * (1 - i / 5))), (i * 6, i * 6, W - i * 12, H - i * 12), 6)
+            cv.blit(vg, (0, 0))
         if any(m['k'] == 'boss' for m in d['missiles']) and int(t * 3) % 2 == 0:
             pygame.draw.rect(cv, (255, 40, 40), (0, 0, W, H), 6)
         # HUD
@@ -424,6 +485,8 @@ class DefenseMixin:
         self.bar(cv, W // 2 - 210, 44, 420, 26, city['hp'] / 100, col, 'CIUDAD %d%%' % city['hp'])
         left = len(d['queue']) + len(d['missiles'])
         self.text(cv, 'MISILES: %d' % left, self.f_m, (255, 160, 140), W - 20, 90, 'r')
+        if d['round'] and d['phase'] == 'play':
+            self.text(cv, 'OLA %d/3' % d['round'], self.f_m, (255, 200, 120) if not d['final'] else (255, 100, 80), W - 20, 64, 'r')
         if d['planes'] or d['plan']:
             self.text(cv, 'AVIONES: %d' % (len(d['planes']) + len(d['plan'])), self.f_m, (255, 210, 120), W - 20, 116, 'r')
         if d['dbl'] > 0:
