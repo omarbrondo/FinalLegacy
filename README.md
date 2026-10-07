@@ -34,6 +34,7 @@ python retro_legacy.py
 | `naval_combo.py` | Combate combinado: barco enemigo + batería costera cercana en un mismo combate |
 | `aerial_mode.py` | Batalla aérea estilo Twinbee |
 | `ground_mode.py` | Infantería cenital: invasión, desembarco con sigilo, defensa de antenas |
+| `title_art.py` | Título cromado retrowave del menú (degradado, extrusión 3D, destellos y reflejo) |
 | `menu.py` | Menú principal y opciones (pantalla completa, CRT, instrucciones, cheats) |
 | `splash.py` | Videos MP4 de presentación (logo e intro) con salto por clic |
 | `ground_city.py` | Distrito urbano de la invasión anfibia: manzanas, edificios y autos con colisión, navegación por calles |

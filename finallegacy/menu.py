@@ -1,7 +1,10 @@
 """Menú principal: Nuevo juego, Cargar partida, Opciones (pantalla completa, CRT, instrucciones, cheats) y Salir."""
 import pygame
 import sys
+import math
+import random
 from .common import H, W, WIN_WAVE
+from .title_art import draw_logo, make_logo
 
 MAIN_ITEMS = ('NUEVO JUEGO', 'CARGAR PARTIDA', 'OPCIONES', 'SALIR')
 OPT_ITEMS = ('PANTALLA COMPLETA', 'MODO CRT', 'INSTRUCCIONES', 'CHEATS', 'VOLVER')
@@ -38,7 +41,7 @@ class MenuMixin:
         p = self.tm['page']
         items = self.menu_items()
         if p == 'main':
-            x0, w, y0, h, gap = W // 2 - 240, 480, 330, 62, 14
+            x0, w, y0, h, gap = W // 2 - 240, 480, 360, 60, 12
         elif p == 'opts':
             x0, w, y0, h, gap = W // 2 - 300, 600, 250, 62, 14
         elif p == 'cheats':
@@ -165,7 +168,7 @@ class MenuMixin:
         t = self.t
         tm = getattr(self, 'tm', None) or dict(page='main', sel=0)
         self.draw_ocean(cv, t * 30, t * 8, t)
-        self.dim(cv, 45 if tm['page'] == 'main' else 90)
+        self.dim(cv, 70 if tm['page'] == 'main' else 90)
         if tm['page'] == 'main':
             x = (t * 70) % (W + 300) - 150
             self.blit_ship(cv, 'p_map', x, 700, 90)
@@ -173,10 +176,15 @@ class MenuMixin:
             self.blit_ship(cv, 'e_map', x2, 760, 270)
         big = tm['page'] == 'main'
         if big:
-            for ln, y, col in (('RETRO', 90, (255, 220, 110)), ('LEGACY', 185, (255, 160, 70))):
-                for dx, dy in ((-3, 0), (3, 0), (0, -3), (0, 3), (-3, -3), (3, 3), (-3, 3), (3, -3)):
-                    self.text(cv, ln, self.f_ttl, (30, 10, 0), W // 2 + dx, y + dy, 'c', shadow=False)
-                self.text(cv, ln, self.f_ttl, col, W // 2, y, 'c', shadow=False)
+            if getattr(self, '_logo', None) is None:
+                f = self.make_font(150, 800)
+                self._logo = make_logo(f)
+                rnd = random.Random(7)
+                self._stars = [(rnd.randrange(W), rnd.randrange(H), rnd.uniform(0, 6.28), rnd.uniform(0.6, 1.8)) for _ in range(90)]
+            for sx, sy, ph, sp in self._stars:
+                v = int(90 + 120 * (0.5 + 0.5 * math.sin(t * sp + ph)))
+                cv.fill((v, v, min(255, v + 40)), (sx, sy, 2, 2))
+            draw_logo(cv, self._logo, W // 2, 30, t)
         else:
             title = {'opts': 'OPCIONES', 'help': 'INSTRUCCIONES', 'cheats': 'CHEATS'}[tm['page']]
             self.text(cv, title, self.f_ttl, (255, 220, 110), W // 2, 50, 'c')
