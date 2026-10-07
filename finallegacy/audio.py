@@ -154,6 +154,8 @@ class Audio:
     def __init__(self):
         self.ok = False
         self.muted = False
+        self.mvol = 1.0                                  # volumen de la música (0 a 1)
+        self.svol = 1.0                                  # volumen de los efectos (0 a 1)
         self.sfx = {}
         self.cur = None
         self.ch = 2
@@ -250,12 +252,12 @@ class Audio:
             self.cur_key = key
             ch = pygame.mixer.Channel(0)
             ch.play(snd, loops=-1, fade_ms=700)
-            ch.set_volume(0.0 if self.muted else 0.33)
+            ch.set_volume(self.music_v())
 
     def play(self, name, vol=1.0):
         if self.ok and not self.muted and name in self.sfx:
             s = self.sfx[name]
-            s.set_volume(clamp(vol, 0, 1))
+            s.set_volume(clamp(vol * self.svol, 0, 1))
             s.play()
 
     def music(self, style, wave=1, fallback=None):
@@ -283,13 +285,24 @@ class Audio:
             ch = pygame.mixer.Channel(0)
             ch.stop()
             ch.play(self.music_s[fb], loops=-1, fade_ms=500)
-            ch.set_volume(0.0 if self.muted else 0.33)
+            ch.set_volume(self.music_v())
 
     def engine_vol(self, v):
         if self.ok:
-            pygame.mixer.Channel(1).set_volume(0.0 if self.muted else clamp(v, 0, 1) * 0.35)
+            pygame.mixer.Channel(1).set_volume(0.0 if self.muted else clamp(v, 0, 1) * 0.35 * self.svol)
+
+    def music_v(self):
+        return 0.0 if self.muted else 0.33 * self.mvol
+
+    def set_vols(self, mvol=None, svol=None):
+        if mvol is not None:
+            self.mvol = clamp(mvol, 0.0, 1.0)
+        if svol is not None:
+            self.svol = clamp(svol, 0.0, 1.0)
+        if self.ok:
+            pygame.mixer.Channel(0).set_volume(self.music_v())
 
     def toggle_mute(self):
         self.muted = not self.muted
         if self.ok:
-            pygame.mixer.Channel(0).set_volume(0.0 if self.muted else 0.33)
+            pygame.mixer.Channel(0).set_volume(self.music_v())

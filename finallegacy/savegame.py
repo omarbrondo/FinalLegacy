@@ -33,6 +33,27 @@ class SaveMixin:
     def sv_slots(self):
         return self.sv_read().get('slots', {})
 
+    # ------------------------------------------------------------------ volumen
+    def vol_load(self):
+        d = self.sv_read()
+        self.audio.set_vols(float(d.get('vol_music', 1.0)), float(d.get('vol_sfx', 1.0)))
+
+    def vol_step(self, kind, delta, wrap=False):
+        """kind = 'music' o 'sfx'; sube o baja 10 %. Con wrap, pasa de 100 % a 0 %."""
+        cur = round((self.audio.mvol if kind == 'music' else self.audio.svol) * 10)
+        new = cur + delta
+        new = (new % 11) if wrap else max(0, min(10, new))
+        v = new / 10.0
+        if kind == 'music':
+            self.audio.set_vols(mvol=v)
+        else:
+            self.audio.set_vols(svol=v)
+        d = self.sv_read()
+        d['vol_music'], d['vol_sfx'] = self.audio.mvol, self.audio.svol
+        self.sv_write(d)
+        self.audio.play('blip', .4)
+        return int(new * 10)
+
     # ------------------------------------------------------------------ modo inmortal
     def set_god(self, on):
         self.god = bool(on)

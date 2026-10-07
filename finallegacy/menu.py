@@ -7,7 +7,7 @@ from .common import H, W, WIN_WAVE
 from .title_art import draw_logo, make_logo
 
 MAIN_ITEMS = ('NUEVO JUEGO', 'CARGAR PARTIDA', 'OPCIONES', 'SALIR')
-OPT_ITEMS = ('PANTALLA COMPLETA', 'MODO CRT', 'INSTRUCCIONES', 'CHEATS', 'VOLVER')
+OPT_ITEMS = ('MÚSICA', 'EFECTOS', 'PANTALLA COMPLETA', 'MODO CRT', 'INSTRUCCIONES', 'CHEATS', 'VOLVER')
 HELP_LINES = [
     ('MAPA', 'W/S acelerar y frenar | A/D girar | R en puerto reabastece | L desembarca | H hackea | F disparo antiaéreo'),
     ('DEFENSA', 'Mouse o flechas apuntan | clic o ESPACIO lanzan el interceptor'),
@@ -18,7 +18,7 @@ HELP_LINES = [
     ('AIRE', 'WASD mover | ESPACIO disparar | B bomba'),
     ('JEFE', 'Instalá antenas en las islas (L) y hackeá su escudo con H cerca del buque'),
     ('MANDO', 'Izq. mover | Der. apuntar | RT/A disparar | LT/B granada | X recargar | Y acción'),
-    ('GENERAL', 'P o ESC pausa (S guarda, C carga) | M sonido | V gráficos | F11 pantalla completa | F1 CRT'),
+    ('GENERAL', 'P o ESC pausa (S guarda, C carga) | M silencio | - + volumen música | V gráficos | F11 pantalla completa | F1 CRT'),
     ('OBJETIVO', 'Hundí %d oleadas y salvá al menos una ciudad para ganar' % WIN_WAVE),
 ]
 CHEAT_LINES = [
@@ -43,7 +43,7 @@ class MenuMixin:
         if p == 'main':
             x0, w, y0, h, gap = W // 2 - 240, 480, 360, 60, 12
         elif p == 'opts':
-            x0, w, y0, h, gap = W // 2 - 300, 600, 250, 62, 14
+            x0, w, y0, h, gap = W // 2 - 300, 600, 200, 58, 12
         elif p == 'cheats':
             x0, w, y0, h, gap = W // 2 - 300, 600, 590, 52, 12
             return [pygame.Rect(x0, y0 + i * (h + gap), w, h) for i in range(len(items))]
@@ -57,6 +57,10 @@ class MenuMixin:
                 return 'SÍ' if pygame.display.is_fullscreen() else 'NO'
             except Exception:
                 return 'NO'
+        if name == 'MÚSICA':
+            return '%d%%' % round(self.audio.mvol * 100)
+        if name == 'EFECTOS':
+            return '%d%%' % round(self.audio.svol * 100)
         if name == 'MODO CRT':
             return 'SÍ' if self.crt_on else 'NO'
         if name == 'MODO INMORTAL':
@@ -89,7 +93,10 @@ class MenuMixin:
         else:
             self.menu_toggle(name)
 
-    def menu_toggle(self, name):
+    def menu_toggle(self, name, delta=None):
+        if name in ('MÚSICA', 'EFECTOS'):
+            self.vol_step('music' if name == 'MÚSICA' else 'sfx', 1 if delta is None else delta, wrap=delta is None)
+            return
         if name == 'PANTALLA COMPLETA':
             self.toggle_fullscreen()
         elif name == 'MODO CRT':
@@ -142,7 +149,7 @@ class MenuMixin:
         elif k in (pygame.K_LEFT, pygame.K_RIGHT, pygame.K_a, pygame.K_d):
             name = self.menu_items()[tm['sel']]
             if self.menu_value(name) is not None:
-                self.menu_toggle(name)
+                self.menu_toggle(name, (-1 if k in (pygame.K_LEFT, pygame.K_a) else 1) if name in ('MÚSICA', 'EFECTOS') else None)
         elif k in (pygame.K_ESCAPE, pygame.K_BACKSPACE):
             self.menu_back()
         else:
@@ -162,7 +169,7 @@ class MenuMixin:
         else:
             y = r.y + (r.h - self.f_m.get_height()) // 2
             self.text(cv, label, self.f_m, col, r.x + 22, y)
-            self.text(cv, value, self.f_m, (120, 255, 170) if value == 'SÍ' else (255, 150, 130), r.right - 22, y, 'r')
+            self.text(cv, value, self.f_m, (120, 255, 170) if value == 'SÍ' or (value.endswith('%') and value != '0%') else (255, 150, 130), r.right - 22, y, 'r')
 
     def draw_title(self, cv):
         t = self.t
