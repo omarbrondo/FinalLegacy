@@ -3,7 +3,7 @@ sintonía que va cambiando (estilo secuenciador criptográfico de Batman: calzar
 import math
 import pygame
 import random
-from .common import H, W, WORLD_H, WORLD_W, bearing, clamp, dist, draw_circ, glow, vec
+from .common import H, W, clamp, dist, draw_circ, glow
 from .war import DECOR0
 
 RADAR_IDX = (1, 5, 8, 10, 13, 15)                      # islotes decorativos que tienen un radar (no se mudan de lugar)
@@ -326,23 +326,26 @@ class RadioMixin:
                 rd['phase'], rd['pt'] = 'retry', 0.0
 
     # ------------------------------------------------------------------ cierre y recompensa
-    def spawn_hack_ships(self, n):
-        """Penalización por hackeo fallido: barcos enemigos aparecen cerca del jugador y lo persiguen."""
+    def start_penalty_combat(self, left=2, total=2):
+        """Contrahackeo: combates forzados contra barcos que no pertenecen a la flota del mapa. No se puede huir,
+        no dan puntos ni bonus y no descuentan barcos de la oleada."""
         mh = 10 + 2 * (self.wave - 1)
-        made = 0
-        for i in range(n):
-            for _ in range(80):
-                a = random.uniform(0, 360)
-                dx, dy = vec(a, random.uniform(380, 520))
-                x, y = clamp(self.sx + dx, 120, WORLD_W - 120), clamp(self.sy + dy, 120, WORLD_H - 120)
-                if dist(x, y, self.sx, self.sy) > 300 and not self.on_land(x, y, 90):
-                    break
-            else:
-                continue
-            self.enemies.append(dict(x=x, y=y, h=bearing(self.sx - x, self.sy - y), v=0.0, hp=mh, max=mh, state='chase',
-                                     wp=self.rand_wp(), cool=0.0, is_boss=False))
-            made += 1
-        return made
+        en = dict(x=self.sx, y=self.sy, h=0.0, v=0.0, hp=mh, max=mh, state='chase', cool=0.0, is_boss=False, pen=left, tot=total)
+        self.start_combat(en)
+        self.c['pen'] = True
+        self.banners = []
+        self.banner('¡CONTRAHACKEO! BARCO %d/%d' % (total - left + 1, total), 'No podés huir y no da puntos ni bonus: sobreviví', (255, 110, 90), 4.0)
+
+    def penalty_next(self):
+        """Termina un combate de contrahackeo: pasa al siguiente barco o vuelve al mapa."""
+        en = self.enemy_ref
+        if self.hull <= 0:
+            return self.lose_ship('Tu buque no sobrevivió al contrahackeo')
+        if en['pen'] > 1:
+            self.start_penalty_combat(en['pen'] - 1, en['tot'])
+        else:
+            self.toast('Contrahackeo superado (sin puntos ni bonus)', (255, 200, 120))
+            self.go('map')
 
     def end_radio(self, how):
         rd = self.rd
@@ -379,8 +382,7 @@ class RadioMixin:
         elif how == 'lost':
             self.radars[k]['cd'] = 40.0
             self.hull = max(1.0, self.hull - 8)
-            n = self.spawn_hack_ships(2)
-            self.banner('¡CONTRAHACKEO!', 'El radar detectó la intrusión: -8 casco, alerta 40 s y %d barcos enemigos te atacan' % n, (255, 110, 90), 4.0)
+            self.start_penalty_combat(2, 2)
         else:
             self.radars[k]['cd'] = 8.0
             self.toast('Intercepción abortada', (255, 200, 120))

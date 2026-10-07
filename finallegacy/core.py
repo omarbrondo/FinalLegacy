@@ -451,6 +451,8 @@ class CoreMixin:
         return False
 
     def add_score(self, n):
+        if self.state == 'combat' and (getattr(self, 'c', None) or {}).get('pen'):
+            return                                           # contrahackeo: no suma puntos
         self.score += n
         self.check_life()
 
