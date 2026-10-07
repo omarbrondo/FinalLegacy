@@ -60,7 +60,6 @@ class AirBossMixin:
                         self.air_boom(b['x'] + pod['ox'], b['y'] + pod['oy'], 1.8, True, 'boom_l')
                         self.add_score(1000)
                         self.pop('+1000', b['x'] + pod['ox'], b['y'] + pod['oy'] - 30, (255, 230, 120))
-                        a['caps'].append(dict(x=b['x'] + pod['ox'], y=b['y'] + pod['oy'], kind='H', t=0.0))
                         if not any(p_['hp'] > 0 for p_ in b['pods']):
                             self.toast('¡Torretas destruidas! El núcleo quedó expuesto', (255, 220, 120))
                     return True

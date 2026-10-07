@@ -2,7 +2,7 @@
 import math
 import pygame
 import random
-from .common import H, Particles, W, WIN_WAVE, angle_diff, bearing, clamp, dist, draw_circ, glow, lerp, shade, vec
+from .common import H, Particles, W, WIN_WAVE, angle_diff, bearing, clamp, coast_r, dist, draw_circ, glow, lerp, shade, vec
 from .sprites import make_shadow
 
 
@@ -28,7 +28,7 @@ class AerialMixin:
             t += gap + random.uniform(-0.4, 0.8)
         self.a = dict(city=city, t=0.0, scroll=0.0, phase='play', pt=0.0, fail=False, kills=0,
                       p=dict(x=W / 2, y=H - 140.0, hp=100.0, inv=0.0, cd=0.0, bcd=0.0, wl=1, shield=0.0, vx=0.0, dead=False, rapid=0.0, homing=0.0, mcd=0.0),
-                      foes=[], ebul=[], pbul=[], bombs=[], ground=[], caps=[], isl=[], clouds=[],
+                      foes=[], ebul=[], pbul=[], bombs=[], ground=[], isl=[], clouds=[],
                       forms={}, fid=0, events=events, boss_t=t + 2.5, boss=None, boss_dead=False,
                       isl_t=0.0, boat_t=6.0, cloud_t=0.0)
         for yy in (-200, 100, 330, 560):
@@ -49,6 +49,14 @@ class AerialMixin:
             ang, d = random.uniform(0, 6.28), random.uniform(0.1, 0.5) * r
             a['ground'].append(dict(kind='sam', x=x + math.cos(ang) * d, y=y + math.sin(ang) * d, vx=0.0, hp=3,
                                     cd=random.uniform(1.0, 3.0), ang=180.0))
+
+    def air_on_land(self, x, y, margin=0.0):
+        """True si el punto cae sobre una isla (costa exacta con la arena) más un margen."""
+        for isl in self.a['isl']:
+            ang = math.atan2(y - isl['y'], x - isl['x'])
+            if dist(x, y, isl['x'], isl['y']) < coast_r(isl['r'], 21 + isl['i'], ang, 1.06) + margin:
+                return True
+        return False
 
     def air_spawn_cloud(self, y):
         self.a['clouds'].append(dict(x=random.uniform(-100, W + 100), y=y, v=random.uniform(125, 175),
@@ -125,19 +133,7 @@ class AerialMixin:
                 self.air_ebul(f['x'], f['y'], i * 45, 120, 5)
         form = a['forms'].get(f['fid'])
         if form:
-            form['n'] -= 1
-            if form['n'] <= 0 and not form['escaped']:
-                a['caps'].append(dict(x=f['x'], y=f['y'], kind=self.air_cap_kind(), t=0.0))
-        elif f['kind'] in ('bomber', 'gunship'):
-            a['caps'].append(dict(x=f['x'], y=f['y'], kind='W' if f['kind'] == 'bomber' else self.air_cap_kind(), t=0.0))
-
-    def air_cap_kind(self):
-        pool = ['W', 'W', 'H', 'S']
-        if self.wave >= 2:
-            pool.append('R')
-        if self.wave >= 3:
-            pool.append('M')
-        return random.choice(pool)
+            form['n'] -= 1                              # sin potenciadores: ya no se sueltan cápsulas
 
     def air_fire_player(self):
         a = self.a
@@ -169,8 +165,6 @@ class AerialMixin:
             self.add_score(pts)
             self.pop('+%d' % pts, g['x'], g['y'] - 18)
             self.air_boom(g['x'], g['y'], 1.2, True)
-            if random.random() < 0.5:
-                a['caps'].append(dict(x=g['x'], y=g['y'], kind=self.air_cap_kind(), t=0.0))
 
     def air_hurt(self, dmg):
         a = self.a
@@ -229,8 +223,15 @@ class AerialMixin:
             if isl['y'] > H + isl['r'] * 2.4:
                 a['isl'].remove(isl)
         for g in a['ground'][:]:
-            g['y'] += (sc if g['kind'] == 'sam' else sc * 0.7) * dt
-            g['x'] += g['vx'] * dt
+            g['y'] += sc * dt                              # el mar y las islas avanzan juntos
+            if g['kind'] == 'boat':
+                nx = g['x'] + g['vx'] * dt
+                if self.air_on_land(nx, g['y'], 34) or not 60 < nx < W - 60:
+                    g['vx'] = -g['vx']                     # los barcos no atraviesan las islas: rebotan
+                else:
+                    g['x'] = nx
+            else:
+                g['x'] += g['vx'] * dt
             if g['y'] > H + 60:
                 a['ground'].remove(g)
                 continue
@@ -255,8 +256,12 @@ class AerialMixin:
         a['boat_t'] -= dt
         if a['boat_t'] <= 0 and a['phase'] == 'play' and not a['boss']:
             a['boat_t'] = random.uniform(8, 13)
-            a['ground'].append(dict(kind='boat', x=random.uniform(120, W - 120), y=-50.0, vx=random.uniform(-25, 25),
-                                    hp=4, cd=2.0, ang=180.0))
+            xs = [random.uniform(120, W - 120) for _ in range(40)]
+            x = next((x_ for x_ in xs if not any(self.air_on_land(x_, y_, 50) for y_ in (-50.0, -90.0, -10.0))), None)
+            if x is None:
+                a['boat_t'] = 1.0                          # todo el frente es tierra: reintenta enseguida
+            else:
+                a['ground'].append(dict(kind='boat', x=x, y=-50.0, vx=random.uniform(-25, 25), hp=4, cd=2.0, ang=180.0))
         # guion
         if a['phase'] == 'play':
             while a['events'] and a['events'][0][0] <= a['t']:
@@ -391,30 +396,6 @@ class AerialMixin:
                 for g in a['ground'][:]:
                     if dist(g['x'], g['y'], bm['x1'], bm['y1']) < 58:
                         self.air_hit_ground(g, 3)
-        # cápsulas
-        for q in a['caps'][:]:
-            q['t'] += dt
-            q['y'] += 90 * dt
-            if not p['dead'] and dist(q['x'], q['y'], p['x'], p['y']) < 34:
-                a['caps'].remove(q)
-                self.audio.play('pickup')
-                if q['kind'] == 'W':
-                    p['wl'] = min(4, p['wl'] + 1)
-                    self.pop('ARMA %d' % p['wl'], p['x'], p['y'] - 40, (255, 200, 90))
-                elif q['kind'] == 'H':
-                    p['hp'] = min(100.0, p['hp'] + 30)
-                    self.pop('+30 AVIÓN', p['x'], p['y'] - 40, (120, 255, 150))
-                elif q['kind'] == 'R':
-                    p['rapid'] = 9.0
-                    self.pop('RÁFAGA', p['x'], p['y'] - 40, (255, 235, 110))
-                elif q['kind'] == 'M':
-                    p['homing'] = 10.0
-                    self.pop('MISILES GUÍA', p['x'], p['y'] - 40, (200, 150, 255))
-                else:
-                    p['shield'] = 7.0
-                    self.pop('ESCUDO', p['x'], p['y'] - 40, (120, 220, 255))
-            elif q['y'] > H + 30:
-                a['caps'].remove(q)
         # choque contra enemigos
         if not p['dead']:
             for f in a['foes'][:]:
@@ -510,13 +491,6 @@ class AerialMixin:
             spr = pygame.transform.smoothscale(cs, (w2, h2)) if c['s'] != 1 else cs
             spr.set_alpha(215)
             cv.blit(spr, (c['x'] - w2 // 2, c['y'] - h2 // 2))
-        for q in a['caps']:
-            col = {'W': (255, 150, 50), 'H': (80, 220, 110), 'S': (90, 190, 255), 'R': (255, 230, 90), 'M': (190, 130, 255)}[q['kind']]
-            glow(cv, q['x'], q['y'], 30, col, 0.7)
-            pygame.draw.circle(cv, shade(col, -70), (int(q['x']), int(q['y'])), 14)
-            pygame.draw.circle(cv, col, (int(q['x']), int(q['y'])), 12)
-            pygame.draw.circle(cv, (255, 255, 255), (int(q['x'] - 4), int(q['y'] - 4)), 3)
-            self.text(cv, q['kind'], self.f_s, (255, 255, 255), q['x'], q['y'] - 8, 'c', shadow=False)
         sh_off = (34, 52)
 
         def shadow(spr, x, y):
