@@ -4,7 +4,7 @@ import pygame
 import random
 from .common import ENEMY_PORT, FEM_CHANCE, H, PLAYER_FEMALE, PLAYER_HP, Particles, W, WIN_WAVE, clamp, dist, glow, lerp
 from .pt_art import (
-    PT_AX, PT_AY, build_pt_art, build_pt_bg,
+    PT_AX, PT_AY, build_pt_art, build_pt_bg, rim_light,
     build_pt_bunker, build_pt_containers, build_pt_decor, build_pt_tank)
 
 
@@ -257,6 +257,17 @@ class PortMixin:
 
     def pt_casing(self, x, y, face):
         self.pt['cas'].append(dict(x=x, y=y, vx=-face * random.uniform(40, 120), vy=-random.uniform(140, 240), rot=random.uniform(0, 6), vr=random.uniform(-14, 14), t=0.0))
+
+    def pt_separate(self, dt):
+        """Los soldados no se superponen: se empujan suavemente entre sí para formar una línea de combate."""
+        inf = [e for e in self.pt['enemies'] if e['kind'] in ('rifle', 'gren', 'knife', 'flame') and not e.get('para') and e.get('hp', 1) > 0 and e.get('y', 0) >= self.PT_GR - 2]
+        inf.sort(key=lambda e: e['x'])
+        for a, b in zip(inf, inf[1:]):
+            gap = b['x'] - a['x']
+            if gap < 34:
+                push = (34 - gap) * min(1.0, dt * 6) * 0.5
+                a['x'] -= push
+                b['x'] += push
 
     def pt_ai(self, e, dt):
         pt = self.pt
@@ -596,7 +607,9 @@ class PortMixin:
         was_air = not p['ground']
         vy0 = p['vy']
         self.pt_land(p, dt)
+        p['land'] = max(0.0, p.get('land', 0.0) - dt)
         if was_air and p['ground'] and vy0 > 380 and alive:
+            p['land'] = 0.14
             for _ in range(7):
                 self.fx.add('smoke', p['x'] + random.uniform(-14, 14), p['y'] - 3, random.uniform(-70, 70), random.uniform(-30, -6), 0.6, 5, 15, (190, 170, 150), drag=2)
         if alive and p['ground'] and abs(p['vx']) > 1:
@@ -671,6 +684,7 @@ class PortMixin:
             self.pt_ai(e, dt)
             if e['kind'] in ('knife', 'rifle', 'gren') and e['x'] < pt['cam'] - 700:
                 pt['enemies'].remove(e)
+        self.pt_separate(dt)
         # balas del jugador
         for b in pt['bul'][:]:
             b['x'] += b['vx'] * dt
@@ -921,7 +935,7 @@ class PortMixin:
                 best = pl['top']
         return best
 
-    def pt_char(self, cv, kind, sx, fy, face, pose, fi, aim=None, arm='gun', hit=0.0, alpha=255, shadow=True, flash=False, rot_deg=0.0, fem=False):
+    def pt_char(self, cv, kind, sx, fy, face, pose, fi, aim=None, arm='gun', hit=0.0, alpha=255, shadow=True, flash=False, rot_deg=0.0, fem=False, squash=1.0):
         """Dibuja un soldado pre-renderizado (cuerpo + brazos/arma rotados). aim=(dx, dy) hacia donde apunta."""
         art = self.pt_art
         base = kind
@@ -944,6 +958,9 @@ class PortMixin:
         img = self.pt_cache.get(key)
         if img is None:
             img = spr if right else pygame.transform.flip(spr, True, False)
+            img = img.copy()
+            img.fill((12, 12, 14, 0), special_flags=pygame.BLEND_RGB_ADD)             # levanta un poco las sombras para que se lean sobre el fondo oscuro
+            img = rim_light(img, a_top=130, a_front=90)
             self.pt_cache[key] = img
         if hit > 0 or alpha < 255:
             img = img.copy()
@@ -957,7 +974,18 @@ class PortMixin:
             cx_, cy_ = sx - 14 * math.sin(th), fy - 30 - 14 * math.cos(th)
             cv.blit(rim, (cx_ - rim.get_width() // 2, cy_ - rim.get_height() // 2))
             return None
-        cv.blit(img, (sx - PT_AX, fy - PT_AY))
+        sq = round(clamp(squash, 0.7, 1.3) * 25) / 25.0              # estirado y aplastado (saltos y aterrizajes)
+        sxs, sys_ = (1.0, 1.0) if sq == 1.0 else (1.0 / math.sqrt(sq), sq)
+        if sq != 1.0:
+            qk = (key, 'sq', sq)
+            sc = self.pt_cache.get(qk) if (hit <= 0 and alpha >= 255) else None
+            if sc is None:
+                sc = pygame.transform.smoothscale(img, (max(1, int(img.get_width() * sxs)), max(1, int(img.get_height() * sys_))))
+                if hit <= 0 and alpha >= 255:
+                    self.pt_cache[qk] = sc
+            cv.blit(sc, (sx - PT_AX * sxs, fy - PT_AY * sys_))
+        else:
+            cv.blit(img, (sx - PT_AX, fy - PT_AY))
         if not arm or arm not in art['arm'][kind] or pose == 'die':
             return None
         layer = art['arm'][kind][arm]
@@ -971,7 +999,9 @@ class PortMixin:
         rimg = self.pt_cache.get(rk)
         if rimg is None:
             base = layer if right else pygame.transform.flip(layer, True, False)
-            rimg = pygame.transform.rotate(base, rot)
+            rimg = pygame.transform.rotate(base, rot).copy()
+            rimg.fill((12, 12, 14, 0), special_flags=pygame.BLEND_RGB_ADD)
+            rimg = rim_light(rimg, a_top=110, a_front=0)
             self.pt_cache[rk] = rimg
         if hit > 0 or alpha < 255:
             rimg = rimg.copy()
@@ -979,8 +1009,8 @@ class PortMixin:
                 rimg.fill((90, 90, 90, 0), special_flags=pygame.BLEND_RGB_ADD)
             if alpha < 255:
                 rimg.set_alpha(alpha)
-        px = sx + (shx if right else -shx)
-        py = fy - shy
+        px = sx + (shx if right else -shx) * sxs
+        py = fy - shy * sys_
         cv.blit(rimg, (px - rimg.get_width() // 2, py - rimg.get_height() // 2))
         if flash and arm == 'gun':
             ln = {'sniper': 106, 'flame': 62, 'player': 70}.get(base, 74)
@@ -1280,7 +1310,8 @@ class PortMixin:
                 arm = 'gun'
                 if p['thr'] > 0:
                     arm = 'wind' if p['thr'] > 0.16 else 'rel'
-                r_ = self.pt_char(cv, 'player', int(pcx - (p['face'] * 2 if p['flash'] > 0 else 0)), int(p['y']), p['face'], pose, fi, aim, arm, 0.0, 255, True, p['flash'] > 0)
+                sq_ = 1.0 + min(0.1, abs(p['vy']) / 9000.0) * (1 if not p['ground'] else 0) - 0.16 * min(1.0, p.get('land', 0.0) / 0.14)
+                r_ = self.pt_char(cv, 'player', int(pcx - (p['face'] * 2 if p['flash'] > 0 else 0)), int(p['y']), p['face'], pose, fi, aim, arm, 0.0, 255, True, p['flash'] > 0, 0.0, False, sq_)
                 if r_:
                     p['pv'] = (r_[0] + cam, r_[1])
         else:
