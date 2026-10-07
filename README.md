@@ -106,8 +106,11 @@ Con PyInstaller se arma una carpeta que se puede pasar a otra persona sin que in
 
 ```
 pip install pyinstaller
-pyinstaller --noconsole --onedir --name RetroLegacy --collect-all imageio_ffmpeg --add-data "videos;videos" --add-data "fonts;fonts" retro_legacy.py
+python -m PyInstaller --noconsole --onedir --name RetroLegacy --collect-all imageio_ffmpeg --add-data "videos;videos" --add-data "fonts;fonts" retro_legacy.py
 ```
+
+- Se llama con `python -m PyInstaller` (y no `pyinstaller` a secas) porque `pip` instala el programa en una carpeta de usuario que muchas veces no está en el PATH ("command not found"); así funciona igual.
+- En una consola MSYS2/Git Bash, que traduce los argumentos con `;` como si fueran rutas de Linux, anteponé `MSYS2_ARG_CONV_EXCL="*"` al comando, o ejecutalo desde PowerShell o el CMD de Windows.
 
 - El resultado queda en `dist/RetroLegacy/` (ejecutable: `RetroLegacy.exe`). Para compartirlo, comprimí **toda la carpeta** en un ZIP.
 - `--collect-all imageio_ffmpeg` incluye el decodificador de los videos; `--add-data "videos;videos"` y `--add-data "fonts;fonts"` incluyen los MP4 y la fuente Orbitron.
