@@ -10,7 +10,7 @@ from .lifeboat_ops import LB_BOAT_HP, LifeboatOpsMixin
 
 START_LIVES = 3
 MAX_LIVES = 5
-LIFE_STEP = 5000                      # puntos por cada vida extra
+LIFE_STEP = 10000                      # puntos por cada vida extra
 LB_NEED = 1.16                        # camino necesario / camino que hace el motor normal en el tiempo dado (hace falta forzar el motor)
 LB_SPEED, LB_BOOST_SPEED = 215.0, 265.0
 LB_RATE, LB_BOOST_RATE = 1.0, 1.8
