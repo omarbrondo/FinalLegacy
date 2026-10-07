@@ -128,6 +128,7 @@ class NavalArmsMixin:
             if not c['fire_warn']:
                 c['fire_warn'] = True
                 self.toast('¡Incendio a bordo! G: control de daños (%d)' % c['dc'], (255, 160, 110))
+                self.say('marinero', '¡Incendio a bordo! Presioná G para el control de daños.', 'bad')
         # humo
         for cl in c['clouds'][:]:
             cl['t'] += dt

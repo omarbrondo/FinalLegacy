@@ -83,6 +83,7 @@ class PortEpicMixin:
         air['meter'] = min(100.0, air['meter'] + amount)
         if air['meter'] >= 100 and not was:
             self.toast('¡APOYO AÉREO LISTO!  Presioná E (Y en el joystick)', (140, 230, 255))
+            self.say('piloto', 'Apoyo aéreo listo. Presioná E y despejo la zona.', 'ok')
             self.audio.play('ping', .6)
 
     # ------------------------------------------------------------------ armas

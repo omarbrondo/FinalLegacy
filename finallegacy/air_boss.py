@@ -62,6 +62,7 @@ class AirBossMixin:
                         self.pop('+1000', b['x'] + pod['ox'], b['y'] + pod['oy'] - 30, (255, 230, 120))
                         if not any(p_['hp'] > 0 for p_ in b['pods']):
                             self.toast('¡Torretas destruidas! El núcleo quedó expuesto', (255, 220, 120))
+                            self.say('piloto', '¡Torretas fuera! El núcleo quedó expuesto, ¡dale con todo!', 'ok')
                     return True
         if dist(bl['x'], bl['y'], b['x'], b['y'] + 10) < b['r']:
             if b['k'] == 2 and b['alpha'] < 0.5:
@@ -169,6 +170,8 @@ class AirBossMixin:
                     if all(abs(x - g) > 62 for g in gaps):
                         self.air_ebul(x, b['y'] + 60, 180, 165, 7)
                 self.toast('¡Bombardeo! Pasá por los huecos', (255, 190, 100)) if b['pi'] == 0 else None
+                if b['pi'] == 0:
+                    self.say('piloto', '¡Bombardeo en camino! Pasá por los huecos.', 'warn')
                 b['pi'] += 1
             b['pc'] -= dt
             if b['pc'] <= 0 and alive_p:

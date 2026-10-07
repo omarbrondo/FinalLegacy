@@ -23,7 +23,8 @@ class AirRaidMixin:
             planes.append(self.raid_plane(px, py))
         self.raid = dict(planes=planes, bombs=[], flak_cd=0.0, flak_fx=None, total=n, down=0, hits=0, t=0.0)
         self.audio.play('alarm')
-        self.banner('¡CAZAS ENEMIGOS!', 'Esquivá las bombas moviéndote y derribalos con F (antiaéreo)', (255, 190, 90), 4.0)
+        self.banner('¡CAZAS ENEMIGOS!', 'Defendé el convoy', (255, 190, 90), 3.0)
+        self.say('marinero', '¡Cazas enemigos! Esquivá las bombas moviéndote y derribalos con F (antiaéreo).', 'bad')
 
     def raid_plane(self, px, py):
         h = bearing(self.sx - px, self.sy - py)
@@ -132,6 +133,7 @@ class AirRaidMixin:
         if r['down'] >= r['total']:
             self.add_score(RAID_BONUS)
             self.banner('¡CAZAS DERRIBADOS!', 'Los %d cazas cayeron  |  Bonus +%d' % (r['total'], RAID_BONUS), (120, 255, 160), 3.4)
+            self.say('marinero', '¡Todos derribados! Buen tiro, capitán.', 'ok')
         elif r['down']:
             self.toast('Los cazas se retiraron: derribaste %d de %d' % (r['down'], r['total']), (255, 220, 130))
         else:

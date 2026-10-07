@@ -183,7 +183,7 @@ class GroundMixin:
         self.banner('¡DESEMBARCO EN %s!' % self.isl_name(island_idx),
                     '%s  |  Playa, interior, antena y extracción  |  Intentos: %d' % (WX_LABEL[self.g['lz']['wx']], left),
                     (100, 180, 255), 4.6)
-        self.toast('SHIFT: sigilo | Q: pistola silenciada | E: noquear por la espalda / instalar antena', (255, 220, 120))
+        self.say('soldado', 'Desembarcamos. SHIFT para el sigilo, Q pistola silenciada y E para noquear por la espalda o instalar la antena.', 'info')
 
     def start_ground(self, city, antenna=None):
         n = min(8 + 3 * self.wave, 26)
@@ -203,11 +203,11 @@ class GroundMixin:
             spawn = (W / 2, H / 2 + 175)
             self.init_ground('invasion', city['seed'], city, 7, [(W / 2, H / 2, 150)], spawn, kinds, queue, antenna=antenna)
         if antenna is not None:
-            self.banner('¡ASALTO A LA ANTENA!', 'Defendé %s | Clic: disparar | ESPACIO: granada | R: recargar' % city['name'],
-                        (120, 220, 255), 3.8)
+            self.banner('¡ASALTO A LA ANTENA!', 'Defendé %s' % city['name'], (120, 220, 255), 3.0)
+            self.say('soldado', '¡Asaltan la antena! Clic para disparar, ESPACIO para granada y R para recargar.', 'bad')
         else:
-            self.banner('¡INVASIÓN ANFIBIA!', 'Defendé %s | Clic: disparar | ESPACIO: granada | R: recargar' % city['name'],
-                        (255, 150, 60), 3.8)
+            self.banner('¡INVASIÓN ANFIBIA!', 'Defendé %s' % city['name'], (255, 150, 60), 3.0)
+            self.say('soldado', '¡Invasión anfibia! Clic para disparar, ESPACIO para granada y R para recargar.', 'bad')
 
     def spawn_ground_enemy(self, kind, idx):
         g = self.g
@@ -293,7 +293,8 @@ class GroundMixin:
             if g['alert_t'] <= 0:
                 g['alerts'] += 1
                 self.audio.play('alarm', .5)
-                self.banner('¡ALERTA!', 'Te descubrieron: escondete para recuperar el sigilo', (255, 90, 70), 2.6)
+                self.banner('¡ALERTA!', 'Te descubrieron', (255, 90, 70), 2.0)
+                self.say('soldado', '¡Nos descubrieron! Escondete para recuperar el sigilo.', 'bad')
             g['alert_t'] = 30.0
         for o in g['enemies']:
             if o['state'] in ('hold', 'susp') and dist(o['x'], o['y'], e['x'], e['y']) < ((520 if g['stealth'] else 300) if alarm else 110):
@@ -883,6 +884,7 @@ class GroundMixin:
             self.audio.play('blip', .45)
         elif g['tleft'] < 30 and int(g['tleft']) != int(g['tleft'] + dt) and int(g['tleft']) == 29:
             self.toast('¡Quedan 30 segundos!', (255, 200, 90))
+            self.say('soldado', '¡Quedan 30 segundos! Apurate con la isla.', 'warn')
         g['reinf_t'] -= dt
         if g['reinf_t'] <= 0 and g['tleft'] > 8:
             g['reinf_t'] = max(16.0, 30.0 - 3.0 * self.wave)
@@ -893,6 +895,7 @@ class GroundMixin:
                 e['excl'] = 0.0
                 g['total'] += 1
             self.toast('¡Refuerzos enemigos llegan en lancha!', (255, 140, 100))
+            self.say('soldado', '¡Refuerzos enemigos llegan en lancha!', 'bad')
         if g['tleft'] <= 0:
             g['tleft'] = 0.0
             g['phase'], g['fail'], g['pt'] = 'result', True, 0.0
@@ -936,6 +939,7 @@ class GroundMixin:
                         if e['state'] == 'combat':
                             e['state'], e['det'], e['spot'], e['st'] = 'susp', 0.5, (p['x'], p['y']), 8.0
                     self.banner('EVASIÓN LOGRADA', 'Los enemigos te buscan por la zona', (120, 255, 190), 2.6)
+                    self.say('soldado', 'Los perdimos... por ahora. Seguí en silencio.', 'ok')
         # instalación silenciosa de la antena
         pad_d = dist(p['x'], p['y'], W / 2, H / 2)
         if alive and keys[pygame.K_e] and pad_d < 56 and not p['sneak'] and not any(e['state'] == 'combat' and dist(e['x'], e['y'], p['x'], p['y']) < 260 for e in g['enemies']):

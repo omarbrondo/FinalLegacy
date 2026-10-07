@@ -61,8 +61,8 @@ class TankMixin:
         self.go('tank')
         if wx != 'clear':
             self.tk_say('CLIMA: ' + ('NIEBLA ESPESA' if wx == 'fog' else 'NOCHE CERRADA'))
-        self.banner('¡INVASIÓN BLINDADA!', 'Defendé %s desde tu tanque | W/S: avanzar | A/D: girar | ESPACIO: cañón' % city['name'],
-                    (120, 255, 160), 4.2)
+        self.banner('¡INVASIÓN BLINDADA!', 'Defendé %s desde tu tanque' % city['name'], (120, 255, 160), 3.2)
+        self.say('tanquista', 'Tanques enemigos entrando. W/S para avanzar, A/D para girar y ESPACIO para disparar el cañón.', 'info')
 
     def tk_free(self, x, z, r):
         for b in self.k['blds']:
@@ -376,7 +376,8 @@ class TankMixin:
                                            stuck=0.0, tread=0.0, role=role, boss=boss, rad=6.8 if boss else 4.4,
                                            big=1.5 if boss else 1.0, mhp=hp))
                     if boss:
-                        self.banner('¡TANQUE JEFE!', 'Blindaje pesado - apuntá a su torreta', (255, 90, 60), 3.0)
+                        self.banner('¡TANQUE JEFE!', 'Blindaje pesado', (255, 90, 60), 2.4)
+                        self.say('tanquista', '¡Tanque jefe! Blindaje pesado: apuntá a su torreta.', 'bad')
                         self.audio.play('alarm', .7)
         self.tk_props_update(dt)
         for e in k['tanks'][:]:
@@ -489,6 +490,7 @@ class TankMixin:
             if k['phase'] == 'play':
                 k['phase'], k['fail'], k['pt'] = 'result', True, -0.8
                 self.banner('¡TANQUE DESTRUIDO!', 'La ciudad queda sin defensa', (255, 80, 70), 3.0)
+                self.say('tanquista', '¡Nos destruyeron el tanque! La ciudad queda sin defensa...', 'bad')
         if city['hp'] <= 0 and not city['dead']:
             city['dead'] = True
             self.audio.play('boom_l')
@@ -496,12 +498,14 @@ class TankMixin:
             if k['phase'] == 'play':
                 k['phase'], k['fail'], k['pt'] = 'result', True, 0.0
             self.banner('¡CIUDAD CAPTURADA!', city['name'], (255, 70, 60), 3.0)
+            self.say('tanquista', '¡Cayó %s! No pudimos detenerlos.' % city['name'], 'bad')
         if k['phase'] == 'play' and not k['queue'] and not k['tanks'] and not k['missiles'] and not k['helis']:
             k['phase'], k['pt'] = 'result', 0.0
             bonus = 400 + (400 if city['hp'] >= k['city0'] - 0.01 else 0)
             self.add_score(bonus)
             self.audio.play('win', .7)
             self.banner('¡CIUDAD DEFENDIDA!', 'Bajas: %d   Bonus +%d' % (k['kills'], bonus), (120, 255, 160), 3.0)
+            self.say('tanquista', '¡Ciudad defendida! Ni un tanque pasó.', 'ok')
         if k['phase'] == 'result':
             k['pt'] += dt
             if k['pt'] > 3.0:

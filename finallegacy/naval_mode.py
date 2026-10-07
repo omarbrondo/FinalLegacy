@@ -39,16 +39,20 @@ class NavalMixin:
         self.go('combat')
         if is_sub:
             self.audio.play('alarm')
-            self.banner('¡SUBMARINO!', 'Solo es vulnerable al emerger... o usá el TORPEDO (R), que lo alcanza sumergido  |  E: huir', (120, 220, 200), 4.0)
+            self.banner('¡SUBMARINO!', 'Vulnerable solo al emerger', (120, 220, 200), 3.0)
+            self.say('marinero', '¡Submarino! Solo podemos dañarlo al emerger... o usá el torpedo (R), que lo alcanza sumergido. E para huir.', 'warn')
         elif is_nest:
             self.audio.play('alarm')
-            self.banner('¡BATERÍA COSTERA!', 'Cañón fijo en el islote: esquivá sus misiles y destruilo  |  E: huir', (255, 140, 90), 3.6)
+            self.banner('¡BATERÍA COSTERA!', 'Cañón fijo en el islote', (255, 140, 90), 3.0)
+            self.say('marinero', '¡Batería costera! Esquivá sus misiles y destruila. E para huir.', 'warn')
         elif is_boss:
             self.audio.play('alarm')
             self.banner('¡%s %s!' % (self.c['label'] if 'label' in self.c else BOSS_TYPES[self.c['btype']]['label'], en['name']),
-                        'Escudo digital caído  |  ' + BOSS_TYPES[self.c['btype']]['hint'], (255, 60, 60), 4.6)
+                        'Escudo digital caído', (255, 60, 60), 3.4)
+            self.say('marinero', '¡Escudo caído! ' + BOSS_TYPES[self.c['btype']]['hint'], 'bad')
         else:
-            self.banner('¡COMBATE NAVAL!', 'WASD navegar | Clic misil | Q descarga | R torpedo | F humo | G control de daños | E huir', (255, 150, 90), 3.4)
+            self.banner('¡COMBATE NAVAL!', 'Hundí al buque enemigo', (255, 150, 90), 2.8)
+            self.say('marinero', 'Buque enemigo a la vista. WASD navegar, clic para misil, Q descarga, R torpedo, F humo, G control de daños y E para huir.', 'info')
 
     def launch_missile(self, ship, ang, speed, own, off=0.0, dmg=(22, 12)):
         ox, oy = vec(ship['h'], off)
@@ -352,6 +356,7 @@ class NavalMixin:
                     c['jets'].append(dict(x=e['x'] + jx, y=e['y'] + jy, h=e['h'] + sd * 40, t=0.0))
                 self.audio.play('launch', .45)
                 self.toast('¡Cazas lanzados! Derribalos a tiros', (255, 200, 120))
+                self.say('marinero', '¡Lanzaron cazas! Derribalos a tiros.', 'warn')
         for j in c['jets'][:]:
             j['t'] += dt
             want = bearing(p['x'] - j['x'], p['y'] - j['y'])
