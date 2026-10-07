@@ -53,10 +53,10 @@ class LandingMixin:
 
     # ------------------------------------------------------------------ utilidades
     def lz_say(self, who, text, col=ALLY_COL):
-        lz = self.g['lz']
-        lz['calls'].append([who, text, col, 4.2])
-        lz['calls'] = lz['calls'][-3:]
-        self.audio.play('blip', .3)
+        """Radio del desembarco: cada soldado (RAMOS, DÍAZ, LUNA) habla con su propia viñeta; el buque de apoyo lo dice un marinero."""
+        key = who.lower().replace('í', 'i')
+        mood = 'bad' if col[0] > 240 and col[1] < 170 else ('warn' if col[0] > 240 else 'info')
+        self.say(key if key in ('ramos', 'diaz', 'luna') else 'marinero', text, mood, 'left', 250)
 
     def lz_stage(self):
         lz = self.g.get('lz')

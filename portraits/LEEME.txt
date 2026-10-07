@@ -1,5 +1,22 @@
-Bustos de los personajes que comunican mensajes en una viñeta (entran por un costado, hablan y se van por el mismo).
-Poné acá imágenes PNG con fondo transparente, con estos nombres:
-  hacker.png  piloto.png  marinero.png  tanquista.png  soldado.png  comandante.png
-Opcional: una expresión por ánimo, por ejemplo hacker_ok.png (éxito), hacker_bad.png (problema), hacker_warn.png (alerta), hacker_info.png.
-Si una imagen falta, el juego dibuja una silueta provisoria. Se escalan para entrar en un recuadro de 150 x 176 px.
+RETRO LEGACY - retratos de los globos de comunicación
+=====================================================
+Poné acá tus PNG (fondo transparente, busto; se escalan a 150x176).
+
+Oficios con 3 personajes (nombre_1.png, nombre_2.png, nombre_3.png):
+  hacker_1..3     -> 1 por misión (el mismo durante toda la misión)
+  piloto_1..3     -> 1 por misión (el mismo durante toda la misión)
+  marinero_1..3   -> al azar en cada mensaje (hablan los 3, uno a la vez)
+  tanquista_1..3  -> al azar en cada mensaje (hablan los 3, uno a la vez)
+
+Desembarco (3 soldados, uno por aliado):
+  ramos.png, diaz.png, luna.png
+
+Un solo sprite:
+  soldado.png   (soldado de las batallas tipo Metal Slug)
+  soldada.png   (opcional: versión mujer; si no está usa el provisorio)
+  comandante.png
+
+Opcional por ánimo: <nombre>_<n>_<ánimo>.png, ánimo = info, ok, warn, bad
+  ej: hacker_2_bad.png  (si falta, usa hacker_2.png)
+Si un oficio tiene menos de 3 archivos, usa solo los que existan.
+Compilando: agregá --add-data "portraits;portraits"
