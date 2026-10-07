@@ -19,6 +19,7 @@ ROLES = {
     'tanquista': dict(name='TANQUISTA', col=(210, 170, 80), skin=(212, 168, 132), hat=(84, 90, 62), body=(92, 86, 60), kind='helmet', side='right'),
     'soldado': dict(name='SOLDADO', col=(130, 200, 120), skin=(214, 170, 134), hat=(72, 92, 60), body=(66, 86, 60), kind='helmet', side='left'),
     'comandante': dict(name='COMANDANTE', col=(240, 200, 90), skin=(206, 160, 126), hat=(30, 40, 70), body=(34, 44, 74), kind='cap', side='right'),
+    'artillero': dict(name='ARTILLERO', col=(255, 150, 70), skin=(204, 158, 122), hat=(150, 90, 40), body=(120, 84, 50), kind='helmet', side='left'),
     'soldada': dict(name='SOLDADO', col=(130, 200, 120), skin=(222, 180, 148), hat=(72, 92, 60), body=(66, 86, 60), kind='helmet', side='left'),
     'ramos': dict(name='RAMOS', col=(120, 190, 255), skin=(210, 166, 130), hat=(74, 96, 84), body=(70, 100, 90), kind='helmet', side='left'),
     'diaz': dict(name='DÍAZ', col=(240, 190, 100), skin=(196, 150, 114), hat=(120, 104, 70), body=(130, 112, 74), kind='helmet', side='left'),
@@ -26,8 +27,8 @@ ROLES = {
 }
 # cómo se elige cuál de las imágenes de cada oficio habla: 'mission' = una por misión (se mantiene hasta volver al mapa),
 # 'random' = al azar en cada mensaje (sin repetir la anterior); el resto usa siempre la primera
-POLICY = {'hacker': 'mission', 'piloto': 'mission', 'marinero': 'random', 'tanquista': 'random'}
-MULTI = ('hacker', 'piloto', 'marinero', 'tanquista')       # oficios con varias imágenes (o 3 siluetas provisorias)
+POLICY = {'hacker': 'mission', 'piloto': 'mission', 'marinero': 'random', 'tanquista': 'random', 'artillero': 'random'}
+MULTI = ('hacker', 'piloto', 'marinero', 'tanquista', 'artillero')       # oficios con varias imágenes (o 3 siluetas provisorias)
 FILE_RE = re.compile(r'^([a-z]+)[_-]?(\d*)(?:_([a-z]+))?\.png$')
 LANE_Y = 250
 

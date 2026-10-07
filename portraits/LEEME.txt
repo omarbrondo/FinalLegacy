@@ -7,6 +7,7 @@ Oficios con 3 personajes (nombre_1.png, nombre_2.png, nombre_3.png):
   piloto_1..3     -> 1 por misión (el mismo durante toda la misión)
   marinero_1..3   -> al azar en cada mensaje (hablan los 3, uno a la vez)
   tanquista_1..3  -> al azar en cada mensaje (hablan los 3, uno a la vez)
+  artillero_1..3  -> lanzadores de cohetes del Missile Command (al azar en cada mensaje)
 
 Desembarco (3 soldados, uno por aliado):
   ramos.png, diaz.png, luna.png
