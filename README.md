@@ -1,4 +1,4 @@
-# RETRO LEGACY - Edición Omar Brondo
+# RETRO LEGACY
 
 Juego de guerra naval y de infantería hecho con **Python + pygame**. Todo el arte y el sonido se generan por código, así que no necesita archivos externos.
 
@@ -34,6 +34,7 @@ python retro_legacy.py
 | `naval_combo.py` | Combate combinado: barco enemigo + batería costera cercana en un mismo combate |
 | `aerial_mode.py` | Batalla aérea estilo Twinbee |
 | `ground_mode.py` | Infantería cenital: invasión, desembarco con sigilo, defensa de antenas |
+| `menu.py` | Menú principal y opciones (pantalla completa, CRT, instrucciones, cheats) |
 | `splash.py` | Videos MP4 de presentación (logo e intro) con salto por clic |
 | `ground_city.py` | Distrito urbano de la invasión anfibia: manzanas, edificios y autos con colisión, navegación por calles |
 | `landing.py` | Desembarco épico: escuadra aliada, fases, búnkeres, clima y informe de misión |
@@ -103,7 +104,11 @@ Cada modo tiene su propia música compuesta por código (con numpy): mapa, defen
 Instalá las dependencias con `pip install -r requirements.txt` (pygame-ce y numpy; numpy es opcional pero da humo, fuego y brillos más suaves). Si ya tenés pygame-ce instalado (el juego anda también con pygame clásico), alcanza con `pip install numpy`; no instales los dos pygame a la vez. Se ejecuta con `python retro_legacy.py`.
 La tecla **V** cambia la calidad: BÁSICA, HD (resplandor/bloom, gradación de color y viñeta, por defecto) y ULTRA (más bloom y grano de película). La elección se guarda.
 
-## Pantalla completa y mando
+## Menú, fuentes y pantalla completa
+
+- **Menú principal**: NUEVO JUEGO, CARGAR PARTIDA, OPCIONES y SALIR (flechas o W/S, mouse con clic, o mando con cruceta y A). En **OPCIONES**: pantalla completa y modo CRT (sí/no), INSTRUCCIONES (controles de cada modo) y CHEATS (atajos de prueba F2-F12 y N, y el modo inmortal). ESC o clic derecho vuelven atrás.
+- **Fuente**: Orbitron (licencia SIL OFL, en `fonts/`). Si falta el archivo se usa una fuente monoespaciada del sistema. Al compilar con PyInstaller agregá `--add-data "fonts;fonts"`.
+
 
 - El juego **siempre abre en pantalla completa** (F11 o Alt+Enter alternan; `python retro_legacy.py --windowed` o `-w` lo abre en ventana).
 - **Videos de presentación**: si hay `videos/logo.mp4` y `videos/intro.mp4`, se reproducen con sonido antes del título (logo, después intro). Se saltan con clic, ESPACIO, ENTER, ESC o un botón del mando. Necesitan `pip install imageio-ffmpeg` (o ffmpeg instalado); si falta algo, el juego arranca sin ellos.

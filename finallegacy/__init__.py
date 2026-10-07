@@ -1,1 +1,1 @@
-"""RETRO LEGACY - Edición Omar Brondo: el juego dividido en módulos."""
+"""RETRO LEGACY: el juego dividido en módulos."""

@@ -232,8 +232,8 @@ class SaveMixin:
                 n_ant = sum(1 for v in d['antennas'].values() if v)
                 n_rad = sum(1 for r in d.get('radars', {}).values() if r['hacked'])
                 alive = sum(1 for c in d['cities'] if not c['dead'])
-                self.text(cv, 'OLEADA %d/6  ·  %d puntos  ·  %d ciudades  ·  %d antenas  ·  %d radares' % (d['wave'], d['score'], alive, n_ant, n_rad), self.f_s, (210, 230, 250), W // 2 - 380, y + 46)
-                self.text(cv, time.strftime('%d/%m/%Y %H:%M', time.localtime(d.get('stamp', 0))) + ('  ·  al terminar la oleada' if d.get('pending_upgrade') else ''),
+                self.text(cv, 'OLEADA %d/6  |  %d puntos  |  %d ciudades  |  %d antenas  |  %d radares' % (d['wave'], d['score'], alive, n_ant, n_rad), self.f_s, (210, 230, 250), W // 2 - 380, y + 46)
+                self.text(cv, time.strftime('%d/%m/%Y %H:%M', time.localtime(d.get('stamp', 0))) + ('  |  al terminar la oleada' if d.get('pending_upgrade') else ''),
                           self.f_s, (150, 175, 205), W // 2 - 380, y + 66)
             else:
                 self.text(cv, '(vacía)', self.f_s, (130, 145, 170), W // 2 - 380, y + 52)

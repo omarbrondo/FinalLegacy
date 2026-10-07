@@ -758,7 +758,7 @@ class LandingMixin:
                 'Infiltrate hasta la antena (centro) y mantené E para instalarla',
                 'Defendé la antena mientras transmite: no te alejes',
                 '¡Volvé a la lancha antes de que se acabe el tiempo!')
-        lab = 'FASE %d/4 · %s' % (st + 1, STAGE_NAMES[st])
+        lab = 'FASE %d/4 | %s' % (st + 1, STAGE_NAMES[st])
         w1, w2 = self.f_s.size(lab)[0], self.f_s.size(objs[st])[0]
         x0 = W // 2 - (w1 + w2 + 44) // 2
         self.panel(cv, (x0, 180, w1 + w2 + 44, 30), 170)

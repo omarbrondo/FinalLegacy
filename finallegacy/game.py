@@ -10,6 +10,7 @@ from .aerial_mode import AerialMixin
 from .air_boss import AirBossMixin
 from .ground_mode import GroundMixin
 from .splash import play_splashes
+from .menu import MenuMixin
 from .ground_city import GroundCityMixin
 from .port_mode import PortMixin
 from .tank_mode import TankMixin
@@ -33,7 +34,7 @@ from .naval_combo import NavalComboMixin
 from .lifeboat import LifeboatMixin
 
 
-class Game(CoreMixin, MapMixin, DefenseMixin, HackMixin, NavalMixin, AerialMixin, AirBossMixin, GroundMixin, GroundCityMixin, PortMixin, TankMixin, UpgradeMixin, GamepadMixin, HeliMixin, HazardMixin, TankPropsMixin, WarMixin, NavalFxMixin, NavalArmsMixin, NavalFleetMixin, LandingMixin, LandingOpsMixin, PortEpicMixin, RadioMixin, SaveMixin, ConvoyMixin, NavalGunMixin, NavalComboMixin, LifeboatMixin):
+class Game(CoreMixin, MapMixin, DefenseMixin, HackMixin, NavalMixin, AerialMixin, AirBossMixin, GroundMixin, GroundCityMixin, PortMixin, TankMixin, UpgradeMixin, GamepadMixin, HeliMixin, HazardMixin, TankPropsMixin, WarMixin, NavalFxMixin, NavalArmsMixin, NavalFleetMixin, LandingMixin, LandingOpsMixin, PortEpicMixin, RadioMixin, SaveMixin, ConvoyMixin, NavalGunMixin, NavalComboMixin, LifeboatMixin, MenuMixin):
     """Juego completo. El estado vive en 'self'; cada mixin aporta los métodos de un modo."""
 
 
