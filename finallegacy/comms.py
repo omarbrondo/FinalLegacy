@@ -34,7 +34,7 @@ ROLES = {
 # 'random' = al azar en cada mensaje (sin repetir la anterior); el resto usa siempre la primera
 POLICY = {'hacker': 'mission', 'piloto': 'mission', 'marinero': 'random', 'tanquista': 'random', 'artillero': 'random', 'secretaria': 'random'}
 MULTI = ('hacker', 'piloto', 'marinero', 'tanquista', 'artillero', 'secretaria')
-BOSS_VARIANTS = {'jefe_barco': 6, 'jefe_avion': 6}               # un personaje por oleada (se pasa v= al hablar)       # oficios con varias imágenes (o 3 siluetas provisorias)
+BOSS_VARIANTS = {'jefe_barco': 6, 'jefe_avion': 6, 'jefe_puerto_tanque': 2}               # un personaje por oleada (se pasa v= al hablar)       # oficios con varias imágenes (o 3 siluetas provisorias)
 FILE_RE = re.compile(r'^([a-z_]+?)(?:_(\d+))?(?:_(info|ok|warn|bad))?\.png$')
 LANE_Y = 440
 

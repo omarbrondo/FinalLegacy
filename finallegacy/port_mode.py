@@ -112,7 +112,7 @@ class PortMixin:
                 else:
                     self.banner('¡TANQUE DE PUERTO!', 'Tanque enemigo', (255, 90, 70), 2.6)
                     self.say('soldado', '¡Tanque en el puerto! Saltá sus proyectiles y no pares de disparar.', 'bad')
-                    self.say('jefe_puerto_tanque', PORT_LINES['tank'][0], 'bad', pose='', name='COMANDANTE DEL TANQUE')
+                    self.say('jefe_puerto_tanque', PORT_LINES['tank'][0], 'bad', pose='', v=self.wave // 2 % 2 + 1, name='COMANDANTE DEL TANQUE')
                 continue
             if kind == 'sniper':
                 ahead = [pl for pl in pt['plats'] if cam + 200 < pl['x'] < cam + W - 100] or pt['plats'][:1]
@@ -214,7 +214,7 @@ class PortMixin:
             if e.get('variant') == 'heli':
                 self.say('jefe_puerto_heli', PORT_LINES['heli'][1], 'warn', pose='bad', name='PILOTO ENEMIGO')
             else:
-                self.say('jefe_puerto_tanque', PORT_LINES['tank'][1], 'warn', pose='bad', name='COMANDANTE DEL TANQUE')
+                self.say('jefe_puerto_tanque', PORT_LINES['tank'][1], 'warn', pose='bad', v=self.wave // 2 % 2 + 1, name='COMANDANTE DEL TANQUE')
             self.shake = 22
             for _ in range(6):
                 self.fx.explode(e['x'] + random.uniform(-110, 110), e['y'] - random.uniform(10, 90), 1.4, True)
