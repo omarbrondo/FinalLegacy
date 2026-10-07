@@ -20,6 +20,10 @@ ROLES = {
     'soldado': dict(name='SOLDADO', col=(130, 200, 120), skin=(214, 170, 134), hat=(72, 92, 60), body=(66, 86, 60), kind='helmet', side='left'),
     'comandante': dict(name='COMANDANTE', col=(240, 200, 90), skin=(206, 160, 126), hat=(30, 40, 70), body=(34, 44, 74), kind='cap', side='right'),
     'secretaria': dict(name='SECRETARÍA', col=(190, 160, 255), skin=(228, 186, 156), hat=(60, 44, 70), body=(52, 56, 88), kind='cap', side='right'),
+    'jefe_barco': dict(name='JEFE', col=(255, 90, 80), skin=(196, 150, 118), hat=(70, 20, 24), body=(80, 28, 32), kind='cap', side='right'),
+    'jefe_avion': dict(name='JEFE', col=(255, 130, 70), skin=(206, 160, 126), hat=(60, 62, 72), body=(70, 72, 84), kind='helmet', side='left'),
+    'jefe_puerto_tanque': dict(name='JEFE', col=(255, 100, 70), skin=(190, 146, 112), hat=(74, 64, 40), body=(86, 76, 48), kind='helmet', side='right'),
+    'jefe_puerto_heli': dict(name='JEFE', col=(255, 100, 70), skin=(200, 154, 120), hat=(40, 56, 74), body=(48, 66, 86), kind='helmet', side='right'),
     'artillero': dict(name='ARTILLERO', col=(255, 150, 70), skin=(204, 158, 122), hat=(150, 90, 40), body=(120, 84, 50), kind='helmet', side='left'),
     'soldada': dict(name='SOLDADO', col=(130, 200, 120), skin=(222, 180, 148), hat=(72, 92, 60), body=(66, 86, 60), kind='helmet', side='left'),
     'ramos': dict(name='RAMOS', col=(120, 190, 255), skin=(210, 166, 130), hat=(74, 96, 84), body=(70, 100, 90), kind='helmet', side='left'),
@@ -29,8 +33,9 @@ ROLES = {
 # cómo se elige cuál de las imágenes de cada oficio habla: 'mission' = una por misión (se mantiene hasta volver al mapa),
 # 'random' = al azar en cada mensaje (sin repetir la anterior); el resto usa siempre la primera
 POLICY = {'hacker': 'mission', 'piloto': 'mission', 'marinero': 'random', 'tanquista': 'random', 'artillero': 'random', 'secretaria': 'random'}
-MULTI = ('hacker', 'piloto', 'marinero', 'tanquista', 'artillero', 'secretaria')       # oficios con varias imágenes (o 3 siluetas provisorias)
-FILE_RE = re.compile(r'^([a-z]+)[_-]?(\d*)(?:_([a-z]+))?\.png$')
+MULTI = ('hacker', 'piloto', 'marinero', 'tanquista', 'artillero', 'secretaria')
+BOSS_VARIANTS = {'jefe_barco': 6, 'jefe_avion': 6}               # un personaje por oleada (se pasa v= al hablar)       # oficios con varias imágenes (o 3 siluetas provisorias)
+FILE_RE = re.compile(r'^([a-z_]+?)(?:_(\d+))?(?:_(info|ok|warn|bad))?\.png$')
 LANE_Y = 440
 
 
@@ -115,7 +120,7 @@ class CommsMixin:
         found = self.comms_files().get(who)
         if found:
             return sorted(found)
-        return [1, 2, 3] if who in MULTI else [1]
+        return list(range(1, BOSS_VARIANTS.get(who, 3 if who in MULTI else 1) + 1))
 
     def comms_pick(self, who):
         """Elige qué imagen del oficio habla: una por misión (hacker, piloto) o al azar sin repetir (marinero, tanquista)."""
@@ -151,7 +156,7 @@ class CommsMixin:
             self._cm_img[key] = img
         return img
 
-    def say(self, who, text, mood='info', side=None, y=None):
+    def say(self, who, text, mood='info', side=None, y=None, v=None, name=None):
         """Un personaje comunica algo: aparece por un costado, lo dice en un globo y se retira por el mismo costado."""
         cm = self.cm
         if who not in ROLES:
@@ -161,7 +166,7 @@ class CommsMixin:
             who = 'soldada' if fem else 'soldado'
         if (cm['cur'] and cm['cur']['text'] == text) or any(q['text'] == text for q in cm['queue']):
             return
-        cm['queue'].append(dict(who=who, v=self.comms_pick(who), text=text, mood=mood, side=side or ROLES[who]['side'], y=LANE_Y if y is None else y))
+        cm['queue'].append(dict(who=who, v=v if v is not None else self.comms_pick(who), name=name, text=text, mood=mood, side=side or ROLES[who]['side'], y=LANE_Y if y is None else y))
         del cm['queue'][:-4]
 
     def comms_update(self, dt):
@@ -226,7 +231,7 @@ class CommsMixin:
         tag = pygame.Surface((PW, 22), pygame.SRCALPHA)
         pygame.draw.rect(tag, (10, 12, 20, 210), (0, 0, PW, 22), border_bottom_left_radius=10, border_bottom_right_radius=10)
         cv.blit(tag, (x, y + PH - 22))
-        self.text(cv, r['name'], self.f_s, col, x + PW // 2, y + PH - 20, 'c', shadow=False)
+        self.text(cv, c.get('name') or r['name'], self.f_s, col, x + PW // 2, y + PH - 20, 'c', shadow=False)
         # globo
         bt = t - ENTER * 0.7
         if bt <= 0 or t > ENTER + c['hold']:
@@ -263,3 +268,26 @@ class CommsMixin:
             cv.blit(s2, (px, by - 6 + (bub.get_height() - s2.get_height()) // 2))
         else:
             cv.blit(bub, (bx - ox, by - 6))
+
+
+# frases de los jefes: (al aparecer, al ser derrotado); el índice es la oleada (1 a 6)
+BOSS_LINES = (
+    ('Soy LEVIATAN. Ningún buque pasa por mis aguas.', 'Mi casco... se hunde... imposible.'),
+    ('TIFÓN ha llegado. Rece lo que sepa, capitán.', 'La tormenta... se apaga...'),
+    ('Soy COLOSO. Su flota no es más que chatarra.', 'Un gigante... caído por un simple barco.'),
+    ('ABISMO lo espera. Nadie vuelve de las profundidades.', 'Las profundidades... me reclaman...'),
+    ('Soy TITÁN. Se atrevió a desafiarme. Error fatal.', 'Titán... derrotado... no puede ser.'),
+    ('APOCALIPSIS ha llegado. Este es su final, capitán.', 'Ganaron... esta vez. Pero esto no termina.'),
+)
+AIR_LINES = (
+    ('Comandante Stealth al mando. No me verá venir.', 'Me detectaron... maldición.'),
+    ('Soy la Nodriza Tifón. Mis drones lo cazarán.', 'Mis drones... todos perdidos...'),
+    ('Soy el Fantasma. No se puede matar lo que no se ve.', 'Me alcanzó... incluso un fantasma cae.'),
+    ('Artillero Pesado en posición. Prepárese para el bombardeo.', 'Mis bombas... se acabaron.'),
+    ('Soy la Tormenta. Caerá un rayo sobre usted.', 'La tormenta... se disipa...'),
+    ('Titán Aéreo al ataque. El cielo es mío.', 'Titán cae... el cielo ya no es mío.'),
+)
+PORT_LINES = {
+    'heli': ('Desde el aire no tienen escapatoria. ¡Abran fuego!', '¡Me derribaron! ¡Mayday!'),
+    'tank': ('Este puerto es nuestro. Será aplastado.', 'Mi tanque... destruido. Retirada...'),
+}

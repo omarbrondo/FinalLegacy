@@ -22,3 +22,9 @@ Opcional por ánimo: <nombre>_<n>_<ánimo>.png, ánimo = info, ok, warn, bad
   ej: hacker_2_bad.png  (si falta, usa hacker_2.png)
 Si un oficio tiene menos de 3 archivos, usa solo los que existan.
 Compilando: agregá --add-data "portraits;portraits"
+
+Jefes (un personaje por jefe; hablan al aparecer, con ánimo "bad", y al ser derrotados):
+  jefe_barco_1..6.png      -> buques jefe, uno por oleada: LEVIATAN, TIFON, COLOSO, ABISMO, TITAN, APOCALIPSIS
+  jefe_avion_1..6.png      -> jefes aéreos, uno por oleada: Comandante Stealth, Nodriza Tifón, Fantasma, Artillero Pesado, Tormenta, Titán Aéreo
+  jefe_puerto_tanque.png   -> jefe del asalto al puerto en oleadas impares (tanque)
+  jefe_puerto_heli.png     -> jefe del asalto al puerto en oleadas pares (helicóptero)

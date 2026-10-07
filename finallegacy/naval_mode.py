@@ -10,6 +10,9 @@ from .common import (
 from .boss_art import BOSS_TYPES
 
 
+from .comms import BOSS_LINES
+
+
 class NavalMixin:
     # ---------------------------------------------------------- COMBATE
     def start_combat(self, en, bat=None):
@@ -49,6 +52,7 @@ class NavalMixin:
             self.audio.play('alarm')
             self.banner('¡%s %s!' % (self.c['label'] if 'label' in self.c else BOSS_TYPES[self.c['btype']]['label'], en['name']),
                         'Escudo digital caído', (255, 60, 60), 3.4)
+            self.say('jefe_barco', BOSS_LINES[self.c['btype'] % 6][0], 'bad', v=self.c['btype'] % 6 + 1, name=en['name'])
             self.say('marinero', '¡Escudo caído! ' + BOSS_TYPES[self.c['btype']]['hint'], 'bad')
         else:
             self.banner('¡COMBATE NAVAL!', 'Hundí al buque enemigo', (255, 150, 90), 2.8)
@@ -300,6 +304,8 @@ class NavalMixin:
         self.fx.update(dt)
         if e['sink'] is not None and e['sink'] > (4.0 if c['is_boss'] else 2.4) and not self.nb_busy():
             boss_kill = c.get('is_boss', False)
+            if boss_kill:
+                self.say('jefe_barco', BOSS_LINES[c['btype'] % 6][1], 'warn', v=c['btype'] % 6 + 1, name=self.enemy_ref['name'] if self.enemy_ref else None)
             if c['nest']:
                 nst = self.enemy_ref
                 nst['alive'] = False
