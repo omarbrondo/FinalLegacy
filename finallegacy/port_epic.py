@@ -311,4 +311,5 @@ class PortEpicMixin:
             name, ammo, wcol = WEAPONS[p['wpn']]
             self.bar(cv, x + 12, y + 38, 276, 20, p['wammo'] / float(ammo), wcol, '%s  %d' % (name, p['wammo']))
         else:
-            self.text(cv, 'Combos y rescates cargan el apoyo aéreo', self.f_s, (150, 170, 200), x + 12, y + 42)
+            for i, ln in enumerate(('Combos y rescates cargan', 'el apoyo aéreo.', 'Presioná [E] para llamarlo.')):
+                self.text(cv, ln, self.f_s, (150, 170, 200), x + 12, y + 42 + i * 20)
