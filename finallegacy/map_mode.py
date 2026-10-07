@@ -545,7 +545,7 @@ class MapMixin:
             if flags.get('isl') != island[0]:
                 flags['isl'] = island[0]
                 lead = ('RAMOS', 'DÍAZ', 'LUNA')[island[0] % 3]                    # el soldado (o soldada) que encabeza el desembarco en esa isla
-                self.say(lead.lower().replace('í', 'i'), 'Listos para invadir %s. Presioná L para desembarcar.' % self.isl_name(island[0]), 'info', 'left', 250)
+                self.say(lead.lower().replace('í', 'i'), 'Listos para invadir %s. Presioná L para desembarcar.' % self.isl_name(island[0]), 'info', 'left', 440)
         else:
             flags['isl'] = None
 

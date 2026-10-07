@@ -31,7 +31,7 @@ ROLES = {
 POLICY = {'hacker': 'mission', 'piloto': 'mission', 'marinero': 'random', 'tanquista': 'random', 'artillero': 'random', 'secretaria': 'random'}
 MULTI = ('hacker', 'piloto', 'marinero', 'tanquista', 'artillero', 'secretaria')       # oficios con varias imágenes (o 3 siluetas provisorias)
 FILE_RE = re.compile(r'^([a-z]+)[_-]?(\d*)(?:_([a-z]+))?\.png$')
-LANE_Y = 250
+LANE_Y = 440
 
 
 def _wrap(font, text, maxw):
