@@ -38,7 +38,7 @@ class LandingMixin:
         allies = []
         for i, nm in enumerate(ALLY_NAMES):
             allies.append(dict(name=nm, x=float(spawn[0]), y=float(spawn[1] + 240), h=0.0, hp=50.0, max=50.0, cd=random.uniform(0.3, 1.2),
-                               ph=0.0, hit=0.0, flash=0.0, down=False, kia=False, bleed=0.0, rev=0.0, burst=0, bcd=0.0, slot=i, mv=False))
+                               ph=0.0, hit=0.0, flash=0.0, down=False, kia=False, bleed=0.0, rev=0.0, burst=0, bcd=0.0, slot=i, mv=False, fem=(nm == 'LUNA')))
         g['allies'] = allies
         g['slow'] = 0.0
         g['lz'] = dict(stage=0, stage_t=0.0, intro=3.6, intro_len=3.6, wx=wx, supp=6.0, cover_t=0.4, shells=[], calls=[],
@@ -723,10 +723,10 @@ class LandingMixin:
 
     def lz_draw_ally(self, cv, a, sx, sy):
         if a['kia']:
-            self.blit_soldier(cv, 'a', sx, sy, a['h'], 0, dead=True)
+            self.blit_soldier(cv, 'af' if a.get('fem') else 'a', sx, sy, a['h'], 0, dead=True)
             return
         if a['down']:
-            self.blit_soldier(cv, 'a', sx, sy, a['h'], 0, dead=True)
+            self.blit_soldier(cv, 'af' if a.get('fem') else 'a', sx, sy, a['h'], 0, dead=True)
             pul = 0.5 + 0.5 * math.sin(self.t * 6)
             draw_circ(cv, sx, sy, 34 + 3 * pul, (255, 120, 100), 100 + 80 * pul, 2)
             self.text(cv, '%s  %ds' % (a['name'], math.ceil(a['bleed'])), self.f_s, (255, 150, 130), sx, sy - 40, 'c')
@@ -737,7 +737,7 @@ class LandingMixin:
                 pygame.draw.rect(cv, (8, 12, 24), (sx - 20, sy + 22, 40, 7))
                 pygame.draw.rect(cv, (120, 255, 190), (sx - 19, sy + 23, int(38 * a['rev']), 5))
             return
-        self.blit_soldier(cv, 'a', sx, sy, a['h'], int(a['ph']) % 4 if a['mv'] else 0, a['hit'])
+        self.blit_soldier(cv, 'af' if a.get('fem') else 'a', sx, sy, a['h'], int(a['ph']) % 4 if a['mv'] else 0, a['hit'])
         if a['flash'] > 0:
             fx_, fy_ = vec(a['h'], 46)
             glow(cv, sx + fx_, sy + fy_, 20, (255, 230, 150))

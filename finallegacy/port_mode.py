@@ -2,7 +2,7 @@
 import math
 import pygame
 import random
-from .common import ENEMY_PORT, H, PLAYER_HP, Particles, W, WIN_WAVE, clamp, dist, glow, lerp
+from .common import ENEMY_PORT, FEM_CHANCE, H, PLAYER_FEMALE, PLAYER_HP, Particles, W, WIN_WAVE, clamp, dist, glow, lerp
 from .pt_art import (
     PT_AX, PT_AY, build_pt_art, build_pt_bg,
     build_pt_bunker, build_pt_containers, build_pt_decor, build_pt_tank)
@@ -48,7 +48,7 @@ class PortMixin:
         grp(6800, [('rifle', 'R'), ('rifle', 'L'), ('rifle', 'R'), ('rifle', 'L'), ('knife', 'R'), ('knife', 'R'), ('sniper', 'P'), ('rifle', 'S'), ('rifle', 'S'), ('rifle', 'S')] + [('shield', 'R')] * (1 + ex // 2))
         grp(7600, [('flame', 'R'), ('flame', 'R'), ('shield', 'R'), ('shield', 'R'), ('gren', 'R'), ('gren', 'L'), ('sniper', 'P'), ('sniper', 'P'), ('rifle', 'S'), ('rifle', 'S'), ('knife', 'L')] + [('knife', 'R')] * ex, True)
         grp(L - 1500, [('tank', 'R')], True)
-        self.pt = dict(
+        self.pt = dict(pfem=self.roll_player_fem(),
             plats=plats, groups=groups, cam=0.0, lock=None, t=0.0, phase='play', pt=0.0, fail=False, kills=0,
             p=dict(x=120.0, y=float(GR), vx=0.0, vy=0.0, ground=True, hp=PLAYER_HP, face=1, cd=0.0, gren=6, hmg=0.0, inv=0.0,
                    ph=0.0, crouch=False, dead=False, gcd=0.0, flash=0.0, thr=0.0, dead_t=0.0, dust=0.0),
@@ -83,7 +83,7 @@ class PortMixin:
         if kind in ('rifle', 'knife', 'gren', 'shield', 'flame'):
             hp += self.wave // 3
         return dict(kind=kind, x=float(x), y=float(y), vx=0.0, vy=0.0, hp=float(hp), max=float(hp), face=face, cd=random.uniform(0.6, 1.8),
-                    burst=0, bcd=0.0, tele=0.0, ph=random.uniform(0, 6), hit=0.0, ground=True, plat=None, state='walk',
+                    fem=(kind in ('rifle', 'knife', 'sniper') and random.random() < FEM_CHANCE), burst=0, bcd=0.0, tele=0.0, ph=random.uniform(0, 6), hit=0.0, ground=True, plat=None, state='walk',
                     st=0.0, atk=0, mcd=0.0, ph0=random.uniform(0, 6), kneel=random.random() < 0.4, thr=0.0, slash=0.0, flash=0.0,
                     moving=False, recoil=0.0, fire=0.0, fcd=0.0, para=False, stag=0.0)
 
@@ -185,7 +185,7 @@ class PortMixin:
         elif e['kind'] == 'turret':
             pt['wrecks'].append(dict(kind='turret', x=e['x'], y=e['y']))
         else:
-            c = dict(kind=e['kind'], x=e['x'], y=e['y'], face=e['face'], t=0.0, vx=-e['face'] * random.uniform(60, 150), air=False, vy=0.0, spin=0.0)
+            c = dict(kind=e['kind'], fem=e.get('fem', False), x=e['x'], y=e['y'], face=e['face'], t=0.0, vx=-e['face'] * random.uniform(60, 150), air=False, vy=0.0, spin=0.0)
             if e['para']:                                   # muerto en el aire: cae al piso y el paracaídas se desinfla
                 c.update(air=True, vy=40.0, vx=0.0, spin=0.0)
                 pt['chutes'].append(dict(x=e['x'], y=e['y'] - 160, t=0.0, vx=random.uniform(-16, 16)))
@@ -910,9 +910,13 @@ class PortMixin:
                 best = pl['top']
         return best
 
-    def pt_char(self, cv, kind, sx, fy, face, pose, fi, aim=None, arm='gun', hit=0.0, alpha=255, shadow=True, flash=False, rot_deg=0.0):
+    def pt_char(self, cv, kind, sx, fy, face, pose, fi, aim=None, arm='gun', hit=0.0, alpha=255, shadow=True, flash=False, rot_deg=0.0, fem=False):
         """Dibuja un soldado pre-renderizado (cuerpo + brazos/arma rotados). aim=(dx, dy) hacia donde apunta."""
         art = self.pt_art
+        base = kind
+        if (kind == 'player' and self.pt.get('pfem')) or fem:
+            if kind + '_f' in art['body']:
+                kind = kind + '_f'
         frames = art['body'][kind][pose]
         fi %= len(frames)
         spr, shx, shy = frames[fi]
@@ -968,7 +972,7 @@ class PortMixin:
         py = fy - shy
         cv.blit(rimg, (px - rimg.get_width() // 2, py - rimg.get_height() // 2))
         if flash and arm == 'gun':
-            ln = {'sniper': 106, 'flame': 62, 'player': 70}.get(kind, 74)
+            ln = {'sniper': 106, 'flame': 62, 'player': 70}.get(base, 74)
             th = math.radians(-rot if right else rot)
             mx = px + (math.cos(th) if right else -math.cos(th)) * ln
             my = py + math.sin(th) * ln
@@ -1109,11 +1113,11 @@ class PortMixin:
                 continue
             if c['air']:
                 c['rot'] = c.get('rot', 0.0) + c['spin'] * 0.016
-                self.pt_char(cv, c['kind'], int(sx), int(c['y']), c['face'], 'die', 1, None, None, 0.0, 255, False, False, c['rot'])
+                self.pt_char(cv, c['kind'], int(sx), int(c['y']), c['face'], 'die', 1, None, None, 0.0, 255, False, False, c['rot'], c.get('fem', False))
                 continue
             fi = min(5, int(c['t'] * 12))
             al = 255 if c['t'] < 3.5 else int(255 * clamp(1 - (c['t'] - 3.5) / 1.2, 0, 1))
-            self.pt_char(cv, c['kind'], int(sx), int(c['y']), c['face'], 'die', fi, None, None, 0.0, al)
+            self.pt_char(cv, c['kind'], int(sx), int(c['y']), c['face'], 'die', fi, None, None, 0.0, al, True, False, 0.0, c.get('fem', False))
         # barriles explosivos
         brl = D['barrel']
         for br in pt['barrels']:
@@ -1196,7 +1200,7 @@ class PortMixin:
             if e['stag'] > 0:
                 sx -= e['face'] * 2
             if e['para']:
-                self.pt_char(cv, 'rifle', int(sx), fy, e['face'], 'fall', 0, None, None, 0.0, 255, False)
+                self.pt_char(cv, 'rifle', int(sx), fy, e['face'], 'fall', 0, None, None, 0.0, 255, False, False, 0.0, e.get('fem', False))
                 top = fy - 168
                 pygame.draw.arc(cv, (236, 236, 226), (sx - 54, top, 108, 70), 0, 3.14159, 40)
                 pygame.draw.polygon(cv, (226, 90, 70), [(sx - 54, top + 35), (sx - 18, top + 4), (sx - 6, top + 4), (sx - 22, top + 38)])
@@ -1239,7 +1243,7 @@ class PortMixin:
                 arm = 'gun'
                 aim = tgt_aim
             fi = int(e['ph']) if pose == 'run' else int(t * 3 + e['ph0'])
-            r_ = self.pt_char(cv, k, int(sx), fy, e['face'], pose, fi, aim, arm, e['hit'], 255, True, e['flash'] > 0 and k != 'flame')
+            r_ = self.pt_char(cv, k, int(sx), fy, e['face'], pose, fi, aim, arm, e['hit'], 255, True, e['flash'] > 0 and k != 'flame', 0.0, e.get('fem', False))
             if r_:
                 e['pv'] = (r_[0] + cam, r_[1])
             if k == 'sniper' and e['tele'] > 0:

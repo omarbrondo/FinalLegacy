@@ -10,6 +10,8 @@ pygame.mixer.pre_init(22050, -16, 2, 512)
 pygame.init()
 
 W, H = 1100, 800
+PLAYER_FEMALE = None          # sexo del soldado protagonista: None = al azar en cada batalla, True = siempre mujer, False = siempre hombre
+FEM_CHANCE = 0.4              # fracción de soldados enemigos que son mujeres
 
 
 WORLD_W, WORLD_H = 4800, 3600
