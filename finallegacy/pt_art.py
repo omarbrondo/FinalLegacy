@@ -871,3 +871,17 @@ def build_pt_bg(W, GR, L):
 def build_pt_wreck_fx():
     """Casquillos y destellos pequeños."""
     return {}
+
+
+def rim_light(img, col=(255, 214, 160), a_top=150, a_front=110):
+    """Luz de borde: ilumina el contorno superior y el derecho del sprite (la luz del atardecer viene de la derecha y de arriba)."""
+    m = pygame.mask.from_surface(img, 90)
+    w, h = img.get_size()
+    out = img.copy()
+    for (dx, dy), alpha in (((0, 1), a_top), ((-1, 0), a_front)):
+        sh = pygame.mask.Mask((w, h))
+        sh.draw(m, (dx, dy))
+        edge = m.copy()
+        edge.erase(sh, (0, 0))
+        out.blit(edge.to_surface(setcolor=(*col, alpha), unsetcolor=(0, 0, 0, 0)), (0, 0))
+    return out
