@@ -3,7 +3,7 @@ sintonía que va cambiando (estilo secuenciador criptográfico de Batman: calzar
 import math
 import pygame
 import random
-from .common import H, W, clamp, dist, draw_circ, glow
+from .common import H, W, WORLD_H, WORLD_W, bearing, clamp, dist, draw_circ, glow, vec
 from .war import DECOR0
 
 RADAR_IDX = (1, 5, 8, 10, 13, 15)                      # islotes decorativos que tienen un radar (no se mudan de lugar)
@@ -16,7 +16,7 @@ KIND_HINT = {
     'drift': 'A/D frecuencia  |  W/S amplitud  |  Q/E fase: la señal se mueve, seguila',
     'jam': 'A/D frecuencia  |  W/S amplitud: el enemigo interfiere y te desajusta',
     'dual': 'A/D frecuencia  |  W/S amplitud  |  ESPACIO: cambiar de canal  |  calzá los dos',
-    'sweep': 'ESPACIO cuando el cursor esté sobre la banda verde (se frena ahí)  |  3 aciertos',
+    'sweep': 'ESPACIO cuando el cursor esté sobre la banda verde  |  3 aciertos, cada vez más rápido',
 }
 PHRASES = ('FLOTA NORTE ATACA CIUDAD AMANECER', 'MISILES LISTOS ORDEN ESPERAR SEÑAL', 'REFUERZOS LLEGAN PUERTO MEDIANOCHE SILENCIO',
            'SUBMARINOS BAJO HIELO SEGUIR OBJETIVO', 'ANTENA ENEMIGA CAMBIAR CLAVE URGENTE', 'CONVOY SIN ESCOLTA RUTA SUR',
@@ -143,7 +143,7 @@ class RadioMixin:
         st['total'] = st['time'] = max(18.0, total)
         st['need'] = {'tune': 1.0, 'drift': 1.5, 'jam': 1.4, 'dual': 1.2}.get(kind, 1.0)
         if kind == 'sweep':
-            st.update(pos=0.0, dir=1.0, speed=0.26 + 0.012 * self.wave, bw=0.22, bc=random.uniform(0.2, 0.8), hits=0, bars=[random.random() for _ in range(44)])
+            st.update(pos=0.0, dir=1.0, speed=0.42 + 0.025 * self.wave, bw=0.22, bc=random.uniform(0.2, 0.8), hits=0, bars=[random.random() for _ in range(44)])
         elif kind == 'dual':
             st['tgt'] = [self.rd_rand_par(), self.rd_rand_par()]
             st['cur'] = [self.rd_far(st['tgt'][0]), self.rd_far(st['tgt'][1])]
@@ -190,7 +190,7 @@ class RadioMixin:
                 self.rd_stage_ok()
                 return
             st['bw'] = max(0.14, st['bw'] - 0.02)
-            st['speed'] *= 1.06
+            st['speed'] *= 1.12
             for _ in range(20):
                 nb = random.uniform(0.12, 0.88)
                 if abs(nb - st['bc']) > 0.25:
@@ -266,8 +266,7 @@ class RadioMixin:
         kind = st['kind']
         st['time'] -= dt
         if kind == 'sweep':
-            slow = 0.6 if abs(st['pos'] - st['bc']) < st['bw'] / 2 + 0.04 else 1.0       # el cursor se frena al pasar por la banda
-            st['pos'] += st['dir'] * st['speed'] * slow * dt
+            st['pos'] += st['dir'] * st['speed'] * dt                                      # velocidad constante, aunque pase por la banda
             if st['pos'] > 1:
                 st['pos'], st['dir'] = 1.0, -1.0
             elif st['pos'] < 0:
@@ -327,6 +326,24 @@ class RadioMixin:
                 rd['phase'], rd['pt'] = 'retry', 0.0
 
     # ------------------------------------------------------------------ cierre y recompensa
+    def spawn_hack_ships(self, n):
+        """Penalización por hackeo fallido: barcos enemigos aparecen cerca del jugador y lo persiguen."""
+        mh = 10 + 2 * (self.wave - 1)
+        made = 0
+        for i in range(n):
+            for _ in range(80):
+                a = random.uniform(0, 360)
+                dx, dy = vec(a, random.uniform(380, 520))
+                x, y = clamp(self.sx + dx, 120, WORLD_W - 120), clamp(self.sy + dy, 120, WORLD_H - 120)
+                if dist(x, y, self.sx, self.sy) > 300 and not self.on_land(x, y, 90):
+                    break
+            else:
+                continue
+            self.enemies.append(dict(x=x, y=y, h=bearing(self.sx - x, self.sy - y), v=0.0, hp=mh, max=mh, state='chase',
+                                     wp=self.rand_wp(), cool=0.0, is_boss=False))
+            made += 1
+        return made
+
     def end_radio(self, how):
         rd = self.rd
         k = rd['radar']
@@ -362,7 +379,8 @@ class RadioMixin:
         elif how == 'lost':
             self.radars[k]['cd'] = 40.0
             self.hull = max(1.0, self.hull - 8)
-            self.banner('¡CONTRAHACKEO!', 'El radar detectó la intrusión: -8 casco y en alerta 40 s', (255, 110, 90), 3.4)
+            n = self.spawn_hack_ships(2)
+            self.banner('¡CONTRAHACKEO!', 'El radar detectó la intrusión: -8 casco, alerta 40 s y %d barcos enemigos te atacan' % n, (255, 110, 90), 4.0)
         else:
             self.radars[k]['cd'] = 8.0
             self.toast('Intercepción abortada', (255, 200, 120))
