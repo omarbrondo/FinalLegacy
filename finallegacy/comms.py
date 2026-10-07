@@ -34,7 +34,7 @@ ROLES = {
 # 'random' = al azar en cada mensaje (sin repetir la anterior); el resto usa siempre la primera
 POLICY = {'hacker': 'mission', 'piloto': 'mission', 'marinero': 'random', 'tanquista': 'random', 'artillero': 'random', 'secretaria': 'random'}
 MULTI = ('hacker', 'piloto', 'marinero', 'tanquista', 'artillero', 'secretaria')
-BOSS_VARIANTS = {'jefe_barco': 6, 'jefe_avion': 6}               # un personaje por oleada (se pasa v= al hablar)       # oficios con varias imágenes (o 3 siluetas provisorias)
+BOSS_VARIANTS = {'jefe_barco': 6, 'jefe_avion': 6, 'jefe_puerto_tanque': 2, 'jefe_puerto_heli': 2}               # un personaje por oleada (se pasa v= al hablar)       # oficios con varias imágenes (o 3 siluetas provisorias)
 FILE_RE = re.compile(r'^([a-z_]+?)(?:_(\d+))?(?:_(info|ok|warn|bad))?\.png$')
 LANE_Y = 440
 
@@ -156,7 +156,8 @@ class CommsMixin:
             self._cm_img[key] = img
         return img
 
-    def say(self, who, text, mood='info', side=None, y=None, v=None, name=None):
+    def say(self, who, text, mood='info', side=None, y=None, v=None, name=None, pose=None):
+        """pose: ánimo de la imagen si difiere del color del globo ('' = imagen normal)."""
         """Un personaje comunica algo: aparece por un costado, lo dice en un globo y se retira por el mismo costado."""
         cm = self.cm
         if who not in ROLES:
@@ -166,7 +167,7 @@ class CommsMixin:
             who = 'soldada' if fem else 'soldado'
         if (cm['cur'] and cm['cur']['text'] == text) or any(q['text'] == text for q in cm['queue']):
             return
-        cm['queue'].append(dict(who=who, v=v if v is not None else self.comms_pick(who), name=name, text=text, mood=mood, side=side or ROLES[who]['side'], y=LANE_Y if y is None else y))
+        cm['queue'].append(dict(who=who, v=v if v is not None else self.comms_pick(who), name=name, pose=mood if pose is None else pose, text=text, mood=mood, side=side or ROLES[who]['side'], y=LANE_Y if y is None else y))
         del cm['queue'][:-4]
 
     def comms_update(self, dt):
@@ -216,7 +217,7 @@ class CommsMixin:
             pygame.draw.line(panel, (int(r['col'][0] * (0.22 + 0.2 * kk)), int(r['col'][1] * (0.22 + 0.2 * kk)), int(r['col'][2] * (0.3 + 0.2 * kk)), 255), (0, yy), (PW, yy))
         for i in range(0, PH, 7):                                          # trama de semitono estilo cómic
             pygame.draw.line(panel, (255, 255, 255, 14), (0, i), (PW, i - 14), 1)
-        img = self.comms_image(c['who'], c['v'], c['mood'])
+        img = self.comms_image(c['who'], c['v'], c['pose'])
         bob = math.sin(self.t * 3.0) * 1.5
         panel.blit(img, ((PW - img.get_width()) // 2, int(PH - img.get_height() + bob)))
         out = pygame.Surface((PW, PH), pygame.SRCALPHA)
