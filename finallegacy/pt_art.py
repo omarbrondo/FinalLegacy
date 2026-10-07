@@ -188,6 +188,9 @@ def _pose(pose, i):
 
 def _body_frame(kind, pose, i, t=0.0):
     """Cuerpo (sin brazos) mirando a la derecha. Devuelve (surf, shoulder_dx, shoulder_dy)."""
+    fem = kind.endswith('_f')
+    if fem:
+        kind = kind[:-2]
     look = PT_LOOK[kind]
     leg1, leg2, lean, auto, hy, fall = _pose(pose, i)
     rig = _Rig(fall)
@@ -343,6 +346,12 @@ def _body_frame(kind, pose, i, t=0.0):
                 rig.fill([hp_(2.2, 2.4), hp_(7.4, 2.8), hp_(7.2, 0.0), hp_(2.2, -0.2)], acc if kind != 'shield' else (130, 200, 226))
             else:
                 rig.fill([hp_(3.0, 2.2), hp_(6.6, 2.4), hp_(6.4, 0.4), hp_(3.0, 0.2)], acc)
+    if fem:                                                                      # coleta de las soldados (+y es hacia arriba en este lienzo)
+        hair = (176, 118, 62) if kind == 'player' else (44, 30, 26)
+        sway = math.sin(t * 3.0) * 1.2 + (i % 4) * 0.2
+        rig.fill([hp_(-4.2, 4.0), hp_(-7.4, 2.4), hp_(-9.8 - sway, -3.4), hp_(-10.4 - sway, -15.0), hp_(-7.4 - sway * 0.6, -14.0), hp_(-6.4, -3.0), hp_(-3.6, -0.4)], hair)
+        rig.fill([hp_(-6.4, 1.2), hp_(-8.2 - sway * 0.5, -2.8), hp_(-8.8 - sway, -13.0), hp_(-7.4, -3.0)], _lt(hair, 26))
+        rig.circ(hp_(-5.4, 2.8), 1.2, (210, 70, 90))                              # moño
     surf = rig.finish()
     s_ang = math.radians(fall)
     sx_, sy_ = sh
@@ -477,6 +486,9 @@ def _arm_layer(kind, mode):
 def build_pt_art():
     """Pre-renderiza todos los cuadros de los soldados (lado derecho; el izquierdo se espeja)."""
     art = {'body': {}, 'arm': {}, 'rot': {}}
+    for fk in ('player_f', 'rifle_f', 'knife_f', 'sniper_f'):                       # variantes femeninas (los brazos y el arma son iguales)
+        art['body'][fk] = {pose: [_body_frame(fk, pose, i, i * 0.5) for i in range(n)]
+                           for pose, n in (('run', 8), ('idle', 4), ('crouch', 1), ('jump', 1), ('fall', 1), ('die', 6))}
     for kind in PT_LOOK:
         frames = {}
         for pose, n in (('run', 8), ('idle', 4), ('crouch', 1), ('jump', 1), ('fall', 1), ('die', 6)):
@@ -489,6 +501,8 @@ def build_pt_art():
         if 'wind' not in art['arm'][kind]:
             art['arm'][kind]['wind'] = _arm_layer(kind, 'wind')
             art['arm'][kind]['rel'] = _arm_layer(kind, 'rel')
+    for fk in ('player_f', 'rifle_f', 'knife_f', 'sniper_f'):
+        art['arm'][fk] = art['arm'][fk[:-2]]
     return art
 
 

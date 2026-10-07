@@ -11,6 +11,7 @@ from .common import (
 from .sprites import ENEMY_TYPES, draw_cover
 from .landing import WX_LABEL
 from .ground_city import ATT_R, GC_R, SOL_SCALE, THEME_BY_NAME
+from .common import FEM_CHANCE
 
 
 class GroundMixin:
@@ -106,7 +107,8 @@ class GroundMixin:
         return dict(x=x, y=y, h=h, h0=h, kind=kind, hp=float(hp), max=float(hp), cd=random.uniform(0.6, 1.6),
                     state=state, mode=mode, cover=cover, ph=0.0, ph0=random.uniform(0, 6.28), flash=0.0, hit=0.0,
                     burst=0, bcd=0.0, tele=0.0, aimlock=h, strafe=random.choice((-1, 1)), strafe_t=random.uniform(1, 3),
-                    role='guard', wp=None, wpi=0, pause=0.0, excl=0.0, det=0.0, spot=None, st=0.0)
+                    role='guard', wp=None, wpi=0, pause=0.0, excl=0.0, det=0.0, spot=None, st=0.0,
+                    fem=(kind != 'dog' and random.random() < FEM_CHANCE))
 
     def start_landing(self, island_idx):
         x, y, r, s = EXTRA_ISLANDS[island_idx]
@@ -473,7 +475,7 @@ class GroundMixin:
         self.add_score(pts)
         self.gpop('+%d' % pts, e['x'], e['y'] - 18)
         if e['kind'] != 'dog':
-            g['corpses'].append(dict(x=e['x'], y=e['y'], h=e['h'] + random.uniform(-60, 60), kind=e['kind'], age=0.0))
+            g['corpses'].append(dict(x=e['x'], y=e['y'], h=e['h'] + random.uniform(-60, 60), kind=e['kind'], age=0.0, fem=e.get('fem', False)))
             g['corpses'] = g['corpses'][-30:]
         self.fx.add('glow', e['x'], e['y'], life=.25, r0=8, r1=22, col=(255, 160, 90))
         for _ in range(6):
@@ -1086,7 +1088,7 @@ class GroundMixin:
             self.draw_boat(cv, x - cx_, y - cy_, a)
         for c in g['corpses']:
             if c['age'] < 14:
-                self.blit_soldier(cv, 'e_' + c['kind'], c['x'] - cx_, c['y'] - cy_, c['h'], 0, dead=True)
+                self.blit_soldier(cv, ('ef_' if c.get('fem') else 'e_') + c['kind'], c['x'] - cx_, c['y'] - cy_, c['h'], 0, dead=True)
         for q in g['crates']:
             qx, qy = q['x'] - cx_, q['y'] - cy_
             glow(cv, qx, qy, 28, (120, 255, 150) if q['kind'] in ('med', 'mask') else (255, 210, 70), 0.6)
@@ -1144,7 +1146,7 @@ class GroundMixin:
                 self.draw_dog(cv, sx, sy, s)
                 continue
             if who == 'e':
-                self.blit_soldier(cv, 'e_' + s['kind'], sx, sy, s['h'], int(s['ph']) % 4, s['hit'])
+                self.blit_soldier(cv, ('ef_' if s.get('fem') else 'e_') + s['kind'], sx, sy, s['h'], int(s['ph']) % 4, s['hit'])
                 if s['state'] == 'hold' and s['role'] == 'guard':
                     self.text(cv, 'z', self.f_s, (200, 210, 230), sx + 12, sy - 40, shadow=False, alpha=150)
                 if s['excl'] > 0:

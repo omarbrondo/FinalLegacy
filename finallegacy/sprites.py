@@ -198,9 +198,10 @@ TEAM_COL = {
 }
 
 
-def make_soldier_frames(kind, team):
-    """4 cuadros de caminata de un soldado visto desde arriba, mirando al norte."""
+def make_soldier_frames(kind, team, female=False, hair=(52, 36, 28)):
+    """4 cuadros de caminata de un soldado visto desde arriba, mirando al norte. Las soldados llevan coleta y hombros más angostos."""
     S, N = 4, 56
+    bw = 0.88 if female else 1.0
     C = N * S // 2
     col = TEAM_COL[team]
     skin, dark, steel = (226, 188, 154), (30, 30, 34), (44, 46, 52)
@@ -234,9 +235,9 @@ def make_soldier_frames(kind, team):
             for px in (-6.5, 2.5):
                 rc(s, shade(col['vest'], -10), px, 8, 4, 6, 1)
                 ci(s, (70, 84, 56), px + 2, 9, 1.5)
-        el(s, shade(col['uni'], -30), -10.4, -6.2, 20.8, 15)
-        el(s, col['uni'], -9.6, -5.6, 19.2, 13.4)
-        el(s, col['vest'], -7.4, -4.4, 14.8, 10.4)
+        el(s, shade(col['uni'], -30), -10.4 * bw, -6.2, 20.8 * bw, 15)
+        el(s, col['uni'], -9.6 * bw, -5.6, 19.2 * bw, 13.4)
+        el(s, col['vest'], -7.4 * bw, -4.4, 14.8 * bw, 10.4)
         for px in (-5.5, -1.6, 2.4):
             rc(s, shade(col['vest'], -35), px, -2.8, 3.2, 3.6, 0.7)
             rc(s, shade(col['vest'], 25), px, -2.8, 3.2, 0.9, 0.5)
@@ -270,6 +271,13 @@ def make_soldier_frames(kind, team):
             ci(s, (60, 76, 50), hand_l[0] - 0.3, hand_l[1] - 1.2, 2.8)
             ci(s, (96, 112, 78), hand_l[0] - 1.0, hand_l[1] - 2.0, 1.1)
             ln(s, (190, 190, 196), hand_l[0] + 1.2, hand_l[1] - 3.6, hand_l[0] + 2.8, hand_l[1] - 1.6, 0.7)
+        if female:                                                                       # coleta que asoma por detrás del casco
+            sway = sw * 0.12
+            ln(s, shade(hair, -30), 0.4, 3.0, 0.9 + sway, 11.5, 3.6)
+            ln(s, hair, 0.2, 3.0, 0.7 + sway, 11.0, 2.6)
+            ci(s, shade(hair, -20), 0.9 + sway, 12.2, 2.1)
+            ci(s, shade(hair, 30), 0.4 + sway, 11.4, 0.9)
+            ci(s, (210, 70, 90), 0.3, 4.6, 1.1)
         ci(s, shade(col['helm'], -55), 0, -1.4, 6.5)
         ci(s, col['helm'], 0, -1.6, 5.7)
         ci(s, shade(col['helm'], 38), -1.6, -3.2, 2.5)
