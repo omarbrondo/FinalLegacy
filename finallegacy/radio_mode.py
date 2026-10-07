@@ -3,19 +3,20 @@ sintonía que va cambiando (estilo secuenciador criptográfico de Batman: calzar
 import math
 import pygame
 import random
-from .common import H, W, clamp, dist, draw_circ, glow
+from .common import H, W, WORLD_H, WORLD_W, bearing, clamp, dist, draw_circ, glow, vec
 from .war import DECOR0
 
 RADAR_IDX = (1, 5, 8, 10, 13, 15)                      # islotes decorativos que tienen un radar (no se mudan de lugar)
 SCOPE = pygame.Rect(120, 170, 660, 300)
 F_MIN, F_MAX = 0.8, 6.0
+CHIP_NAMES = {'tune': 'SINTONÍA', 'drift': 'DERIVA', 'jam': 'INTERFERENCIA', 'dual': '2 CANALES', 'sweep': 'BARRIDO'}
 KIND_NAMES = {'tune': 'SINTONÍA', 'drift': 'SEÑAL A LA DERIVA', 'jam': 'INTERFERENCIA', 'dual': 'DOS CANALES', 'sweep': 'BARRIDO DE ESPECTRO'}
 KIND_HINT = {
     'tune': 'A/D frecuencia  |  W/S amplitud: calzá la onda amarilla con la celeste',
     'drift': 'A/D frecuencia  |  W/S amplitud  |  Q/E fase: la señal se mueve, seguila',
     'jam': 'A/D frecuencia  |  W/S amplitud: el enemigo interfiere y te desajusta',
     'dual': 'A/D frecuencia  |  W/S amplitud  |  ESPACIO: cambiar de canal  |  calzá los dos',
-    'sweep': 'ESPACIO cuando el cursor esté sobre la banda verde (se frena ahí)  |  3 aciertos',
+    'sweep': 'ESPACIO cuando el cursor esté sobre la banda verde  |  3 aciertos, cada vez más rápido',
 }
 PHRASES = ('FLOTA NORTE ATACA CIUDAD AMANECER', 'MISILES LISTOS ORDEN ESPERAR SEÑAL', 'REFUERZOS LLEGAN PUERTO MEDIANOCHE SILENCIO',
            'SUBMARINOS BAJO HIELO SEGUIR OBJETIVO', 'ANTENA ENEMIGA CAMBIAR CLAVE URGENTE', 'CONVOY SIN ESCOLTA RUTA SUR',
@@ -142,7 +143,7 @@ class RadioMixin:
         st['total'] = st['time'] = max(18.0, total)
         st['need'] = {'tune': 1.0, 'drift': 1.5, 'jam': 1.4, 'dual': 1.2}.get(kind, 1.0)
         if kind == 'sweep':
-            st.update(pos=0.0, dir=1.0, speed=0.26 + 0.012 * self.wave, bw=0.22, bc=random.uniform(0.2, 0.8), hits=0, bars=[random.random() for _ in range(44)])
+            st.update(pos=0.0, dir=1.0, speed=0.42 + 0.025 * self.wave, bw=0.22, bc=random.uniform(0.2, 0.8), hits=0, bars=[random.random() for _ in range(44)])
         elif kind == 'dual':
             st['tgt'] = [self.rd_rand_par(), self.rd_rand_par()]
             st['cur'] = [self.rd_far(st['tgt'][0]), self.rd_far(st['tgt'][1])]
@@ -189,7 +190,7 @@ class RadioMixin:
                 self.rd_stage_ok()
                 return
             st['bw'] = max(0.14, st['bw'] - 0.02)
-            st['speed'] *= 1.06
+            st['speed'] *= 1.12
             for _ in range(20):
                 nb = random.uniform(0.12, 0.88)
                 if abs(nb - st['bc']) > 0.25:
@@ -265,8 +266,7 @@ class RadioMixin:
         kind = st['kind']
         st['time'] -= dt
         if kind == 'sweep':
-            slow = 0.6 if abs(st['pos'] - st['bc']) < st['bw'] / 2 + 0.04 else 1.0       # el cursor se frena al pasar por la banda
-            st['pos'] += st['dir'] * st['speed'] * slow * dt
+            st['pos'] += st['dir'] * st['speed'] * dt                                      # velocidad constante, aunque pase por la banda
             if st['pos'] > 1:
                 st['pos'], st['dir'] = 1.0, -1.0
             elif st['pos'] < 0:
@@ -326,6 +326,24 @@ class RadioMixin:
                 rd['phase'], rd['pt'] = 'retry', 0.0
 
     # ------------------------------------------------------------------ cierre y recompensa
+    def spawn_hack_ships(self, n):
+        """Penalización por hackeo fallido: barcos enemigos aparecen cerca del jugador y lo persiguen."""
+        mh = 10 + 2 * (self.wave - 1)
+        made = 0
+        for i in range(n):
+            for _ in range(80):
+                a = random.uniform(0, 360)
+                dx, dy = vec(a, random.uniform(380, 520))
+                x, y = clamp(self.sx + dx, 120, WORLD_W - 120), clamp(self.sy + dy, 120, WORLD_H - 120)
+                if dist(x, y, self.sx, self.sy) > 300 and not self.on_land(x, y, 90):
+                    break
+            else:
+                continue
+            self.enemies.append(dict(x=x, y=y, h=bearing(self.sx - x, self.sy - y), v=0.0, hp=mh, max=mh, state='chase',
+                                     wp=self.rand_wp(), cool=0.0, is_boss=False))
+            made += 1
+        return made
+
     def end_radio(self, how):
         rd = self.rd
         k = rd['radar']
@@ -361,7 +379,8 @@ class RadioMixin:
         elif how == 'lost':
             self.radars[k]['cd'] = 40.0
             self.hull = max(1.0, self.hull - 8)
-            self.banner('¡CONTRAHACKEO!', 'El radar detectó la intrusión: -8 casco y en alerta 40 s', (255, 110, 90), 3.4)
+            n = self.spawn_hack_ships(2)
+            self.banner('¡CONTRAHACKEO!', 'El radar detectó la intrusión: -8 casco, alerta 40 s y %d barcos enemigos te atacan' % n, (255, 110, 90), 4.0)
         else:
             self.radars[k]['cd'] = 8.0
             self.toast('Intercepción abortada', (255, 200, 120))
@@ -471,16 +490,19 @@ class RadioMixin:
         # reloj
         low = st['time'] < 8 and rd['phase'] == 'play'
         tcol = (255, 90, 80) if low else ((255, 210, 80) if st['time'] < 15 else (110, 240, 255))
-        self.text(cv, '%02d.%02d' % (int(st['time']), int((st['time'] % 1) * 100)), self.f_xl, tcol, W - 44, 8, 'r')
-        self.text(cv, 'INTENTOS %d/3' % (rd['fails'] + 1 if rd['fails'] < 3 else 3), self.f_s, (150, 190, 220), W - 44, 86, 'r')
+        self.text(cv, '%02d.%02d' % (int(st['time']), int((st['time'] % 1) * 100)), self.f_clk, tcol, W - 44, 10, 'r')
+        self.text(cv, 'INTENTOS %d/3' % (rd['fails'] + 1 if rd['fails'] < 3 else 3), self.f_s, (150, 190, 220), W - 44, 72, 'r')
         # estaciones y mensaje descifrado
+        x = 56
         for i, kd in enumerate(rd['kinds']):
-            x = 56 + i * 150
             done = i < rd['stage'] or (i == rd['stage'] and rd['phase'] in ('ok', 'win'))
             cur_ = i == rd['stage']
-            pygame.draw.rect(cv, (10, 28, 38), (x, 560, 138, 34), border_radius=6)
-            pygame.draw.rect(cv, (90, 255, 150) if done else ((255, 220, 100) if cur_ else (50, 80, 100)), (x, 560, 138, 34), 2, border_radius=6)
-            self.text(cv, KIND_NAMES[kd][:14], self.f_s, (200, 225, 250) if (done or cur_) else (110, 130, 150), x + 69, 568, 'c')
+            name = CHIP_NAMES[kd]
+            cw = self.f_s.size(name)[0] + 28
+            pygame.draw.rect(cv, (10, 28, 38), (x, 560, cw, 34), border_radius=6)
+            pygame.draw.rect(cv, (90, 255, 150) if done else ((255, 220, 100) if cur_ else (50, 80, 100)), (x, 560, cw, 34), 2, border_radius=6)
+            self.text(cv, name, self.f_s, (200, 225, 250) if (done or cur_) else (110, 130, 150), x + cw // 2, 566, 'c')
+            x += cw + 10
         shown = []
         n_ok = rd['stage'] + (1 if rd['phase'] in ('ok', 'win') else 0)
         for i, w in enumerate(rd['words']):
@@ -490,7 +512,8 @@ class RadioMixin:
                 shown.append(''.join(random.choice('#%&$@?01') if int(t * 8 + i + j) % 3 else '.' for j in range(len(w))))
         self.panel(cv, (40, 620, W - 80, 70), 180)
         self.text(cv, 'TRANSMISIÓN ENEMIGA', self.f_s, (150, 190, 220), 60, 628)
-        self.text(cv, '  '.join(shown), self.f_l, (90, 255, 170), 60, 650, shadow=False)
+        msg = '  '.join(shown)
+        self.text(cv, msg, self.fit_font(msg, W - 160, self.f_l, self.f_m, self.f_s), (90, 255, 170), 60, 650, shadow=False)
         self.text(cv, KIND_HINT[kind] + '  |  TAB: abortar', self.f_s, (180, 205, 235), 56, H - 40)
         if rd['phase'] == 'ok':
             k = clamp(rd['pt'] / 0.25, 0, 1)
@@ -508,7 +531,8 @@ class RadioMixin:
             self.dim(cv, 90)
             self.text(cv, 'COMUNICACIONES', self.f_xl, (110, 255, 170), W // 2, 215, 'c')
             self.text(cv, 'INTERCEPTADAS', self.f_xl, (110, 255, 170), W // 2, 295, 'c')
-            self.text(cv, '"%s"' % ' '.join(rd['words']), self.f_l, (255, 240, 170), W // 2, 395, 'c')
+            full = '"%s"' % ' '.join(rd['words'])
+            self.text(cv, full, self.fit_font(full, W - 100, self.f_l, self.f_m, self.f_s), (255, 240, 170), W // 2, 395, 'c')
             self.text(cv, 'Descifrando recompensa...', self.f_m, (170, 210, 240), W // 2, 450, 'c')
 
     def draw_sweep(self, cv, st):

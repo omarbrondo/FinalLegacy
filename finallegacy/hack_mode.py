@@ -321,8 +321,8 @@ class HackMixin:
         low = h['t'] < 10 and h['phase'] == 'play'
         pul = 0.5 + 0.5 * math.sin(t * (14 if h['t'] < 5 else 8))
         big = (255, int(70 + 140 * (1 - pul)), 60) if low else tcol
-        self.text(cv, '%02d.%03d' % (int(sec), int((sec % 1) * 1000)), self.f_xl, big, W - 44, 8, 'r')
-        self.text(cv, 'SEG . MS', self.f_s, (150, 190, 220), W - 44, 86, 'r')
+        self.text(cv, '%02d.%03d' % (int(sec), int((sec % 1) * 1000)), self.f_clk, big, W - 44, 10, 'r')
+        self.text(cv, 'SEG . MS', self.f_s, (150, 190, 220), W - 44, 72, 'r')
         if low:
             vg = pygame.Surface((W, H), pygame.SRCALPHA)
             a = int((40 + 90 * pul) * (1.4 if h['t'] < 5 else 1.0))
