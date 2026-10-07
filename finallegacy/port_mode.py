@@ -717,9 +717,10 @@ class PortMixin:
             n['y'] += n['vy'] * dt
             boom = n['y'] >= self.PT_GR - 4 or n['t'] > 2.2
             if not boom:
-                for pl in pt['plats']:
-                    if pl['x'] < n['x'] < pl['x'] + pl['w'] and pl['top'] - 6 < n['y'] < pl['top'] + 10 and n['vy'] > 0:
-                        boom = True
+                if n['own'] != 'p':                               # las granadas del jugador atraviesan contenedores y plataformas
+                    for pl in pt['plats']:
+                        if pl['x'] < n['x'] < pl['x'] + pl['w'] and pl['top'] - 6 < n['y'] < pl['top'] + 10 and n['vy'] > 0:
+                            boom = True
                 if n['own'] == 'p':
                     for e in pt['enemies']:
                         x0, y0, w, h = self.pt_box(e)
