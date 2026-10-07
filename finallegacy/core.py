@@ -31,8 +31,9 @@ class CoreMixin:
             self.screen = pygame.display.set_mode((W, H))
         self.canvas = pygame.Surface((W, H))
         self.clock = pygame.time.Clock()
-        self.f_s, self.f_m, self.f_l, self.f_xl = (self.make_font(s, w) for s, w in ((14, 600), (19, 700), (30, 700), (74, 800)))
-        self.f_clk = self.make_font(52, 800)          # reloj grande del hackeo
+        self.f_s, self.f_m, self.f_l, self.f_xl = (self.make_font(s, w) for s, w in ((14, 600), (19, 700), (30, 700), (62, 800)))
+        self.f_clk = self.make_font(52, 800)          # relojes grandes (hackeo y radio)
+        self.f_ttl = self.make_font(74, 800)          # título del menú principal
         self.screen.fill((6, 10, 22))
         self.text(self.screen, 'CARGANDO SONIDOS Y GRAFICOS...', self.f_m, (160, 200, 255), W // 2, H // 2 - 10, 'c')
         pygame.display.flip()

@@ -471,7 +471,7 @@ class RadioMixin:
         # reloj
         low = st['time'] < 8 and rd['phase'] == 'play'
         tcol = (255, 90, 80) if low else ((255, 210, 80) if st['time'] < 15 else (110, 240, 255))
-        self.text(cv, '%02d.%02d' % (int(st['time']), int((st['time'] % 1) * 100)), self.f_xl, tcol, W - 44, 8, 'r')
+        self.text(cv, '%02d.%02d' % (int(st['time']), int((st['time'] % 1) * 100)), self.f_clk, tcol, W - 44, 10, 'r')
         self.text(cv, 'INTENTOS %d/3' % (rd['fails'] + 1 if rd['fails'] < 3 else 3), self.f_s, (150, 190, 220), W - 44, 86, 'r')
         # estaciones y mensaje descifrado
         for i, kd in enumerate(rd['kinds']):

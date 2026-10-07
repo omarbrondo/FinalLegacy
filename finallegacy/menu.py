@@ -175,11 +175,11 @@ class MenuMixin:
         if big:
             for ln, y, col in (('RETRO', 90, (255, 220, 110)), ('LEGACY', 185, (255, 160, 70))):
                 for dx, dy in ((-3, 0), (3, 0), (0, -3), (0, 3), (-3, -3), (3, 3), (-3, 3), (3, -3)):
-                    self.text(cv, ln, self.f_xl, (30, 10, 0), W // 2 + dx, y + dy, 'c', shadow=False)
-                self.text(cv, ln, self.f_xl, col, W // 2, y, 'c', shadow=False)
+                    self.text(cv, ln, self.f_ttl, (30, 10, 0), W // 2 + dx, y + dy, 'c', shadow=False)
+                self.text(cv, ln, self.f_ttl, col, W // 2, y, 'c', shadow=False)
         else:
             title = {'opts': 'OPCIONES', 'help': 'INSTRUCCIONES', 'cheats': 'CHEATS'}[tm['page']]
-            self.text(cv, title, self.f_xl, (255, 220, 110), W // 2, 50, 'c')
+            self.text(cv, title, self.f_ttl, (255, 220, 110), W // 2, 50, 'c')
         rects = self.menu_rects()
         items = self.menu_items()
         if tm['page'] == 'help':
