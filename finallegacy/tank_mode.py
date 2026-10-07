@@ -2,6 +2,7 @@
 import math
 import pygame
 import random
+from .drone_art import draw_drone, make_drone_sprite
 from .common import H, Particles, TK_HP, W, WIN_WAVE, angle_diff, clamp, draw_circ, glow, lerp
 from .tk_art import TK_ANG, TK_FOG, TK_NL, make_moon_sprite
 
@@ -362,7 +363,7 @@ class TankMixin:
                 elif kd == 'heli':
                     k['helis'].append(dict(x=ex, z=ez, h=0.0, hp=2, cd=random.uniform(1.5, 3), ang=random.uniform(0, 6.28),
                                            kind='heli', rot=0.0))
-                    self.tk_say('¡HELICÓPTERO DE ATAQUE!')
+                    self.tk_say('¡DRON DE ATAQUE!')
                     self.audio.play('alarm', .5)
                 else:
                     hall = math.degrees(math.atan2(-ex, -ez)) % 360
@@ -989,22 +990,11 @@ class TankMixin:
         if sh[2] > 1:
             qx, qy = self.tk_prj(sh)
             draw_circ(cv, qx, qy, max(3, int(u * 1.8)), (0, 0, 0), 60)
-        a = math.radians(e['h'] - self.k['p']['yaw'])
-        cs, sn = math.cos(a), math.sin(a)
-        L, Hh = u * 2.6, u * 0.95
-        body = (46, 56, 48)
-        # cuerpo, cola y patín (vista aproximada según rumbo relativo)
-        tx, ty = sx - sn * L * 1.5, sy + (-cs * 0.2) * Hh
-        pygame.draw.line(cv, (36, 44, 38), (sx, sy), (tx, ty), max(2, int(u * 0.35)))
-        pygame.draw.ellipse(cv, body, (sx - L * 0.6, sy - Hh * 0.55, L * 1.2, Hh * 1.1))
-        pygame.draw.ellipse(cv, (130, 190, 210), (sx - L * 0.15 - (sn * L * 0.3), sy - Hh * 0.4, L * 0.55, Hh * 0.55))
-        pygame.draw.line(cv, (20, 24, 22), (sx, sy - Hh * 0.6), (sx, sy - Hh * 0.9), 2)
-        rl = L * 2.2
-        for q in (0, 1.5708):
-            ra = e['rot'] + q
-            pygame.draw.line(cv, (200, 205, 200), (sx - math.cos(ra) * rl, sy - Hh * 0.9 - math.sin(ra) * rl * 0.12),
-                             (sx + math.cos(ra) * rl, sy - Hh * 0.9 + math.sin(ra) * rl * 0.12), 2)
-        glow(cv, sx, sy + Hh * 0.2, int(u * 0.9) + 6, (255, 70, 60), 0.5)
+        if getattr(self, '_drone_spr', None) is None:
+            self._drone_spr = make_drone_sprite()
+        bob = math.sin(self.t * 3 + e['ang'] * 2) * u * 0.14
+        draw_drone(cv, self._drone_spr, sx, sy + bob, u, self.t, e['rot'], glow)
+        Hh = u * 0.95
         if abs(sx - vp.centerx) < 200 and c[2] < 120:
             sz = max(5, int(260 / c[2]))
             pygame.draw.polygon(cv, (255, 120, 80), [(sx - sz, sy - Hh * 2 - sz), (sx + sz, sy - Hh * 2 - sz), (sx, sy - Hh * 2)])
