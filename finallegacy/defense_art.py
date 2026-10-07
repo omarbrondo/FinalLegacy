@@ -1,4 +1,4 @@
-"""Arte de la defensa de la ciudad: skyline por capas con luces y reflejos, destructor de perfil detallado y domo del escudo antimisil."""
+"""Arte de la defensa de la ciudad: skyline por capas con luces y reflejos, destructor de perfil detallado."""
 import math
 import random
 import pygame
@@ -151,7 +151,7 @@ class DefenseArtMixin:
                     ry = HZ + 6 + k * 9 + (math.sin(t * 3 + i + k) * 1.5)
                     cv.fill((90 - k * 12, 62 - k * 8, 30), (lx - rw // 2 + math.sin(t * 2 + k) * 2, ry, rw, 3), special_flags=pygame.BLEND_RGB_ADD)
 
-    # ------------------------------------------------------------------ buque y escudo
+    # ------------------------------------------------------------------ buque
     def def_draw_ship(self, cv, sx, sy, t):
         art = self.def_art_cache()
         cv.blit(art['ship'], (sx - 150, sy - 70))
@@ -162,26 +162,3 @@ class DefenseArtMixin:
         pygame.draw.ellipse(cv, (14, 18, 34), (sx - 140, sy + 40, 280, 10))
         glow(cv, sx - 60, sy - 14, 30, (255, 220, 140), 0.25)                  # luz del puente sobre el casco
         return sx + 82, sy - 6                                                   # posición de la torreta (la misma de siempre)
-
-    def def_draw_shield_dome(self, cv, d, sx, sy, t):
-        """El escudo cubre toda la ciudad y el buque: cúpula con malla hexagonal que titila."""
-        a = 1.0 if d['shield'] > 2 or int(t * 8) % 2 else 0.4
-        dome = pygame.Surface((W, HZ), pygame.SRCALPHA)
-        cx0, ry = W // 2, 330
-        pygame.draw.ellipse(dome, (90, 170, 255, int(34 * a)), (-60, HZ - ry, W + 120, ry * 2))
-        pygame.draw.ellipse(dome, (170, 225, 255, int(130 * a)), (-60, HZ - ry, W + 120, ry * 2), 3)
-        for i in range(1, 9):
-            ang = i * math.pi / 9
-            x = cx0 + math.cos(ang) * (W / 2 + 60)
-            pygame.draw.line(dome, (150, 210, 255, int(46 * a)), (cx0, HZ - ry - 10), (x, HZ), 1)
-        for k in range(1, 5):
-            rr = k * 0.22
-            pygame.draw.ellipse(dome, (150, 210, 255, int(40 * a)), (-60 + (W + 120) * (1 - (1 - rr)) / 2 * 0 + 0, HZ - ry * (1 - rr * 0.5) - 0, W + 120, ry * 2 * (1 - rr * 0.5)), 1)
-        sweep = (t * 0.8) % 1.0
-        pygame.draw.ellipse(dome, (210, 240, 255, int(60 * a * (1 - sweep))), (-60 + sweep * 100, HZ - ry + sweep * 60, W + 120 - sweep * 200, ry * 2 - sweep * 120), 2)
-        cv.blit(dome, (0, 0))
-        draw = pygame.draw.circle
-        for rad, al in ((170, 40), (166, 150)):
-            s2 = pygame.Surface((rad * 2 + 4, rad * 2 + 4), pygame.SRCALPHA)
-            draw(s2, (110, 190, 255, int(al * a)), (rad + 2, rad + 2), rad, 0 if al < 100 else 2)
-            cv.blit(s2, (sx - rad - 2, sy - 10 - rad - 2))

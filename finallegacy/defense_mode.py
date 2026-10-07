@@ -18,7 +18,7 @@ class DefenseMixin:
         plan.sort()
         self.d = dict(city=city, missiles=[], inter=[], blasts=[], fires=[], t=0.0, total=n, killed=0, hits=0,
                       queue=sorted(random.uniform(0.6, 3.0 + n * 0.55) for _ in range(n)), cool=0.0, phase='play', planes=[], plan=plan, shots=0, pkilled=0,
-                      pt=0.0, shipx=W / 2, shipy=HZ + 100, sky_x=(W - SKY_W) / 2, destroyed=False, combo=0, dbl=0.0, shield=0.0,
+                      pt=0.0, shipx=W / 2, shipy=HZ + 100, sky_x=(W - SKY_W) / 2, destroyed=False, combo=0, dbl=0.0,
                       bosst=(random.uniform(7, 12) if self.wave >= 3 else None), flash=0.0, shock=None, alarm=0.0)
         self.aim = [W / 2, 280.0]
         self.go('defense')
@@ -178,7 +178,6 @@ class DefenseMixin:
             if d['alarm'] <= 0:
                 d['alarm'] = 1.1
                 self.audio.play('alarm', .35)
-        d['shield'] = max(0.0, d['shield'] - dt)
         if d['bosst'] is not None:
             d['bosst'] -= dt
             if d['bosst'] <= 0:
@@ -267,12 +266,8 @@ class DefenseMixin:
                             self.audio.play('boom_l')
                             self.banner('¡OJIVA NEUTRALIZADA!', '+1000 puntos', (120, 255, 190), 3.0)
                         if d['combo'] and d['combo'] % 6 == 0:
-                            if (d['combo'] // 6) % 2:
-                                d['dbl'] = 9.0
-                                self.toast('RÁFAGA DOBLE', (120, 255, 190))
-                            else:
-                                d['shield'] = 10.0
-                                self.toast('ESCUDO ANTIMISIL', (120, 200, 255))
+                            d['dbl'] = 9.0
+                            self.toast('RÁFAGA DOBLE', (120, 255, 190))
         for f in d['fires']:
             f[2] -= dt
             if random.random() < dt * 10:
@@ -313,11 +308,6 @@ class DefenseMixin:
 
     def missile_impact(self, m):
         d = self.d
-        if d['shield'] > 0 and m['k'] != 'boss':
-            self.fx.explode(m['x'], m['y'], 0.9)
-            self.fx.add('glow', m['x'], m['y'], life=.4, r0=20, r1=80, col=(120, 200, 255))
-            self.pop('BLOQUEADO', m['x'], m['y'] - 20, (140, 210, 255))
-            return
         d['hits'] += 1
         dmg = 3 if m['k'] == 'boss' else 1
         if m['k'] == 'boss':
@@ -411,8 +401,6 @@ class DefenseMixin:
             draw_circ(cv, b['x'], b['y'], rad, (255, 240, 200), 200 * k)
             draw_circ(cv, b['x'], b['y'], rad, (255, 255, 255), 255 * k, 3)
         self.fx.draw(cv)
-        if d['shield'] > 0:
-            self.def_draw_shield_dome(cv, d, sx, sy, t)
         kk = (self.wave - 1) % 4
         if kk:
             tint = {1: (255, 140, 60, 36), 2: (10, 16, 50, 70), 3: (80, 90, 110, 60)}[kk]
@@ -447,6 +435,4 @@ class DefenseMixin:
             self.text(cv, 'AVIONES: %d' % (len(d['planes']) + len(d['plan'])), self.f_m, (255, 210, 120), W - 20, 116, 'r')
         if d['dbl'] > 0:
             self.text(cv, 'RÁFAGA DOBLE %.0fs' % d['dbl'], self.f_s, (120, 255, 190), 20, 90, 'l')
-        if d['shield'] > 0:
-            self.text(cv, 'ESCUDO %.0fs: bloquea todos los misiles (menos la ojiva nuclear)' % d['shield'], self.f_s, (130, 205, 255), 20, 110, 'l')
         self.text(cv, 'Clic / ESPACIO: lanzar interceptor', self.f_s, (200, 220, 255), W // 2, H - 30, 'c')
