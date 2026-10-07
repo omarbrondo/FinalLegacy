@@ -366,34 +366,14 @@ class DefenseMixin:
         self.dim(cv, 30, pygame.Rect(0, HZ, W, H - HZ))
         cv.set_clip(None)
         pygame.draw.line(cv, (255, 150, 90), (0, HZ), (W, HZ), 2)
-        # skyline
         city = d['city']
-        for b in city['sky']:
-            bx = int(d['sky_x'] + b['x'])
-            top = HZ - b['h']
-            pygame.draw.rect(cv, (16, 20, 38), (bx, top, b['w'], b['h']))
-            pygame.draw.rect(cv, (28, 34, 58), (bx, top, 3, b['h']))
-            if not city['dead']:
-                for j in range(top + 8, HZ - 8, 13):
-                    for i in range(bx + 6, bx + b['w'] - 6, 9):
-                        if (i * 7 + j * 13 + b['s']) % 5 < 2 and b['h'] > 24:
-                            cv.fill((255, 224, 130), (i, j, 4, 6))
-            if b['ant'] and b['h'] > 60:
-                pygame.draw.line(cv, (16, 20, 38), (bx + b['w'] // 2, top), (bx + b['w'] // 2, top - 22), 2)
-                if int(t * 2) % 2 == 0:
-                    pygame.draw.circle(cv, (255, 60, 60), (bx + b['w'] // 2, top - 22), 3)
-            # reflejo
-            cv.fill((14, 16, 34), (bx, HZ + 2, b['w'], min(60, b['h'] // 2)), special_flags=pygame.BLEND_RGB_ADD)
+        self.def_draw_skyline(cv, d, t)
         for f in d['fires']:
             glow(cv, f[0], f[1], 34 + 6 * math.sin(t * 20 + f[0]), (255, 120, 40), 0.9)
         # buque
         bob = math.sin(t * 1.6) * 3
         sx, sy = d['shipx'], d['shipy'] + bob
-        cv.blit(self.side_ship, (sx - 150, sy - 70))
-        for k in range(10):
-            fx = sx - 140 + k * 29 + math.sin(t * 3 + k) * 4
-            pygame.draw.line(cv, (200, 225, 245), (fx, sy + 36), (fx + 14, sy + 36), 2)
-        gx, gy = sx + 82, sy - 6
+        gx, gy = self.def_draw_ship(cv, sx, sy, t)
         ang = bearing(self.aim[0] - gx, self.aim[1] - gy)
         self.blit_turret(cv, self.tur_p, gx, gy, ang)
         self.def_draw_planes(cv)
@@ -432,9 +412,7 @@ class DefenseMixin:
             draw_circ(cv, b['x'], b['y'], rad, (255, 255, 255), 255 * k, 3)
         self.fx.draw(cv)
         if d['shield'] > 0:
-            a = 90 if d['shield'] > 2 or int(t * 8) % 2 else 30
-            draw_circ(cv, sx, sy - 10, 170, (110, 190, 255), a * 0.5)
-            draw_circ(cv, sx, sy - 10, 170, (170, 225, 255), a * 2, 2)
+            self.def_draw_shield_dome(cv, d, sx, sy, t)
         kk = (self.wave - 1) % 4
         if kk:
             tint = {1: (255, 140, 60, 36), 2: (10, 16, 50, 70), 3: (80, 90, 110, 60)}[kk]
@@ -470,5 +448,5 @@ class DefenseMixin:
         if d['dbl'] > 0:
             self.text(cv, 'RÁFAGA DOBLE %.0fs' % d['dbl'], self.f_s, (120, 255, 190), 20, 90, 'l')
         if d['shield'] > 0:
-            self.text(cv, 'ESCUDO %.0fs' % d['shield'], self.f_s, (130, 205, 255), 20, 110, 'l')
+            self.text(cv, 'ESCUDO %.0fs: bloquea todos los misiles (menos la ojiva nuclear)' % d['shield'], self.f_s, (130, 205, 255), 20, 110, 'l')
         self.text(cv, 'Clic / ESPACIO: lanzar interceptor', self.f_s, (200, 220, 255), W // 2, H - 30, 'c')

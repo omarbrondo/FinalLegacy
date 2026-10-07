@@ -25,6 +25,7 @@ python retro_legacy.py
 | `pt_art.py` | Arte del asalto lateral (soldados, tanque, fondo) |
 | `core.py` | Recursos, UI común, partida, eventos y bucle principal |
 | `wave_world.py` | Clima por oleada, corrientes marinas, roles de ciudades y eventos de oleada |
+| `defense_art.py` | Arte de la defensa: skyline, destructor de perfil y cúpula del escudo |
 | `air_raid.py` | Incursiones de cazas sobre el barco (pasadas de bombardeo y antiaéreo) |
 | `drone_art.py` | Dron de ataque del modo tanque (cuadricóptero) |
 | `convoy.py` | Convoy épico: escoltas, emboscadas, antiaéreo y descarga que reabastece la ciudad |
@@ -72,6 +73,7 @@ Cada modo suma contenido nuevo a medida que avanzan las oleadas:
 - **Aéreo**: un jefe distinto por oleada, kamikazes, minas, helicópteros y clima. Sin potenciadores (no caen cápsulas de arma, salud, escudo ni ráfaga), así que el avión no mejora durante el combate. Los barcos enemigos avanzan con el mar y rebotan al llegar a una isla.
 - **Ataques**: en la oleada 1 el primer ataque es de misiles y el segundo siempre aéreo; después la baraja mezcla todos los tipos sin repetir el anterior.
 - **Ataque de misiles a una ciudad**: como los demás ataques, hay que **llegar con el barco** a la ciudad antes de que se acabe el tiempo (si llegás tarde, la ciudad pierde 45 % de vida). El reloj sigue corriendo si por el camino caés en un combate contra un barco o una batería, y se muestra arriba a la derecha durante la pelea.
+- **Defensa (arte)**: skyline por capas (siluetas lejanas y edificios con degradado, ventanas de varios tonos, remates, luces rojas y farolas de la costanera con reflejos en el agua) y un destructor de perfil detallado (casco con planchas y portillos, puente, mástil con radar, chimenea y celdas de misiles). El **escudo antimisil** (cada 12 combos, 10 s) bloquea todos los misiles que impacten, tanto los que van a la ciudad como los que van al buque (el 16 % apunta al barco, -14 de casco), salvo la ojiva nuclear; se ve como una cúpula sobre toda la ciudad y una burbuja sobre el barco.
 - **Defensa**: misiles rápidos, evasivos, señuelos, MIRV; desde la oleada 3, ALERTA NUCLEAR (ojiva con cuenta regresiva, flash y onda expansiva que derrumba edificios); ráfaga doble y escudo por combos; cielos distintos.
 - **Tanques**: luna con relieve (mares, cráteres y fase) y bicicletas 3D con cuadro, ruedas con rayos, manubrio, asiento y a veces canasto o portaequipaje (6 colores; aplastadas quedan retorcidas en el piso). Kamikazes, artillería pesada, drones de ataque (cuadricópteros con hélices girando, cámara roja y luces de posición; desde la oleada 4), tanque jefe, niebla y noche; la ciudad tiene farolas (se encienden de noche), autos y bicicletas que los tanques aplastan (los proyectiles incendian los autos); cuanto más avanza la guerra, más autos quemados y farolas caídas.
 - **Mapa**: cada oleada deja restos de barcos hundidos (algunos en llamas), manchas de petróleo, escombros flotantes, islas chamuscadas con humo y una bruma cada vez más densa; además algunos islotes cambian de lugar.
