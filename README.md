@@ -65,7 +65,7 @@ Cada modo es un *mixin*: una clase con los métodos de ese modo que `Game` hered
 
 Cada modo suma contenido nuevo a medida que avanzan las oleadas:
 
-- **Aéreo**: un jefe distinto por oleada, cápsulas de ráfaga/misiles guiados, kamikazes, minas, helicópteros y clima.
+- **Aéreo**: un jefe distinto por oleada, kamikazes, minas, helicópteros y clima. Sin potenciadores (no caen cápsulas de arma, salud, escudo ni ráfaga), así que el avión no mejora durante el combate. Los barcos enemigos avanzan con el mar y rebotan al llegar a una isla.
 - **Ataques**: en la oleada 1 el primer ataque es de misiles y el segundo siempre aéreo; después la baraja mezcla todos los tipos sin repetir el anterior.
 - **Defensa**: misiles rápidos, evasivos, señuelos, MIRV; desde la oleada 3, ALERTA NUCLEAR (ojiva con cuenta regresiva, flash y onda expansiva que derrumba edificios); ráfaga doble y escudo por combos; cielos distintos.
 - **Tanques**: luna con relieve (mares, cráteres y fase) y bicicletas 3D con cuadro, ruedas con rayos, manubrio, asiento y a veces canasto o portaequipaje (6 colores; aplastadas quedan retorcidas en el piso). Kamikazes, artillería pesada, helicópteros, tanque jefe, niebla y noche; la ciudad tiene farolas (se encienden de noche), autos y bicicletas que los tanques aplastan (los proyectiles incendian los autos); cuanto más avanza la guerra, más autos quemados y farolas caídas.
