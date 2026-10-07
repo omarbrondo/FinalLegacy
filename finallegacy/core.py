@@ -55,6 +55,7 @@ class CoreMixin:
         self.pad_init()
         self.hiscore = self.load_hi()
         self.god = bool(self.sv_read().get('god', False))
+        self.vol_load()
         self.state = 'title'
         self.end_msg = ''
         self.victory = False
@@ -618,6 +619,9 @@ class CoreMixin:
                 self.cycle_gfx()
             elif e.key == pygame.K_m:
                 self.audio.toggle_mute()
+            elif e.key in (pygame.K_MINUS, pygame.K_KP_MINUS, pygame.K_EQUALS, pygame.K_PLUS, pygame.K_KP_PLUS) and self.state != 'title':
+                pct = self.vol_step('music', -1 if e.key in (pygame.K_MINUS, pygame.K_KP_MINUS) else 1)
+                self.toast('MÚSICA: %d%%' % pct, (160, 220, 255))
             elif e.key in (pygame.K_F8, pygame.K_F9, pygame.K_F10, pygame.K_F12, pygame.K_n) and self.state == 'map' and not self.paused:
                 self.debug_key(e.key)
             elif e.key == pygame.K_F7 and self.state == 'map' and not self.paused:
