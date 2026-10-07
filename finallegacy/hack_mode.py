@@ -119,6 +119,7 @@ class HackMixin:
         self.hack_say('> ENERGIZA %d TERMINALES' % nterm)
         self.aim = [W / 2, H / 2]
         self.go('hack')
+        self.say('hacker', 'Iniciando hackeo. Girá los nodos y energizá todas las terminales.', 'info', 'right', 540)
 
     def hack_retry(self):
         """Nuevo intento tras un fallo: puzzle distinto y un poco menos de tiempo."""
@@ -156,6 +157,7 @@ class HackMixin:
         if len(tp) == h['nterm']:
             h['phase'], h['pt'] = 'win', 0.0
             self.hack_say('> ACCESO CONCEDIDO')
+            self.say('hacker', '¡Acceso concedido! Estamos dentro.', 'ok', 'right', 540)
             self.audio.play('win', .8)
 
     def hack_cell_at(self, pos):
@@ -199,6 +201,7 @@ class HackMixin:
                 self.hull = max(1.0, self.hull - 5)
                 self.shake = 8
                 self.hack_say('> INTRUSION DETECTADA')
+                self.say('hacker', '¡Intrusión detectada! Nos cortaron el enlace, reintentemos.' if h['fails'] < 3 else '¡Nos descubrieron! Abortá el ataque.', 'bad', 'right', 540)
                 self.audio.play('lose', .6)
         else:
             h['pt'] += dt
