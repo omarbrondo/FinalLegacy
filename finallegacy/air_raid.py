@@ -12,7 +12,7 @@ RAID_BONUS = 300             # bonus si los derribás a todos
 
 class AirRaidMixin:
     def raid_reset_timer(self):
-        self.raid_t = max(50.0, random.uniform(70, 100) - 3 * self.wave)
+        self.raid_t = max(50.0, random.uniform(70, 100) - 3 * self.wave) * self.wprof()['raid']
 
     def begin_raid(self):
         n = 2 if self.wave < 4 else (3 if self.wave < 6 else 4)

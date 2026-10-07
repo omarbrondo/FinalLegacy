@@ -3,6 +3,7 @@ import math
 import pygame
 import random
 from .radio_mode import LAND_RADARS, PORT_RADARS
+from .wave_world import ROLE_TXT
 from .common import (
     ANTENNA_ISLANDS, BOSS_NAMES, ENEMY_PORT,
     EXTRA_ISLANDS, H, HELIPAD, MAX_LANDING_ATTEMPTS, SHIELD_DPS_CORE, SHIELD_DPS_EDGE, SHIELD_R,
@@ -36,11 +37,12 @@ class MapMixin:
     def spawn_nests(self):
         """Baterías costeras enemigas sobre algunos islotes pequeños (se renuevan cada oleada)."""
         hp = 14 + 4 * self.wave
+        cand = [i for i in self.decor_now() if dist(i[0], i[1], self.sx, self.sy) > 800]
         self.nests = [dict(x=x, y=y, r=r, hp=float(hp), max=float(hp), cool=0.0, ang=180.0, nest=True, alive=True, seen=False)
-                      for (x, y, r, _s) in random.sample([i for i in self.decor_now() if dist(i[0], i[1], self.sx, self.sy) > 800], 10)]
+                      for (x, y, r, _s) in random.sample(cand, min(len(cand), 10 + self.wprof()['nests']))]
 
     def spawn_wave(self):
-        n = min(3 + self.wave, 9)
+        n = min(3 + self.wave, 9) + self.wprof()['enemies']
         for _ in range(n):
             x = y = 0
             for _ in range(60):
@@ -50,7 +52,7 @@ class MapMixin:
             mh = 10 + 2 * (self.wave - 1)
             self.enemies.append(dict(x=x, y=y, h=random.uniform(0, 360), v=0.0, hp=mh, max=mh, state='patrol',
                                      wp=self.rand_wp(), cool=0.0, is_boss=False))
-        for _ in range(0 if self.wave < 2 else (1 if self.wave < 4 else 2)):
+        for _ in range((0 if self.wave < 2 else (1 if self.wave < 4 else 2)) + self.wprof()['subs']):
             for _ in range(60):
                 x, y = random.uniform(150, WORLD_W - 150), random.uniform(150, WORLD_H - 150)
                 if dist(x, y, self.sx, self.sy) > 900 and not self.on_land(x, y, 90):
@@ -68,6 +70,7 @@ class MapMixin:
                                  state='patrol', wp=self.rand_wp(), cool=0.0, is_boss=True, shield=True,
                                  hack_cd=0.0, seen=False, name=BOSS_NAMES[(self.wave - 1) % len(BOSS_NAMES)],
                                  btype=(self.wave - 1) % len(BOSS_TYPES)))
+        self.wx_wave_start()
 
     # ---------------------------------------------------------- MAPA
     def upd_map(self, dt):
@@ -94,6 +97,7 @@ class MapMixin:
         self.sy += dy
         self.sx, self.sy = clamp(self.sx, 40, WORLD_W - 40), clamp(self.sy, 40, WORLD_H - 40)
         self.crash_t = max(0.0, self.crash_t - dt)
+        self.wx_update(dt)
         for ix, iy, ir, sd in self.islands:                   # costa: no se puede entrar a tierra
             d = dist(self.sx, self.sy, ix, iy) or 1.0
             lim = coast_r(ir, sd, math.atan2(self.sy - iy, self.sx - ix), 1.06) + 14
@@ -510,20 +514,6 @@ class MapMixin:
         if low:
             pygame.draw.rect(cv, (255, 40, 40), (0, 0, W, H), 4 + int(6 * pul))
 
-    def city_stock(self, c):
-        """Suministros que el puerto de la ciudad puede dar hasta que termine la oleada (menos si la ciudad está dañada)."""
-        k = self.city_cap(c)
-        return dict(fuel=k, repair=k, ammo=k)
-
-    def city_cap(self, c):
-        """Tope de suministros de una ciudad: 100 de cada cosa, menos si está dañada."""
-        return 100.0 * (0.5 + 0.5 * clamp(c['hp'] / 100.0, 0.0, 1.0))
-
-    def city_refill(self, c, amount):
-        cap = self.city_cap(c)
-        for k in c['stock']:
-            c['stock'][k] = min(cap, c['stock'][k] + amount)
-
     def city_regen(self, dt):
         """Goteo pasivo: +1 de cada cosa cada 20 s (doble si no hay amenaza); la ciudad atacada o en alerta no recupera."""
         threat = self.attack['city'] if self.attack is not None else (self.strike_city if self.warned else None)
@@ -578,7 +568,7 @@ class MapMixin:
         en['cool'] = max(0.0, en['cool'] - dt)
         d = dist(self.sx, self.sy, en['x'], en['y'])
         is_boss = en.get('is_boss', False)
-        chase_dist = 520 if is_boss else (520 if en.get('sub') else 430)
+        chase_dist = (520 if is_boss else (520 if en.get('sub') else 430)) * self.wx_chase_mul()
 
         if is_boss and not en['seen'] and d < 700:
             en['seen'] = True
@@ -629,6 +619,7 @@ class MapMixin:
         self.draw_ocean(cv, cx, cy, self.t)
         cv.blit(self.land, (0, 0), area=pygame.Rect(cx, cy, W, H))
         self.war_draw(cv, cx, cy)
+        self.wx_draw_currents(cv, cx, cy)
         for c in self.cities:
             surf = self.city_surf[c['name']][1 if c['dead'] else 0]
             sx, sy = c['x'] - cx, c['y'] - cy
@@ -642,8 +633,8 @@ class MapMixin:
                     dx_, dy_ = c['dock'][0] - cx, c['dock'][1] - cy
                     pulse = 0.5 + 0.5 * math.sin(self.t * 3)
                     draw_circ(cv, dx_, dy_, 112 + pulse * 8, (120, 255, 200), 80, 2)
-                    self.text(cv, 'PUERTO', self.f_s, (150, 255, 210), dx_, dy_ - 8, 'c')
-                    lo = min(c['stock'].values())
+                    self.text(cv, 'PUERTO: %s' % ROLE_TXT[self.city_role(c)], self.f_s, (150, 255, 210), dx_, dy_ - 8, 'c')
+                    lo = self.city_level(c)
                     self.text(cv, 'RESERVAS %d%%' % int(lo), self.f_s,
                               (110, 235, 130) if lo > 50 else ((255, 200, 70) if lo > 20 else (240, 80, 70)), dx_, dy_ + 10, 'c')
         px_, py_, pr_, _ps = ENEMY_PORT
@@ -731,6 +722,7 @@ class MapMixin:
         self.draw_heli_map(cv, cx, cy)
         self.blit_ship(cv, 'p_map', self.sx, self.sy, self.sh, cx, cy)
         self.war_haze(cv)
+        self.wx_draw_weather(cv, cx, cy)
         # HUD
         self.draw_hud(cv)
         self.draw_cities_hud(cv)
@@ -847,9 +839,15 @@ class MapMixin:
         for en in self.enemies:
             if en.get('sub') and not (dist(en['x'], en['y'], self.sx, self.sy) < 420 or self.radar_t > 0):
                 continue
-            if dist(en['x'], en['y'], self.sx, self.sy) < 1100 or en.get('is_boss') or self.radar_t > 0:
+            if dist(en['x'], en['y'], self.sx, self.sy) < self.wx_radar_range() or en.get('is_boss') or self.radar_t > 0:
                 boss = en.get('is_boss')
                 pygame.draw.circle(cv, (255, 90, 220) if boss else (255, 70, 60), (int(x0 + en['x'] * sc), int(y0 + en['y'] * sc)), 5 if boss else 3)
         pygame.draw.rect(cv, (255, 255, 255), (x0 + self.cam[0] * sc, y0 + self.cam[1] * sc, W * sc, H * sc), 1)
         pygame.draw.circle(cv, (80, 255, 255), (int(x0 + self.sx * sc), int(y0 + self.sy * sc)), 4)
-        self.text(cv, 'RADAR', self.f_s, (150, 190, 230), x0 + 4, y0 + 2)
+        for cu in self.wx['currents']:
+            a = math.radians(cu['a'])
+            ex, ey = x0 + cu['x'] * sc, y0 + cu['y'] * sc
+            hx, hy = math.cos(a) * 600 * sc, math.sin(a) * 600 * sc
+            pygame.draw.line(cv, (150, 220, 255), (ex - hx, ey - hy), (ex + hx, ey + hy), 2)
+            pygame.draw.circle(cv, (200, 240, 255), (int(ex + hx), int(ey + hy)), 3)
+        self.text(cv, 'RADAR' + (('  [%s]' % self.wx_tag()) if self.wx_tag() else ''), self.f_s, (150, 190, 230), x0 + 4, y0 + 2)

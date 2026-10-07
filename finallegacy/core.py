@@ -493,6 +493,7 @@ class CoreMixin:
         self.radar_t = 0.0
         self.nests = []
         self.spawn_nests()
+        self.wx_reset()
         self.rescue = None
         self.rescue_t = 45.0
         self.convoy = None
