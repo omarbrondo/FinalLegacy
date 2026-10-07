@@ -539,6 +539,7 @@ class CoreMixin:
         self.reset()
         self.go('map')
         self.banner('OLEADA 1', 'Hundí la flota enemiga y defendé las ciudades', (120, 220, 255), 3.2)
+        self.say('secretaria', 'Buenos días, capitán. Su misión: neutralizar la flota enemiga y proteger las ciudades del archipiélago.', 'info')
 
     def game_over(self, msg, victory=False):
         self.end_msg = msg
@@ -546,7 +547,14 @@ class CoreMixin:
         if self.god and not victory:                 # inmortal: no se pierde la partida
             self.hull = float(self.hull_max)
             return
+        record = self.score > self.hiscore
         self.save_hi()
+        if victory:
+            self.say('secretaria', 'Misión cumplida, capitán. El archipiélago está a salvo. Puntaje final: %d.' % self.score, 'ok')
+        else:
+            self.say('secretaria', 'Operación finalizada. Puntaje final: %d. Recomiendo reintentar cuando esté listo.' % self.score, 'warn')
+        if record:
+            self.say('secretaria', 'Nuevo récord registrado: %d puntos. Felicitaciones.' % self.score, 'ok')
         self.audio.play('win' if victory else 'lose')
         self.go('gameover')
 

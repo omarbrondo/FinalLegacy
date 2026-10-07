@@ -206,6 +206,7 @@ class SaveMixin:
         if m['mode'] == 'save':
             ok = self.sv_save(slot)
             self.toast('Partida guardada en la ranura %s' % slot if ok else 'No se pudo guardar la partida', (140, 255, 190) if ok else (255, 130, 110))
+            self.say('secretaria', ('Progreso archivado en la ranura %s, capitán.' % slot) if ok else 'No pude archivar su progreso. Intente nuevamente.', 'ok' if ok else 'bad')
             self.audio.play('win' if ok else 'lose', .5)
             self.close_saves()
         else:
@@ -215,6 +216,7 @@ class SaveMixin:
                 return
             if self.sv_load(slot):
                 self.audio.play('win', .6)
+                self.say('secretaria', 'Partida cargada. Retomamos donde la dejó, capitán.', 'info')
 
     def draw_saves(self, cv):
         m = self.sv_menu

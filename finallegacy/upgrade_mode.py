@@ -39,6 +39,7 @@ class UpgradeMixin:
             self.up_left = 2 if self.wave in (4, 6) else 1
         self.banners = []
         self.go('upgrade')
+        self.say('secretaria', 'Tiene autorizadas %s. Elija con criterio, capitán.' % ('dos mejoras' if self.up_left > 1 else 'una mejora'), 'info', 'right', 640)
 
     def pick_upgrade(self, i):
         if self.state != 'upgrade' or not 0 <= i < len(self.up_cards) or self.up_t < 0.35:
