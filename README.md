@@ -100,6 +100,21 @@ Una isla del mapa (con una H, también en el radar) tiene un helipuerto con un B
 
 Cada modo tiene su propia música compuesta por código (con numpy): mapa, defensa, combate naval, jefe, aéreo, tierra, tanques, puerto, helicóptero, hackeo, mejoras y portada. Dentro de cada modo la pieza cambia con la oleada (tempo, tonalidad, modo musical, batería y melodía). Mientras se compone suena la música básica. Sin numpy se usan solo las dos pistas básicas.
 
+## Generar el .exe (Windows)
+
+Con PyInstaller se arma una carpeta que se puede pasar a otra persona sin que instale Python. Hay que compilar en Windows.
+
+```
+pip install pyinstaller
+pyinstaller --noconsole --onedir --name RetroLegacy --collect-all imageio_ffmpeg --add-data "videos;videos" --add-data "fonts;fonts" retro_legacy.py
+```
+
+- El resultado queda en `dist/RetroLegacy/` (ejecutable: `RetroLegacy.exe`). Para compartirlo, comprimí **toda la carpeta** en un ZIP.
+- `--collect-all imageio_ffmpeg` incluye el decodificador de los videos; `--add-data "videos;videos"` y `--add-data "fonts;fonts"` incluyen los MP4 y la fuente Orbitron.
+- Se usa `--onedir` (carpeta) y no `--onefile`, porque abre más rápido y guarda bien las partidas.
+- Las partidas (`final_legacy_saves.json`) y el récord (`final_legacy_hiscore.txt`) quedan dentro de `dist/RetroLegacy/_internal/`: copialos antes de recompilar, porque la compilación nueva los reemplaza.
+- A veces el antivirus de Windows marca el `.exe` como sospechoso (falso positivo conocido de PyInstaller); hay que permitirlo.
+
 ## Gráficos HD
 
 Instalá las dependencias con `pip install -r requirements.txt` (pygame-ce y numpy; numpy es opcional pero da humo, fuego y brillos más suaves). Si ya tenés pygame-ce instalado (el juego anda también con pygame clásico), alcanza con `pip install numpy`; no instales los dos pygame a la vez. Se ejecuta con `python retro_legacy.py`.
