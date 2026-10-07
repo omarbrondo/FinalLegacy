@@ -66,7 +66,8 @@ class DefenseArtMixin:
     def def_back_layer(self, city):
         """Siluetas lejanas y brumosas detrás de la ciudad (una vez por ciudad)."""
         cache = self.def_art_cache()['back']
-        s = cache.get(city['name'])
+        night = self.wprof()['night']
+        s = cache.get((city['name'], night))
         if s is None:
             rnd = random.Random(city['seed'] * 7 + 1)
             s = pygame.Surface((W, 220), pygame.SRCALPHA)
@@ -75,19 +76,22 @@ class DefenseArtMixin:
                 bw, bh = rnd.randint(26, 60), rnd.randint(44, 150)
                 for k in range(bh):
                     t = k / bh
-                    pygame.draw.line(s, (int(58 - 22 * t), int(46 - 14 * t), int(88 - 24 * t), 255), (x, 220 - bh + k), (x + bw, 220 - bh + k))
+                    col = ((int(58 - 22 * t), int(46 - 14 * t), int(88 - 24 * t)) if night else
+                           (int(150 - 20 * t), int(168 - 18 * t), int(200 - 14 * t)))
+                    pygame.draw.line(s, (*col, 255), (x, 220 - bh + k), (x + bw, 220 - bh + k))
                 for j in range(220 - bh + 8, 214, 12):
                     for i in range(x + 5, x + bw - 5, 8):
                         if rnd.random() < 0.22:
-                            pygame.draw.rect(s, (200, 170, 130, 255), (i, j, 3, 4))
+                            pygame.draw.rect(s, (200, 170, 130, 255) if night else (126, 150, 186, 255), (i, j, 3, 4))
                 x += bw + rnd.randint(-4, 10)
-            cache[city['name']] = s = s.convert_alpha()
+            cache[(city['name'], night)] = s = s.convert_alpha()
         return s
 
     def def_building(self, b, dead):
         """Edificio con degradado, cara lateral, ventanas de varios tonos y remate; se arma una vez por tamaño."""
         cache = self.def_art_cache()['bld']
-        key = (b['w'], b['h'], b['s'], dead, b['ant'])
+        night = self.wprof()['night']
+        key = (b['w'], b['h'], b['s'], dead, b['ant'], night)
         s = cache.get(key)
         if s is None:
             w, h = b['w'], b['h']
@@ -95,39 +99,46 @@ class DefenseArtMixin:
             ox, oy = 4, 36
             rnd = random.Random(b['s'] * 31 + w)
             wall_t, wall_b = ((26, 30, 54), (12, 14, 30)) if not dead else ((30, 28, 32), (18, 16, 18))
+            if not night and not dead:
+                wall_t, wall_b = (132, 146, 178), (96, 108, 142)
             for k in range(h):
                 t = k / max(1, h)
                 pygame.draw.line(s, tuple(int(wall_t[i] + (wall_b[i] - wall_t[i]) * t) for i in range(3)), (ox, oy + k), (ox + w - 1, oy + k))
-            pygame.draw.rect(s, (46, 52, 84) if not dead else (50, 46, 50), (ox, oy, 4, h))                    # cara iluminada
-            pygame.draw.rect(s, (8, 10, 20), (ox + w - 4, oy, 4, h))                                          # cara en sombra
-            pygame.draw.line(s, (84, 94, 140) if not dead else (70, 66, 70), (ox, oy), (ox + w - 1, oy), 2)    # cornisa
+            pygame.draw.rect(s, (46, 52, 84) if (night and not dead) else ((178, 190, 214) if not dead else (50, 46, 50)), (ox, oy, 4, h))                    # cara iluminada
+            pygame.draw.rect(s, (8, 10, 20) if night or dead else (62, 72, 104), (ox + w - 4, oy, 4, h))                                          # cara en sombra
+            pygame.draw.line(s, (84, 94, 140) if (night and not dead) else ((206, 216, 236) if not dead else (70, 66, 70)), (ox, oy), (ox + w - 1, oy), 2)    # cornisa
             if h > 70 and w >= 30 and not dead:                                                                # remate escalonado
                 cw = w // 2
-                pygame.draw.rect(s, (22, 26, 48), (ox + (w - cw) // 2, oy - 12, cw, 12))
-                pygame.draw.line(s, (84, 94, 140), (ox + (w - cw) // 2, oy - 12), (ox + (w + cw) // 2 - 1, oy - 12), 2)
+                pygame.draw.rect(s, (22, 26, 48) if night else (112, 126, 160), (ox + (w - cw) // 2, oy - 12, cw, 12))
+                pygame.draw.line(s, (84, 94, 140) if night else (206, 216, 236), (ox + (w - cw) // 2, oy - 12), (ox + (w + cw) // 2 - 1, oy - 12), 2)
             if not dead:
-                cols = ((255, 224, 130), (255, 196, 110), (190, 226, 255), (255, 240, 190))
+                cols = ((255, 224, 130), (255, 196, 110), (190, 226, 255), (255, 240, 190)) if night else \
+                    ((70, 104, 150), (92, 128, 176), (60, 90, 134), (118, 156, 200))
                 for j in range(oy + 8, oy + h - 8, 13):
                     for i in range(ox + 7, ox + w - 8, 9):
-                        if rnd.random() < 0.52 and h > 24:
+                        if (rnd.random() < 0.52 or not night) and h > 24:
                             c = rnd.choice(cols)
                             pygame.draw.rect(s, c, (i, j, 4, 6))
                             pygame.draw.rect(s, tuple(v // 3 for v in c), (i, j + 6, 4, 1))
             if b['ant'] and h > 60 and not dead:
                 top = oy - (12 if h > 70 and w >= 30 else 0)
-                pygame.draw.line(s, (36, 40, 62), (ox + w // 2, top), (ox + w // 2, top - 24), 2)
+                pygame.draw.line(s, (36, 40, 62) if night else (70, 78, 104), (ox + w // 2, top), (ox + w // 2, top - 24), 2)
             cache[key] = s = s.convert_alpha()
         return s, 4, 36
 
     def def_draw_skyline(self, cv, d, t):
         city = d['city']
         dead = city['dead']
+        night = self.wprof()['night']
         # resplandor del horizonte y capa lejana
-        glow(cv, W // 2, HZ - 10, 460, (255, 120, 70), 0.55 if not dead else 0.8)
+        if night:
+            glow(cv, W // 2, HZ - 10, 460, (255, 120, 70), 0.55 if not dead else 0.8)
+        else:
+            glow(cv, W // 2, HZ - 10, 520, (255, 236, 200), 0.35 if not dead else 0.2)
         cv.blit(self.def_back_layer(city), (0, HZ - 220))
         # costanera y muelle
-        pygame.draw.rect(cv, (24, 28, 46), (0, HZ - 6, W, 8))
-        pygame.draw.line(cv, (96, 104, 140), (0, HZ - 6), (W, HZ - 6), 2)
+        pygame.draw.rect(cv, (24, 28, 46) if night else (96, 106, 128), (0, HZ - 6, W, 8))
+        pygame.draw.line(cv, (96, 104, 140) if night else (190, 202, 224), (0, HZ - 6), (W, HZ - 6), 2)
         for b in city['sky']:
             spr, ox, oy = self.def_building(b, dead)
             bx = int(d['sky_x'] + b['x'])
@@ -135,23 +146,85 @@ class DefenseArtMixin:
             cv.blit(spr, (bx - ox, top - oy))
             if b['ant'] and b['h'] > 60 and not dead and int(t * 2) % 2 == 0:
                 glow(cv, bx + b['w'] // 2, top - 24 - (12 if b['h'] > 70 and b['w'] >= 30 else 0), 16, (255, 60, 60), 0.9)
-            if not dead:                                                       # titileo de ventanas
+            if not dead and night:                                             # titileo de ventanas
                 for q in range(2):
                     k = int(t * 3 + b['s'] + q * 7)
                     if k % 5 == 0:
                         cv.fill((255, 230, 150), (bx + 7 + (k * 5) % max(1, b['w'] - 14), top + 12 + (k * 13) % max(1, b['h'] - 24), 4, 6))
+            elif not dead:                                                     # destellos de sol en los vidrios
+                k = int(t * 2 + b['s'] * 3)
+                if k % 9 == 0:
+                    glow(cv, bx + 8 + (k * 7) % max(1, b['w'] - 16), top + 10 + (k * 11) % max(1, b['h'] - 20), 12, (255, 250, 220), 0.9)
         # farolas de la costanera y reflejos en el agua
         x0 = int(d['sky_x']) - 40
         for i, lx in enumerate(range(x0, x0 + SKY_W + 80, 64)):
+            pygame.draw.line(cv, (40, 44, 64) if night else (70, 78, 100), (lx, HZ - 6), (lx, HZ - 20), 2)
+            if not night:
+                continue
             on = not city['dead'] or (int(t * 6) + i) % 7 > 1
             col = (255, 214, 140) if on else (80, 70, 60)
-            pygame.draw.line(cv, (40, 44, 64), (lx, HZ - 6), (lx, HZ - 20), 2)
             glow(cv, lx, HZ - 20, 22, col, 0.8 if on else 0.2)
             if on:
                 for k in range(5):
                     rw = 8 - k
                     ry = HZ + 6 + k * 9 + (math.sin(t * 3 + i + k) * 1.5)
                     cv.fill((90 - k * 12, 62 - k * 8, 30), (lx - rw // 2 + math.sin(t * 2 + k) * 2, ry, rw, 3), special_flags=pygame.BLEND_RGB_ADD)
+
+    # ------------------------------------------------------------------ cielo y clima
+    def def_sky_day(self):
+        art = self.def_art_cache()
+        s = art.get('sky_day')
+        if s is None:
+            s = pygame.Surface((W, HZ))
+            for y in range(HZ):
+                k = y / HZ
+                c = (int(70 + 120 * k ** 1.4), int(140 + 85 * k), int(226 + 20 * k))
+                pygame.draw.line(s, c, (0, y), (W, y))
+            art['sky_day'] = s = s.convert()
+            rnd = random.Random(11)
+            art['clouds'] = [(rnd.uniform(-100, W), rnd.uniform(40, 330), rnd.uniform(0.7, 1.5), rnd.uniform(6, 22)) for _ in range(9)]
+        return s
+
+    def def_draw_sky(self, cv, t, prof):
+        if prof['night']:
+            cv.blit(self.sky, (0, 0))
+            for x, y, ph in self.stars:
+                v = int(120 + 100 * math.sin(t * 2 + ph))
+                cv.set_at((x, y), (v, v, v))
+            return
+        cv.blit(self.def_sky_day(), (0, 0))
+        if not prof['storm']:
+            glow(cv, 870, 120, 100, (255, 240, 190), 0.45)
+            pygame.draw.circle(cv, (255, 250, 225), (870, 120), 36)
+            pygame.draw.circle(cv, (255, 255, 245), (870, 120), 28)
+        for cx0, cy0, sc, sp in self.def_art_cache()['clouds']:
+            x = (cx0 + t * sp) % (W + 400) - 200
+            col = (196, 208, 226) if not prof['storm'] else (96, 104, 124)
+            top = (232, 240, 250) if not prof['storm'] else (128, 136, 156)
+            for dx, dy, r in ((0, 0, 46), (46, -12, 38), (-46, 6, 34), (84, 8, 32), (-84, 14, 26)):
+                pygame.draw.circle(cv, col, (int(x + dx * sc), int(cy0 + dy * sc + 8)), int(r * sc))
+            for dx, dy, r in ((0, -6, 40), (44, -18, 32), (-44, 0, 28)):
+                pygame.draw.circle(cv, top, (int(x + dx * sc), int(cy0 + dy * sc)), int(r * sc))
+
+    def def_draw_weather(self, cv, t, prof):
+        """Niebla y tormenta de la oleada sobre el cielo y la ciudad (no sobre el buque, que ya está en el mar)."""
+        if prof['fog']:
+            ov = pygame.Surface((W, HZ + 6), pygame.SRCALPHA)
+            for y in range(HZ + 6):
+                a = int(70 + 110 * (y / (HZ + 6)) ** 1.4)
+                pygame.draw.line(ov, (176, 188, 204, a), (0, y), (W, y))
+            cv.blit(ov, (0, 0))
+        if prof['storm']:
+            ov = pygame.Surface((W, HZ), pygame.SRCALPHA)
+            ov.fill((20, 26, 44, 70 if not prof['night'] else 40))
+            cv.blit(ov, (0, 0))
+            for i in range(130):
+                x = (i * 53.7 + t * 240) % (W + 80) - 40
+                y = (i * 97.3 + t * 800) % (H + 40) - 20
+                pygame.draw.line(cv, (170, 190, 215), (x, y), (x - 6, y + 16), 1)
+            if random.random() < 0.012 or getattr(self, '_dfa_flash', 0) > 0:
+                self._dfa_flash = getattr(self, '_dfa_flash', 0) - 1 if getattr(self, '_dfa_flash', 0) > 0 else 5
+                cv.fill((90, 90, 110), (0, 0, W, HZ), special_flags=pygame.BLEND_RGB_ADD)
 
     # ------------------------------------------------------------------ buque
     def def_draw_ship(self, cv, sx, sy, t):
