@@ -181,6 +181,7 @@ class MapMixin:
                     self.audio.play('dock', .5)
         # enemigos
         self.shield_int = max(0.0, getattr(self, 'shield_int', 0.0) - dt)
+        self.map_comms()
         for en in self.enemies:
             self.ai_map(en, dt)
             d = dist(self.sx, self.sy, en['x'], en['y'])
@@ -197,6 +198,7 @@ class MapMixin:
                     if self.t - getattr(self, 'shield_toast', -9) > 4:
                         self.shield_toast = self.t
                         self.toast('¡Interferencia del escudo! Alejate o presioná H para hackearlo', (255, 120, 220))
+                        self.say('hacker', '¡Interferencia! El escudo daña el casco. Alejate o presioná H para hackearlo.', 'bad', 'right', 540)
                     if self.hull <= 0:
                         return self.lose_ship('Tu buque fue destruido por la interferencia del escudo')
                 continue
@@ -527,6 +529,25 @@ class MapMixin:
             if not c['dead'] and dist(self.sx, self.sy, c['dock'][0], c['dock'][1]) < 120:
                 return c
         return None
+
+    def map_comms(self):
+        """Globos del mapa: el hacker avisa del radar enemigo y un soldado del desembarco; solo al acercarse (no repite hasta alejarse)."""
+        flags = self.__dict__.setdefault('_map_cm', {})
+        if self.nearest_radar() is not None:
+            if not flags.get('radar'):
+                flags['radar'] = True
+                self.say('hacker', 'Radar enemigo a tiro. Presioná H para hackearlo.', 'info', 'right', 540)
+        else:
+            flags['radar'] = False
+        island = None if self.nearest_port() or self.nearest_radar() is not None else self.nearest_landing_island()
+        if island and (island[0] in self.cleared_isl or not self.invasion_locked(LAND_RADARS, 'Desembarco', True)) \
+                and self.landing_attempts[island[0]] < MAX_LANDING_ATTEMPTS:
+            if flags.get('isl') != island[0]:
+                flags['isl'] = island[0]
+                lead = ('RAMOS', 'DÍAZ', 'LUNA')[island[0] % 3]                    # el soldado (o soldada) que encabeza el desembarco en esa isla
+                self.say(lead.lower().replace('í', 'i'), 'Listos para invadir %s. Presioná L para desembarcar.' % self.isl_name(island[0]), 'info', 'left', 250)
+        else:
+            flags['isl'] = None
 
     def nearest_landing_island(self):
         best_dist = 280
