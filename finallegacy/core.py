@@ -502,6 +502,7 @@ class CoreMixin:
         self.nests = []
         self.spawn_nests()
         self.wx_reset()
+        self.comms_reset()
         self.rescue = None
         self.rescue_t = 45.0
         self.convoy = None
@@ -776,6 +777,7 @@ class CoreMixin:
     # ------------------------------------------------------------ update
     def update(self, dt):
         self.t += dt
+        self.comms_update(dt)
         self.god_apply()
         self.fade = max(0.0, self.fade - dt * 2.2)
         self.shake *= 0.9 ** (dt * 60)
@@ -916,6 +918,7 @@ class CoreMixin:
         pygame.display.flip()
 
     def draw_overlays(self, cv):
+        self.comms_draw(cv)
         for i, q in enumerate(self.toasts):
             self.text(cv, q[0], self.f_m, q[1], W // 2, 70 + i * 26, 'c', alpha=int(255 * clamp(q[2], 0, 1)))
         if self.banners:

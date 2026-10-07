@@ -1,0 +1,5 @@
+Bustos de los personajes que comunican mensajes en una viñeta (entran por un costado, hablan y se van por el mismo).
+Poné acá imágenes PNG con fondo transparente, con estos nombres:
+  hacker.png  piloto.png  marinero.png  tanquista.png  soldado.png  comandante.png
+Opcional: una expresión por ánimo, por ejemplo hacker_ok.png (éxito), hacker_bad.png (problema), hacker_warn.png (alerta), hacker_info.png.
+Si una imagen falta, el juego dibuja una silueta provisoria. Se escalan para entrar en un recuadro de 150 x 176 px.

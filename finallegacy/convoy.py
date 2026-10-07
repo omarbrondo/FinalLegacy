@@ -17,10 +17,9 @@ class ConvoyMixin:
         return self.city_level(c) / max(1.0, self.city_cap(c, None if self.city_role(c) == 'all' else self.city_role(c)))
 
     def cv_say(self, who, text, col=(170, 255, 205)):
-        calls = self.convoy['calls']
-        calls.append([who, text, col, 4.6])
-        del calls[:-3]
-        self.audio.play('blip', .3)
+        """Mensajes del convoy: los dice el marinero en una viñeta."""
+        mood = 'bad' if col[0] > 200 and col[1] < 170 else ('warn' if col[0] > 200 else 'info')
+        self.say('marinero', text, mood)
 
     def begin_convoy(self):
         """Convoy aliado hacia la ciudad con menos reservas: escoltas, emboscadas y descarga final."""

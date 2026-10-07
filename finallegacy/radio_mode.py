@@ -125,6 +125,7 @@ class RadioMixin:
         self.rd = dict(radar=radar, kinds=kinds, stage=0, fails=0, phase='play', pt=0.0, words=words, t=0.0, time_left=0.0,
                        calls=[], bonus=0, loot='', hold={}, blip=0.0, beep=0.0)
         self.rd_stage_init(first=True)
+        self.say('hacker', 'Interceptando la transmisión enemiga. Calzá las ondas.', 'info', 'right', 470)
         self.aim = [W / 2, H / 2]
         self.go('radio')
 
@@ -232,6 +233,7 @@ class RadioMixin:
         rd['phase'], rd['pt'] = 'ok', 0.0
         rd['st']['flash'] = 1.0
         self.audio.play('win', .6)
+        self.say('hacker', '¡Señal bloqueada!' if self.rd['stage'] + 1 < len(self.rd['kinds']) else '¡Comunicaciones interceptadas! Ya tenemos todo.', 'ok', 'right', 470)
         self.add_score(150 + 40 * self.wave)
 
     def upd_radio(self, dt):
@@ -322,8 +324,10 @@ class RadioMixin:
             self.audio.play('lose', .6)
             if rd['fails'] >= 3:
                 rd['phase'], rd['pt'] = 'lost', 0.0
+                self.say('hacker', 'Perdimos la señal... ¡nos detectaron, contraataque!', 'bad', 'right', 470)
             else:
                 rd['phase'], rd['pt'] = 'retry', 0.0
+                self.say('hacker', 'Se cortó la señal. Nueva frecuencia, ¡otra vez!', 'warn', 'right', 470)
 
     # ------------------------------------------------------------------ cierre y recompensa
     def start_penalty_combat(self, left=2, total=2):
