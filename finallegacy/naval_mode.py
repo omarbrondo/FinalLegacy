@@ -89,6 +89,10 @@ class NavalMixin:
 
     def flee(self):
         c = self.c
+        if c.get('pen'):
+            if c['p']['sink'] is None:
+                self.toast('Contrahackeo: no podés huir', (255, 150, 120))
+            return
         e_down = c['e']['sink'] is not None
         if c['p']['sink'] is not None or (e_down and not self.nb_alive()):
             return
@@ -300,6 +304,8 @@ class NavalMixin:
                 if self.hull <= 0:
                     return self.lose_ship('Tu buque no sobrevivió al combate')
                 return self.go('map')
+            if c.get('pen'):                                  # contrahackeo: sin puntos, bonus ni munición; no cuenta para la oleada
+                return self.penalty_next()
             self.add_score(500 + 100 * self.wave)
             self.ammo = min(40, self.ammo + (15 if boss_kill else 5))
             bonus = self.nb_bonus()
@@ -683,7 +689,7 @@ class NavalMixin:
         rl = 1 - clamp(p['cool'] / 0.9, 0, 1)
         pygame.draw.rect(cv, (8, 12, 24), (W // 2 - 60, H - 40, 120, 10))
         pygame.draw.rect(cv, (120, 255, 160) if rl >= 1 else (255, 200, 80), (W // 2 - 59, H - 39, int(118 * rl), 8))
-        self.text(cv, 'Clic/ESPACIO: misil  |  la ametralladora (MG) dispara sola  |  E huir', self.f_s, (200, 220, 255), W // 2, H - 84, 'c')
+        self.text(cv, 'Clic/ESPACIO: misil  |  la ametralladora (MG) dispara sola  |  ' + ('sin huida: contrahackeo' if c.get('pen') else 'E huir'), self.f_s, (200, 220, 255), W // 2, H - 84, 'c')
         self.nv_draw_calls(cv)
         self.na_hud(cv)
         self.ng_hud(cv)
