@@ -327,18 +327,18 @@ class DefenseMixin:
             if arg == 2:
                 d['final'] = True
                 self.audio.play('alarm', .6)
-                self.say('artillero', '¡Última ola! ¡Todas las baterías a fuego!', 'bad', 'left', 330)
+                self.say('artillero', '¡Última ola! ¡Todas las baterías a fuego!', 'bad', 'left', 440)
                 self.banner('¡ASALTO FINAL!', 'Ola 3/3: la ofensiva más intensa', (255, 70, 50), 3.4)
             elif arg == 1:
                 self.audio.play('ping', .6)
-                self.say('artillero', 'Segunda ola en camino. ¡Recargado y listo!', 'warn', 'left', 330)
+                self.say('artillero', 'Segunda ola en camino. ¡Recargado y listo!', 'warn', 'left', 440)
                 self.banner('OLA 2/3', 'Llegan más y más rápido', (255, 190, 90), 2.8)
             else:
-                self.say('artillero', 'Lanzadores listos. ¡Apunten y disparen!', 'info', 'left', 330)
+                self.say('artillero', 'Lanzadores listos. ¡Apunten y disparen!', 'info', 'left', 440)
                 self.banner('OLA 1/3', 'Interceptá los misiles antes de que toquen la ciudad', (255, 120, 90), 3.0)
         elif kind == 'salvo':
             self.audio.play('alarm', .5)
-            self.say('artillero', '¡Salva masiva! ¡Son muchísimos!', 'bad', 'left', 330)
+            self.say('artillero', '¡Salva masiva! ¡Son muchísimos!', 'bad', 'left', 440)
             self.banner('¡SALVA MASIVA!', '%d misiles a la vez' % arg, (255, 90, 60), 2.8)
             self.shake = max(self.shake, 6)
             for i in range(arg):
@@ -348,7 +348,7 @@ class DefenseMixin:
             if d['hits'] == d['rh'] and d['phase'] == 'play':
                 pts = 200 + 100 * arg
                 self.add_score(pts)
-                self.say('artillero', '¡Ni uno pasó! Excelente puntería.', 'ok', 'left', 330)
+                self.say('artillero', '¡Ni uno pasó! Excelente puntería.', 'ok', 'left', 440)
                 self.toast('¡OLA %d SIN IMPACTOS!  +%d' % (arg + 1, pts), (120, 255, 190))
 
     def nuke_blast(self, m):
