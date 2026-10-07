@@ -691,7 +691,7 @@ class NavalMixin:
         rl = 1 - clamp(p['cool'] / 0.9, 0, 1)
         pygame.draw.rect(cv, (8, 12, 24), (W // 2 - 60, H - 40, 120, 10))
         pygame.draw.rect(cv, (120, 255, 160) if rl >= 1 else (255, 200, 80), (W // 2 - 59, H - 39, int(118 * rl), 8))
-        self.text(cv, 'Clic/ESPACIO: misil  |  la ametralladora (MG) dispara sola  |  ' + ('sin huida: contrahackeo' if c.get('pen') else 'E huir'), self.f_s, (200, 220, 255), W // 2, H - 84, 'c')
+        self.text(cv, 'Clic/ESPACIO: misil  |  MG automática  |  ' + ('sin huida' if c.get('pen') else 'E huir'), self.f_s, (200, 220, 255), W // 2, H - 84, 'c')
         at = self.attack
         if at is not None:
             pul = 0.5 + 0.5 * math.sin(self.t * (12 if at['t'] < 10 else 5))

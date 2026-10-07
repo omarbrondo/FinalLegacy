@@ -6,28 +6,64 @@ from .common import shade
 
 
 def make_ship(wd, ln, hull, deck, acc, fore_static=True):
-    S = 3
+    """Buque de guerra visto desde arriba, proa al norte: casco con volumen y planchas, superestructura en niveles con puente
+    iluminado, mástil con radar, chimenea, celdas de misiles, botes salvavidas y torretas. Se dibuja al cuádruple de tamaño."""
+    S = 4
     w, l = wd * S, ln * S
     s = pygame.Surface((w, l), pygame.SRCALPHA)
+    enemy = hull[0] > hull[2]
     hp = [(w * .5, 0), (w * .86, l * .22), (w * .95, l * .55), (w * .88, l * .93), (w * .7, l), (w * .3, l),
           (w * .12, l * .93), (w * .05, l * .55), (w * .14, l * .22)]
-    pygame.draw.polygon(s, shade(hull, -45), hp)
+    pygame.draw.polygon(s, shade(hull, -62), hp)                                              # casco (borde oscuro)
+    lit = [((px - w / 2) * .94 + w / 2, (py - l / 2) * .97 + l / 2) for px, py in hp]
+    pygame.draw.polygon(s, shade(hull, -30), lit)
     inner = [((px - w / 2) * .78 + w / 2, (py - l / 2) * .92 + l / 2) for px, py in hp]
-    pygame.draw.polygon(s, deck, inner)
-    pygame.draw.line(s, shade(deck, 25), (w * .5, l * .05), (w * .5, l * .95), max(1, S))
-    pygame.draw.polygon(s, acc, [(w * .5, l * .02), (w * .62, l * .13), (w * .38, l * .13)])
-    pygame.draw.rect(s, shade(hull, -5), (w * .3, l * .42, w * .4, l * .26), border_radius=S * 2)
-    pygame.draw.rect(s, shade(hull, 35), (w * .36, l * .45, w * .28, l * .12), border_radius=S)
-    for k in range(3):
-        pygame.draw.rect(s, (250, 230, 140), (w * (.4 + k * .08), l * .47, w * .04, l * .03))
-    pygame.draw.ellipse(s, shade(hull, -50), (w * .38, l * .6, w * .24, l * .1))
-    pygame.draw.ellipse(s, acc, (w * .4, l * .62, w * .2, l * .05))
-    pygame.draw.line(s, shade(hull, 60), (w * .5, l * .42), (w * .5, l * .3), max(1, S))
-    for cy_ in ([l * .82] + ([l * .24] if fore_static else [])):
+    pygame.draw.polygon(s, deck, inner)                                                       # cubierta
+    for k in range(1, 18):                                                                    # planchas de la cubierta
+        y = l * (0.06 + k * 0.052)
+        pygame.draw.line(s, shade(deck, -22), (w * .24, y), (w * .76, y), max(1, S // 3))
+    pygame.draw.line(s, shade(deck, 34), (w * .5, l * .05), (w * .5, l * .95), max(1, S // 2))
+    pygame.draw.polygon(s, shade(deck, 26), [(w * .5, l * .04), (w * .3, l * .24), (w * .26, l * .24), (w * .22, l * .5), (w * .26, l * .5), (w * .5, l * .08)])   # luz de proa
+    pygame.draw.polygon(s, shade(hull, -78), [(w * .66, l * .22), (w * .9, l * .55), (w * .86, l * .93), (w * .78, l * .9), (w * .8, l * .56)])                  # sombra del costado derecho
+    pygame.draw.polygon(s, shade(hull, 70), hp, max(1, S // 2))                               # reborde claro (espuma de la línea de flotación)
+    pygame.draw.polygon(s, acc, [(w * .5, l * .02), (w * .62, l * .13), (w * .38, l * .13)])  # marca de proa
+    pygame.draw.polygon(s, shade(acc, -70), [(w * .5, l * .02), (w * .62, l * .13), (w * .38, l * .13)], max(1, S // 2))
+    for k in range(3):                                                                        # celdas de misiles
+        for c_ in (-1, 1):
+            cx_, cy_ = w * (.5 + c_ * .08), l * (.31 + k * .035)
+            pygame.draw.rect(s, shade(hull, -70), (cx_ - w * .035, cy_ - l * .011, w * .07, l * .022), border_radius=S // 2)
+            pygame.draw.rect(s, shade(deck, 20), (cx_ - w * .02, cy_ - l * .005, w * .04, l * .008))
+    # superestructura en niveles
+    pygame.draw.rect(s, shade(hull, -48), (w * .27, l * .41, w * .46, l * .29), border_radius=S * 2)
+    pygame.draw.rect(s, shade(hull, -8), (w * .3, l * .42, w * .4, l * .26), border_radius=S * 2)
+    pygame.draw.rect(s, shade(hull, 28), (w * .34, l * .44, w * .32, l * .13), border_radius=S)
+    pygame.draw.rect(s, shade(hull, 58), (w * .34, l * .44, w * .32, l * .025), border_radius=S)
+    for k in range(5):
+        pygame.draw.rect(s, (250, 230, 140), (w * (.37 + k * .052), l * .5, w * .035, l * .028))
+    pygame.draw.rect(s, shade(hull, -24), (w * .38, l * .575, w * .24, l * .08), border_radius=S)   # cuerpo del puente
+    pygame.draw.ellipse(s, shade(hull, -50), (w * .38, l * .62, w * .24, l * .1))             # chimenea
+    pygame.draw.ellipse(s, acc, (w * .4, l * .635, w * .2, l * .05))
+    pygame.draw.ellipse(s, (30, 30, 34), (w * .43, l * .65, w * .14, l * .03))
+    pygame.draw.line(s, shade(hull, 80), (w * .5, l * .43), (w * .5, l * .28), max(1, S // 2))    # mástil
+    pygame.draw.line(s, shade(hull, 80), (w * .42, l * .36), (w * .58, l * .36), max(1, S // 2))
+    pygame.draw.ellipse(s, (210, 224, 232), (w * .43, l * .27, w * .14, l * .03))             # radar
+    pygame.draw.circle(s, (255, 80, 70) if enemy else (120, 255, 190), (int(w * .5), int(l * .28)), max(2, S))
+    for c_ in (-1, 1):                                                                        # botes salvavidas y cañones antiaéreos
+        pygame.draw.rect(s, (255, 150, 60), (w * (.5 + c_ * .26) - w * .035, l * .5, w * .07, l * .06), border_radius=S)
+        pygame.draw.circle(s, shade(hull, -55), (int(w * (.5 + c_ * .2)), int(l * .72)), max(2, int(w * .045)))
+        pygame.draw.circle(s, shade(hull, 30), (int(w * (.5 + c_ * .2)), int(l * .72)), max(1, int(w * .025)))
+    if enemy:                                                                                 # franjas de combate del enemigo
+        for k in range(3):
+            pygame.draw.polygon(s, (30, 30, 34), [(w * .3, l * (.08 + k * .028)), (w * .5, l * (.05 + k * .028)), (w * .7, l * (.08 + k * .028)),
+                                                  (w * .7, l * (.095 + k * .028)), (w * .5, l * (.065 + k * .028)), (w * .3, l * (.095 + k * .028))])
+    for cy_ in ([l * .82] + ([l * .24] if fore_static else [])):                              # torretas
+        pygame.draw.circle(s, shade(hull, -60), (int(w * .5), int(cy_)), int(w * .17))
         pygame.draw.circle(s, shade(hull, -30), (int(w * .5), int(cy_)), int(w * .15))
         pygame.draw.circle(s, shade(hull, 25), (int(w * .5), int(cy_)), int(w * .1))
+        pygame.draw.circle(s, shade(hull, 60), (int(w * .47), int(cy_ - w * .03)), max(1, int(w * .03)))
         for dx in (-.05, .05):
-            pygame.draw.line(s, shade(hull, -60), (w * (.5 + dx), cy_), (w * (.5 + dx), cy_ - l * .13), S + 1)
+            pygame.draw.line(s, shade(hull, -70), (w * (.5 + dx), cy_), (w * (.5 + dx), cy_ - l * .13), S + 2)
+            pygame.draw.line(s, shade(hull, 40), (w * (.5 + dx) - 1, cy_), (w * (.5 + dx) - 1, cy_ - l * .13), max(1, S // 2))
     return pygame.transform.smoothscale(s, (wd, ln))
 
 
