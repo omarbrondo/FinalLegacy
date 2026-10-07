@@ -14,7 +14,7 @@ EVENT_ICON = {'raid1': 'C', 'air': 'A', 'sub': 'T', 'raid2': 'C', 'air2': 'A'}
 class ConvoyMixin:
     # ------------------------------------------------------------------ armado
     def cv_need(self, c):
-        return min(c['stock'].values()) / max(1.0, self.city_cap(c))
+        return self.city_level(c) / max(1.0, self.city_cap(c, None if self.city_role(c) == 'all' else self.city_role(c)))
 
     def cv_say(self, who, text, col=(170, 255, 205)):
         calls = self.convoy['calls']
@@ -374,7 +374,7 @@ class ConvoyMixin:
         c['unload'] += dt
         k = clamp(c['hp'] / 100.0, 0.25, 1.0)
         amt = 100.0 * dt / UNLOAD_T * k
-        before = min(d['stock'].values())
+        before = self.city_level(d)
         self.city_refill(d, amt)
         c['delivered'] += min(amt, max(0.0, self.city_cap(d) - before))
         if random.random() < dt * 9:
@@ -389,7 +389,7 @@ class ConvoyMixin:
     def end_convoy(self, ok):
         c = self.convoy
         self.convoy = None
-        self.convoy_t = random.uniform(75, 105)
+        self.convoy_t = self.wx_next_convoy_t()
         for en in self.enemies:
             en.pop('raider', None)
         d = c['dst']
@@ -403,7 +403,7 @@ class ConvoyMixin:
                 a = random.uniform(0, 6.28)
                 self.fxm.add('glow', d['x'] + math.cos(a) * random.uniform(20, 110), d['y'] + math.sin(a) * random.uniform(20, 90) - 40, life=random.uniform(.6, 1.4),
                              r0=10, r1=50, col=random.choice(((255, 220, 90), (120, 255, 190), (255, 130, 130), (140, 190, 255))))
-            full = min(d['stock'].values()) >= self.city_cap(d) - 1
+            full = self.city_full(d)
             self.banner('¡%s REABASTECIDA!' % d['name'], ('Reservas al %d%%  |  +%d de cada recurso  |  ' % (int(self.cv_need(d) * 100), int(c['delivered'])) +
                                                        'escoltas %d/2, bombarderos derribados %d  |  +%d puntos' % (esc, c['planes_down'], pts)),
                         (120, 255, 160), 4.4)
