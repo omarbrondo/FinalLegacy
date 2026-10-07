@@ -496,6 +496,8 @@ class CoreMixin:
         self.rescue = None
         self.rescue_t = 45.0
         self.convoy = None
+        self.raid = None
+        self.raid_reset_timer()
         self.convoy_t = 80.0
         self.port_tries = 0
         self.port_done = False

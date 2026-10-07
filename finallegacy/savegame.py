@@ -119,6 +119,7 @@ class SaveMixin:
         tm = d['timers']
         self.convoy_t, self.rescue_t, self.crate_t, self.radar_t = tm['convoy'], tm['rescue'], tm['crate'], tm['radar']
         self.warned, self.attack, self.strike_city, self.convoy, self.rescue = False, None, None, None, None
+        self.raid = None
         self.enemies = d['enemies']
         for en in self.enemies:
             if isinstance(en.get('wp'), list):

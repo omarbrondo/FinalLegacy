@@ -49,6 +49,7 @@ class LifeboatMixin(LifeboatArtMixin, LifeboatOpsMixin):
         d = dist(self.sx, self.sy, city['x'], city['y'])
         T = clamp(38 + d / 90.0, 46.0, 76.0)
         self.warned, self.attack, self.strike_city = False, None, None
+        self.raid = None
         ref = getattr(self, 'enemy_ref', None)
         if ref is not None and 'cool' in ref:
             ref['cool'] = max(ref['cool'], 20.0)
