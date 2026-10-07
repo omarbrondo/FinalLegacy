@@ -27,4 +27,4 @@ Jefes (un personaje por jefe; hablan al aparecer, con ánimo "bad", y al ser der
   jefe_barco_1..6.png      -> buques jefe, uno por oleada: LEVIATAN, TIFON, COLOSO, ABISMO, TITAN, APOCALIPSIS
   jefe_avion_1..6.png      -> jefes aéreos, uno por oleada: Comandante Stealth, Nodriza Tifón, Fantasma, Artillero Pesado, Tormenta, Titán Aéreo
   jefe_puerto_tanque_1..2.png -> jefe del asalto al puerto en oleadas impares (tanque); alterna: oleadas 1 y 5 el 1, oleada 3 el 2
-  jefe_puerto_heli.png     -> jefe del asalto al puerto en oleadas pares (helicóptero)
+  jefe_puerto_heli_1..2.png -> jefe del asalto al puerto en oleadas pares (helicóptero); alterna: oleadas 2 y 6 el 2, oleada 4 el 1

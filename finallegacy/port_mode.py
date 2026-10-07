@@ -108,7 +108,7 @@ class PortMixin:
                 if e['variant'] == 'heli':
                     self.banner('¡HELICÓPTERO DE ASALTO!', 'Disparale hacia arriba', (255, 90, 70), 2.6)
                     self.say('soldado', '¡Helicóptero de asalto! Disparale hacia arriba y cubrite de los misiles.', 'bad')
-                    self.say('jefe_puerto_heli', PORT_LINES['heli'][0], 'bad', pose='', name='PILOTO ENEMIGO')
+                    self.say('jefe_puerto_heli', PORT_LINES['heli'][0], 'bad', pose='', v=self.wave // 2 % 2 + 1, name='PILOTO ENEMIGO')
                 else:
                     self.banner('¡TANQUE DE PUERTO!', 'Tanque enemigo', (255, 90, 70), 2.6)
                     self.say('soldado', '¡Tanque en el puerto! Saltá sus proyectiles y no pares de disparar.', 'bad')
@@ -212,7 +212,7 @@ class PortMixin:
         if e['kind'] == 'tank':
             pt['boss'] = None
             if e.get('variant') == 'heli':
-                self.say('jefe_puerto_heli', PORT_LINES['heli'][1], 'warn', pose='bad', name='PILOTO ENEMIGO')
+                self.say('jefe_puerto_heli', PORT_LINES['heli'][1], 'warn', pose='bad', v=self.wave // 2 % 2 + 1, name='PILOTO ENEMIGO')
             else:
                 self.say('jefe_puerto_tanque', PORT_LINES['tank'][1], 'warn', pose='bad', v=self.wave // 2 % 2 + 1, name='COMANDANTE DEL TANQUE')
             self.shake = 22
