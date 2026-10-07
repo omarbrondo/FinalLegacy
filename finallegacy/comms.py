@@ -2,6 +2,8 @@
 Los bustos salen de portraits/<personaje>.png (y portraits/<personaje>_<ánimo>.png si existe); si falta la imagen se dibuja una silueta provisoria."""
 import math
 import os
+import random
+import re
 import pygame
 from .common import H, W, clamp
 
@@ -17,7 +19,17 @@ ROLES = {
     'tanquista': dict(name='TANQUISTA', col=(210, 170, 80), skin=(212, 168, 132), hat=(84, 90, 62), body=(92, 86, 60), kind='helmet', side='right'),
     'soldado': dict(name='SOLDADO', col=(130, 200, 120), skin=(214, 170, 134), hat=(72, 92, 60), body=(66, 86, 60), kind='helmet', side='left'),
     'comandante': dict(name='COMANDANTE', col=(240, 200, 90), skin=(206, 160, 126), hat=(30, 40, 70), body=(34, 44, 74), kind='cap', side='right'),
+    'artillero': dict(name='ARTILLERO', col=(255, 150, 70), skin=(204, 158, 122), hat=(150, 90, 40), body=(120, 84, 50), kind='helmet', side='left'),
+    'soldada': dict(name='SOLDADO', col=(130, 200, 120), skin=(222, 180, 148), hat=(72, 92, 60), body=(66, 86, 60), kind='helmet', side='left'),
+    'ramos': dict(name='RAMOS', col=(120, 190, 255), skin=(210, 166, 130), hat=(74, 96, 84), body=(70, 100, 90), kind='helmet', side='left'),
+    'diaz': dict(name='DÍAZ', col=(240, 190, 100), skin=(196, 150, 114), hat=(120, 104, 70), body=(130, 112, 74), kind='helmet', side='left'),
+    'luna': dict(name='LUNA', col=(250, 130, 170), skin=(226, 182, 150), hat=(90, 80, 100), body=(84, 74, 96), kind='helmet', side='left'),
 }
+# cómo se elige cuál de las imágenes de cada oficio habla: 'mission' = una por misión (se mantiene hasta volver al mapa),
+# 'random' = al azar en cada mensaje (sin repetir la anterior); el resto usa siempre la primera
+POLICY = {'hacker': 'mission', 'piloto': 'mission', 'marinero': 'random', 'tanquista': 'random', 'artillero': 'random'}
+MULTI = ('hacker', 'piloto', 'marinero', 'tanquista', 'artillero')       # oficios con varias imágenes (o 3 siluetas provisorias)
+FILE_RE = re.compile(r'^([a-z]+)[_-]?(\d*)(?:_([a-z]+))?\.png$')
 LANE_Y = 250
 
 
@@ -35,9 +47,11 @@ def _wrap(font, text, maxw):
     return lines
 
 
-def _placeholder(role):
-    """Busto provisorio con el uniforme del oficio (se reemplaza al subir portraits/<personaje>.png)."""
-    r = ROLES[role]
+def _placeholder(role, v=1):
+    """Busto provisorio con el uniforme del oficio (se reemplaza al subir portraits/<personaje>_<n>.png). La variante v cambia rasgos."""
+    r = dict(ROLES[role])
+    r['skin'] = [r['skin'], tuple(int(c * 0.82) for c in r['skin']), tuple(min(255, int(c * 1.08)) for c in r['skin'])][(v - 1) % 3]
+    r['hat'] = tuple(max(0, min(255, int(c * f))) for c, f in zip(r['hat'], ((1, 1, 1), (0.78, 0.78, 0.78), (1.22, 1.22, 1.22))[(v - 1) % 3]))
     s = pygame.Surface((PW, PH), pygame.SRCALPHA)
     cx = PW // 2
     pygame.draw.polygon(s, r['body'], [(cx - 62, PH), (cx - 54, PH - 54), (cx - 20, PH - 66), (cx + 20, PH - 66), (cx + 54, PH - 54), (cx + 62, PH)])
@@ -65,22 +79,65 @@ def _placeholder(role):
         pygame.draw.circle(s, (30, 30, 36), (cx - 10, 80), 3)
         pygame.draw.circle(s, (30, 30, 36), (cx + 10, 80), 3)
     pygame.draw.arc(s, (120, 60, 50), (cx - 9, 92, 18, 10), 3.5, 5.9, 2)
+    if v % 3 == 2 and kind != 'hood':                                       # anteojos
+        pygame.draw.circle(s, (20, 20, 26), (cx - 10, 80), 7, 2)
+        pygame.draw.circle(s, (20, 20, 26), (cx + 10, 80), 7, 2)
+        pygame.draw.line(s, (20, 20, 26), (cx - 3, 80), (cx + 3, 80), 2)
+    elif v % 3 == 0:                                                         # bigote
+        pygame.draw.rect(s, (50, 36, 30), (cx - 10, 90, 20, 4), border_radius=2)
     return s
 
 
 class CommsMixin:
     def comms_reset(self):
-        self.cm = dict(queue=[], cur=None, last=('', -9.0))
+        self.cm = dict(queue=[], cur=None, last=('', -9.0), mission={}, lastv={}, st=None)
         self._cm_img = getattr(self, '_cm_img', {})
+        self._cm_files = None
 
-    def comms_image(self, who, mood):
-        key = (who, mood)
+    def comms_files(self):
+        """Imágenes disponibles en portraits/: {personaje: {variante: {ánimo o '': ruta}}}."""
+        if self._cm_files is None:
+            found = {}
+            base = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'portraits')
+            try:
+                names = os.listdir(base)
+            except OSError:
+                names = []
+            for fn in names:
+                m = FILE_RE.match(fn.lower())
+                if m and m.group(1) in ROLES:
+                    found.setdefault(m.group(1), {}).setdefault(int(m.group(2) or 1), {})[m.group(3) or ''] = os.path.join(base, fn)
+            self._cm_files = found
+        return self._cm_files
+
+    def comms_variants(self, who):
+        found = self.comms_files().get(who)
+        if found:
+            return sorted(found)
+        return [1, 2, 3] if who in MULTI else [1]
+
+    def comms_pick(self, who):
+        """Elige qué imagen del oficio habla: una por misión (hacker, piloto) o al azar sin repetir (marinero, tanquista)."""
+        cm = self.cm
+        vs = self.comms_variants(who)
+        pol = POLICY.get(who)
+        if pol == 'mission':
+            if who not in cm['mission']:
+                cm['mission'][who] = random.choice(vs)
+            return cm['mission'][who]
+        if pol == 'random' and len(vs) > 1:
+            v = random.choice([x for x in vs if x != cm['lastv'].get(who)] or vs)
+            cm['lastv'][who] = v
+            return v
+        return vs[0]
+
+    def comms_image(self, who, v, mood):
+        key = (who, v, mood)
         img = self._cm_img.get(key)
         if img is None:
-            base = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'portraits')
-            for name in ('%s_%s.png' % (who, mood), '%s.png' % who):
-                path = os.path.join(base, name)
-                if os.path.isfile(path):
+            moods = self.comms_files().get(who, {}).get(v, {})
+            for path in (moods.get(mood), moods.get('')):
+                if path:
                     try:
                         raw = pygame.image.load(path).convert_alpha()
                         k = min(PW / raw.get_width(), PH / raw.get_height())
@@ -89,7 +146,7 @@ class CommsMixin:
                     except pygame.error:
                         img = None
             if img is None:
-                img = _placeholder(who if who in ROLES else 'comandante').convert_alpha()
+                img = _placeholder(who, v).convert_alpha()
             self._cm_img[key] = img
         return img
 
@@ -98,13 +155,20 @@ class CommsMixin:
         cm = self.cm
         if who not in ROLES:
             who = 'comandante'
+        if who == 'soldado':                                                       # el soldado habla con el sexo del protagonista de la batalla
+            fem = (getattr(self, 'pt', None) or {}).get('pfem') if self.state == 'port' else (getattr(self, 'g', None) or {}).get('pfem')
+            who = 'soldada' if fem else 'soldado'
         if (cm['cur'] and cm['cur']['text'] == text) or any(q['text'] == text for q in cm['queue']):
             return
-        cm['queue'].append(dict(who=who, text=text, mood=mood, side=side or ROLES[who]['side'], y=LANE_Y if y is None else y))
+        cm['queue'].append(dict(who=who, v=self.comms_pick(who), text=text, mood=mood, side=side or ROLES[who]['side'], y=LANE_Y if y is None else y))
         del cm['queue'][:-4]
 
     def comms_update(self, dt):
         cm = self.cm
+        if self.state != cm['st']:                                                 # al volver al mapa termina la misión: se sortean otros pilotos y hackers
+            cm['st'] = self.state
+            if self.state in ('map', 'title'):
+                cm['mission'].clear()
         c = cm['cur']
         if c is None:
             if cm['queue']:
@@ -146,7 +210,7 @@ class CommsMixin:
             pygame.draw.line(panel, (int(r['col'][0] * (0.22 + 0.2 * kk)), int(r['col'][1] * (0.22 + 0.2 * kk)), int(r['col'][2] * (0.3 + 0.2 * kk)), 255), (0, yy), (PW, yy))
         for i in range(0, PH, 7):                                          # trama de semitono estilo cómic
             pygame.draw.line(panel, (255, 255, 255, 14), (0, i), (PW, i - 14), 1)
-        img = self.comms_image(c['who'], c['mood'])
+        img = self.comms_image(c['who'], c['v'], c['mood'])
         bob = math.sin(self.t * 3.0) * 1.5
         panel.blit(img, ((PW - img.get_width()) // 2, int(PH - img.get_height() + bob)))
         out = pygame.Surface((PW, PH), pygame.SRCALPHA)
