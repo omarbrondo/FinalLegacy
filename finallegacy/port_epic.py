@@ -138,8 +138,6 @@ class PortEpicMixin:
                         break
             if not boom:
                 boom = any(br['fuse'] < 0 and abs(r['x'] - br['x']) < 17 and br['y'] - 44 <= r['y'] <= br['y'] for br in pt['barrels'])
-            if not boom:
-                boom = any(pl['x'] < r['x'] < pl['x'] + pl['w'] and pl['top'] < r['y'] < pl['top'] + pl['h'] for pl in pt['plats'])
             if boom:
                 pt['rockets'].remove(r)
                 self.pt_blast(r['x'], min(r['y'], GR - 4), r['R'] * self.up_blast(), r['dmg'] * self.up_dmg(), r['pd'], 'p')
