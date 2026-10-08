@@ -154,8 +154,8 @@ class Audio:
     def __init__(self):
         self.ok = False
         self.muted = False
-        self.mvol = 1.0                                  # volumen de la música (0 a 1)
-        self.svol = 1.0                                  # volumen de los efectos (0 a 1)
+        self.mvol = 0.6                                  # volumen de la música (0 a 1)
+        self.svol = 0.6                                  # volumen de los efectos (0 a 1)
         self.sfx = {}
         self.cur = None
         self.ch = 2
