@@ -10,6 +10,8 @@ from .pt_art import (
 
 from .comms import PORT_LINES
 
+HIP_UP = 44            # altura de la cadera sobre los pies en el soldado dibujado a mano
+
 
 class PortMixin:
     # ---------------------------------------------------------- ASALTO AL PUERTO ENEMIGO (vista lateral, estilo Metal Slug)
@@ -947,12 +949,9 @@ class PortMixin:
             gun_ang = 0.0
             if arm in ('wind', 'rel'):
                 pose = arm
-            elif pose == 'idle' and aim is not None and 'up' in art['body'][kind]:
+            elif aim is not None and pose in ('run', 'idle', 'crouch', 'jump', 'fall'):
                 th_ = math.degrees(math.atan2(aim[1], aim[0] if face > 0 else -aim[0]))
-                if th_ < -20:
-                    pose, gun_ang = 'up', -25.0
-                elif th_ > 20:
-                    pose, gun_ang = 'down', 25.0
+                gun_ang = round(clamp(th_, -62, 62) * 0.75 / 3) * 3.0         # el torso (con los brazos y el arma) gira hacia donde apunta el mouse
         frames = art['body'][kind][pose]
         fi %= len(frames)
         spr, shx, shy = frames[fi]
@@ -966,9 +965,11 @@ class PortMixin:
                     sh_ = pygame.transform.smoothscale(sh_, (int(56 * k_), int(14 * k_)))
                 cv.blit(sh_, (sx - sh_.get_width() // 2, fl_ - 8 * sh_.get_height() // 14))
         right = face > 0
-        key = (kind, pose, fi, right)
+        key = (kind, pose, fi, right, gun_ang if baked else 0.0)
         img = self.pt_cache.get(key)
         if img is None:
+            if baked and gun_ang:
+                spr = self.pt_tilt(spr, baked, pose, gun_ang)
             img = spr if right else pygame.transform.flip(spr, True, False)
             if not baked:
                 img = img.copy()
@@ -1004,6 +1005,11 @@ class PortMixin:
             if not mzl or pose in ('die', 'wind', 'rel'):
                 return None
             mxr, myr = mzl[fi % len(mzl)]
+            if gun_ang:
+                hx_, hy_ = 0.0, -HIP_UP
+                c_, s_ = math.cos(math.radians(gun_ang)), math.sin(math.radians(gun_ang))
+                dxm, dym = mxr - hx_, myr - hy_
+                mxr, myr = hx_ + dxm * c_ - dym * s_, hy_ + dxm * s_ + dym * c_
             ln = self.PT_MUZ.get(base, 74)
             tha = math.radians(gun_ang)
             mx = sx + (mxr if right else -mxr) * sxs
@@ -1046,6 +1052,26 @@ class PortMixin:
             my = py + math.sin(th) * ln
             self.pt_flash(cv, mx, my, -rot if right else rot, right)
         return px, py
+
+    def pt_tilt(self, spr, baked, pose, ang):
+        """Inclina el torso del soldado dibujado a mano (con brazos y arma) 'ang' grados hacia abajo, girando sobre la cadera; las piernas quedan fijas."""
+        ax, ay = baked['anchor']
+        hip = ay - HIP_UP
+        if pose == 'crouch':
+            hip = ay - HIP_UP * 0.62
+        w, h = spr.get_size()
+        up = pygame.Surface((w, h), pygame.SRCALPHA)
+        up.blit(spr, (0, 0), (0, 0, w, int(hip)))
+        rot = pygame.transform.rotate(up, -ang)
+        cx, cy = w / 2, h / 2
+        px, py = ax, hip
+        c_, s_ = math.cos(math.radians(-ang)), math.sin(math.radians(-ang))
+        dx, dy = px - cx, py - cy
+        nx, ny = cx + dx * c_ + dy * s_, cy - dx * s_ + dy * c_
+        out = pygame.Surface((w, h), pygame.SRCALPHA)
+        out.blit(spr, (0, int(hip)), (0, int(hip), w, h - int(hip)))
+        out.blit(rot, (int(round(px - (rot.get_width() / 2 + (nx - cx)))), int(round(py - (rot.get_height() / 2 + (ny - cy))))))
+        return out
 
     def pt_flash(self, cv, x, y, ang, right):
         a = math.radians(ang)
