@@ -181,6 +181,19 @@ class GroundCityMixin:
                             props.append(('tree', bx + 28, by + 28, 14, rnd.randrange(10 ** 6)))
                         else:
                             builds.append((bx, by, 56, 56, rnd.randint(12, 24), rnd.choice(pals), rnd.randrange(10 ** 6)))
+            elif kind == 'park' and png_top('bloque_parque') is not None:          # bloque dibujado (la fuente y los árboles ya vienen en el arte)
+                land.blit(png_top('bloque_parque'), (X0 + u - 70, Y0 + v - 70))
+            elif kind == 'parking' and png_top('bloque_helipuerto') is not None and rnd.random() < 0.4:   # algunos estacionamientos son un helipuerto
+                land.blit(png_top('bloque_helipuerto'), (X0 + u - 70, Y0 + v - 70))
+            elif kind == 'parking' and png_top('bloque_estacionamiento') is not None:   # los 6 autos vienen dibujados: solo se agregan sus colisiones
+                land.blit(png_top('bloque_estacionamiento'), (X0 + u - 70, Y0 + v - 70))
+                for row in (-34, 31):
+                    for cxo in (-42, 0, 41):
+                        props.append(('solid', u + cxo, v + row, CAR_W, CAR_L))
+            elif kind == 'docks' and png_top('bloque_patio') is not None:
+                land.blit(png_top('bloque_patio'), (X0 + u - 70, Y0 + v - 70))
+                for cxo, row in ((-31, -46), (31, -46), (-31, 0), (-31, 46), (31, 46)):
+                    props.append(('solid', u + cxo, v + row, 56, 20))
             elif kind == 'park':
                 pygame.draw.rect(land, (84, 146, 72), (lx, ly, 126, 126))
                 for _ in range(160):
@@ -245,6 +258,8 @@ class GroundCityMixin:
             elif p[0] == 'box':
                 self._gc_box(land, X0 + p[1], Y0 + p[2], p[3], p[4])
                 solids.append((p[1] - 28, p[2] - 10, 56, 20))
+            elif p[0] == 'solid':
+                solids.append((p[1] - p[3] // 2, p[2] - p[4] // 2, p[3], p[4]))
         rects = [(W / 2 + x, H / 2 + y, W / 2 + x + w, H / 2 + y + d) for x, y, w, d in solids]
         return rects, dict(spots=[(W / 2 + a, H / 2 + b) for a, b in spots], hall=(W / 2 + HALL[0], H / 2 + HALL[1], W / 2 + HALL[0] + HALL[2], H / 2 + HALL[1] + HALL[3]),
                            blocks=[(i * PITCH, j * PITCH) for (i, j) in blocks])
@@ -338,6 +353,13 @@ class GroundCityMixin:
                     spr.blit(pygame.transform.smoothscale(art.subsurface((0, cut, art.get_width(), art.get_height() - cut)), (w, hh)), (0, rh))
                 _BUILD[key] = spr
             s.blit(spr, (X, Y))
+            mark = png_top('helipuerto_marca')
+            if mark is not None and pal != 'hall' and hh >= 26 and w >= 100 and rh >= 70 and rnd.random() < 0.5:    # helipuerto en el techo de los edificios grandes
+                dm = min(w, rh) - 24
+                mk = _BUILD.get(('h', dm))
+                if mk is None:
+                    mk = _BUILD[('h', dm)] = pygame.transform.smoothscale(mark, (dm, dm))
+                s.blit(mk, (X + w // 2 - dm // 2, Y + rh // 2 - dm // 2))
             return
         if pal == 'hall':
             wall, roof, hi, lo = (228, 226, 216), (110, 150, 134), (170, 206, 188), (72, 108, 94)
