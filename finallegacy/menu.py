@@ -7,7 +7,7 @@ from .common import H, W, WIN_WAVE
 from .title_art import draw_logo, make_logo
 
 MAIN_ITEMS = ('NUEVO JUEGO', 'CARGAR PARTIDA', 'OPCIONES', 'SALIR')
-PAUSE_ITEMS = ('CONTINUAR', 'GUARDAR PARTIDA', 'CARGAR PARTIDA', 'OPCIONES', 'SALIR DEL JUEGO')
+PAUSE_ITEMS = ('CONTINUAR', 'GUARDAR PARTIDA', 'CARGAR PARTIDA', 'OPCIONES', 'MENÚ PRINCIPAL', 'SALIR DEL JUEGO')
 OPT_ITEMS = ('MÚSICA', 'EFECTOS', 'PANTALLA COMPLETA', 'MODO CRT', 'INSTRUCCIONES', 'CHEATS', 'VOLVER')
 HELP_LINES = [
     ('MAPA', 'W/S acelerar y frenar | A/D girar | R en puerto reabastece | L desembarca | H hackea | F disparo antiaéreo'),
@@ -88,9 +88,12 @@ class MenuMixin:
             self.pause_set(False)
         elif name == 'OPCIONES':
             self.menu_go('opts')
-        elif name in ('SALIR', 'SALIR DEL JUEGO'):
-            pygame.quit()
-            sys.exit()
+        elif name == 'MENÚ PRINCIPAL':
+            self.confirm_open('¿VOLVER AL MENÚ PRINCIPAL?', ['Se pierde el progreso que no hayas guardado.'], self.leave_to_title, default_no=True)
+        elif name == 'SALIR DEL JUEGO':
+            self.confirm_open('¿SALIR DEL JUEGO?', ['Se pierde el progreso que no hayas guardado.'], self.quit_game, default_no=True)
+        elif name == 'SALIR':
+            self.quit_game()
         elif name == 'VOLVER':
             self.menu_go(('pause' if self.paused else 'main') if tm['page'] == 'opts' else 'opts')
         elif name == 'INSTRUCCIONES':
@@ -99,6 +102,80 @@ class MenuMixin:
             self.menu_go('cheats')
         else:
             self.menu_toggle(name)
+
+    def quit_game(self):
+        pygame.quit()
+        sys.exit()
+
+    def leave_to_title(self):
+        """Desde la pausa: vuelve a la pantalla de inicio."""
+        self.paused = False
+        pygame.mouse.set_visible(True)
+        self.go('title')
+
+    # ------------------------------------------------------------------ cuadro de confirmación (SÍ / NO)
+    def confirm_open(self, title, lines, yes, default_no=False):
+        self.cf = dict(title=title, lines=lines, yes=yes, sel=1 if default_no else 0)
+        self.audio.play('blip', .3)
+
+    def confirm_rects(self):
+        return [pygame.Rect(W // 2 - 230, 440, 200, 54), pygame.Rect(W // 2 + 30, 440, 200, 54)]
+
+    def confirm_event(self, e):
+        cf = getattr(self, 'cf', None)
+        if not cf:
+            return False
+        if e.type == pygame.MOUSEMOTION:
+            for i, r in enumerate(self.confirm_rects()):
+                if r.collidepoint(e.pos) and cf['sel'] != i:
+                    cf['sel'] = i
+                    self.audio.play('blip', .15)
+            return True
+        if e.type == pygame.MOUSEBUTTONDOWN:
+            if e.button == 3:
+                self.cf = None
+            elif e.button == 1:
+                for i, r in enumerate(self.confirm_rects()):
+                    if r.collidepoint(e.pos):
+                        cf['sel'] = i
+                        self.confirm_pick(i)
+            return True
+        if e.type == pygame.KEYDOWN:
+            k = e.key
+            if k in (pygame.K_LEFT, pygame.K_RIGHT, pygame.K_a, pygame.K_d, pygame.K_TAB):
+                cf['sel'] ^= 1
+                self.audio.play('blip', .2)
+            elif k in (pygame.K_RETURN, pygame.K_KP_ENTER, pygame.K_SPACE):
+                self.confirm_pick(cf['sel'])
+            elif k in (pygame.K_y, pygame.K_s):
+                self.confirm_pick(0)
+            elif k in (pygame.K_n, pygame.K_ESCAPE, pygame.K_BACKSPACE):
+                self.confirm_pick(1)
+            return True
+        return e.type in (pygame.MOUSEBUTTONUP, pygame.KEYUP)
+
+    def confirm_pick(self, i):
+        cf = self.cf
+        self.cf = None
+        if i == 0:
+            cf['yes']()
+
+    def draw_confirm(self, cv):
+        cf = getattr(self, 'cf', None)
+        if not cf:
+            return
+        self.dim(cv, 170)
+        self.panel(cv, (W // 2 - 340, 290, 680, 230), 235)
+        pygame.draw.rect(cv, (255, 230, 130), (W // 2 - 340, 290, 680, 230), 3, border_radius=8)
+        self.text(cv, cf['title'], self.f_l, (255, 230, 130), W // 2, 312, 'c')
+        for i, ln in enumerate(cf['lines']):
+            self.text(cv, ln, self.f_m, (225, 235, 250), W // 2, 366 + i * 28, 'c')
+        for i, (r, lab) in enumerate(zip(self.confirm_rects(), ('SÍ', 'NO'))):
+            sel = cf['sel'] == i
+            self.panel(cv, (r.x, r.y, r.w, r.h), 235 if sel else 150)
+            if sel:
+                pygame.draw.rect(cv, (255, 230, 130), r, 3, border_radius=8)
+            self.text(cv, lab, self.f_l, (255, 255, 255) if sel else (170, 190, 215), r.centerx, r.y + 11, 'c')
 
     def menu_toggle(self, name, delta=None):
         if name in ('MÚSICA', 'EFECTOS'):
