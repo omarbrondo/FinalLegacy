@@ -462,12 +462,18 @@ class DefenseMixin:
             draw_circ(cv, b['x'], b['y'], rad, (255, 255, 255), 255 * k, 3)
         self.fx.draw(cv)
         self.def_draw_weather(cv, t, prof)
-        # mira
+        # mira: contorno oscuro y color según el fondo (de día, sobre cielo claro, rojo; de noche, verde menta)
         ax, ay = int(self.aim[0]), int(self.aim[1])
-        pygame.draw.circle(cv, (120, 255, 190), (ax, ay), 18, 2)
-        pygame.draw.circle(cv, (120, 255, 190), (ax, ay), 3)
-        for dx, dy in ((-30, 0), (30, 0), (0, -30), (0, 30)):
-            pygame.draw.line(cv, (120, 255, 190), (ax + dx // 2, ay + dy // 2), (ax + dx, ay + dy), 2)
+        try:
+            r_, g_, b_, _a = cv.get_at((clamp(ax, 0, W - 1), clamp(ay, 0, H - 1)))
+        except (IndexError, pygame.error):
+            r_ = g_ = b_ = 0
+        core = (255, 64, 52) if (0.3 * r_ + 0.59 * g_ + 0.11 * b_) > 120 else (120, 255, 190)
+        for col, extra in (((8, 12, 30), 1), (core, 0)):
+            pygame.draw.circle(cv, col, (ax, ay), 18, 3 + 2 * extra)
+            pygame.draw.circle(cv, col, (ax, ay), 4 + extra)
+            for dx, dy in ((-32, 0), (32, 0), (0, -32), (0, 32)):
+                pygame.draw.line(cv, col, (ax + dx // 2, ay + dy // 2), (ax + dx, ay + dy), 3 + 4 * extra)
         if d['shock'] is not None:
             a_ = d['shock']['age'] / 1.6
             draw_circ(cv, d['shock']['x'], d['shock']['y'], 40 + 520 * a_, (255, 240, 200), 160 * (1 - a_), 5)
