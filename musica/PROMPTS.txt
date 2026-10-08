@@ -1,0 +1,112 @@
+MÚSICA DE RETRO LEGACY: PISTAS A GENERAR
+=========================================
+
+CÓMO USAR ESTE ARCHIVO
+1. Para cada pista, copiá el prompt de la lista y pegale al final las REGLAS PARA TODAS LAS PISTAS (abajo).
+2. Pegalo en la IA de música (Suno, Udio, ElevenLabs Music, Stable Audio, etc.).
+3. Guardá el resultado con el nombre exacto de "archivo" (por ejemplo defense.ogg) en esta carpeta (musica/).
+   El juego también acepta .mp3 y .wav. Si querés convertir a OGG: ffmpeg -i entrada.mp3 -c:a libvorbis -q:a 5 salida.ogg
+4. Para una oleada puntual, usá <modo>_<oleada>.ogg (ej.: defense_3.ogg). Tiene prioridad sobre defense.ogg.
+5. Si falta el archivo de un modo, suena la música compuesta por código.
+6. Anotá de dónde salió cada pista y su licencia (importante si distribuís o vendés el juego).
+
+Empezá por las 3 principales: defense, title y map.
+
+
+REGLAS PARA TODAS LAS PISTAS (pegalas al final de cada prompt)
+---------------------------------------------------------------
+Instrumental, sin voces ni letra (salvo coro sin palabras donde se indique). Que pueda repetirse en bucle sin cortes: que el final enlace con el principio, sin silencio ni cierre final. Duración de 2:00 a 3:00. Que evolucione con partes distintas, subidas y bajadas, no un loop de 4 compases repetido. Sonido moderno, producción de estudio, mezcla limpia, sin sonido chiptune ni de 8 bits. Volumen moderado y parejo, sin saturar, con espacio para los efectos de sonido del juego.
+
+
+PISTAS (género elegido por modo)
+--------------------------------
+
+archivo:  title
+dónde:    pantalla de título
+género:   orquesta cinematográfica híbrida | 90 bpm | épica oscura, entrada lenta que crece
+prompt:   Cinematic hybrid orchestral theme, dark and epic, slow build from low strings and a lone piano into powerful brass and percussion, 90 bpm, military naval war game main theme.
+
+archivo:  map
+dónde:    mapa naval
+género:   electrónica atmosférica oscura | 85 bpm | tensión sostenida, exploración
+prompt:   Dark atmospheric electronic ambient, slow evolving synth pads, deep sub bass pulse, distant radar pings, sustained tension, 85 bpm, naval strategy map music.
+
+archivo:  upgrade
+dónde:    menú de mejoras
+género:   chillwave / downtempo moderno | 80 bpm | calma, esperanzada, respiro entre oleadas
+prompt:   Modern chillwave downtempo, warm analog synth pads, soft mellow beat, gentle melodic guitar, hopeful and calm, 80 bpm, a moment of rest between battles.
+
+archivo:  defense
+dónde:    PRIMER NIVEL: defensa de misiles
+género:   híbrido orquestal-electrónico de tráiler | 125 bpm | urgencia que crece, ritmo constante
+prompt:   Hybrid orchestral electronic action trailer music, driving pulsing synth ostinato, taiko-style drums, urgent strings rising in intensity, 125 bpm, missile defense under attack, tense and relentless, evolving sections.
+
+archivo:  combat
+dónde:    combate naval
+género:   orquesta militar con percusión épica | 110 bpm | ataque de la flota, heroico
+prompt:   Epic military orchestral percussion, taiko drums, heroic brass and low strings, 110 bpm, naval fleet battle, powerful and determined.
+
+archivo:  boss
+dónde:    jefe
+género:   metal industrial pesado con orquesta | 140 bpm | amenaza, agresivo
+prompt:   Heavy industrial metal with orchestral layers, down-tuned distorted guitars, pounding drums, menacing low brass, 140 bpm, boss battle against a giant warship, aggressive and threatening.
+
+archivo:  bossf
+dónde:    jefe final
+género:   metal sinfónico con coro sin letra | 160 bpm | clímax, épico, desesperado
+prompt:   Symphonic metal final boss battle, fast double-bass drums, shredding guitars, huge orchestra and wordless epic choir, 160 bpm, climactic and desperate.
+
+archivo:  aerial
+dónde:    combate aéreo
+género:   drum and bass / electro-rock con guitarras | 150 bpm | velocidad, adrenalina
+prompt:   High energy drum and bass mixed with electro-rock guitars, fast breakbeat, soaring synth lead, 150 bpm, fighter jet aerial combat, adrenaline and speed.
+
+archivo:  ground
+dónde:    invasión de infantería
+género:   percusión militar táctica con metales graves | 100 bpm | tensión táctica, marcha
+prompt:   Tactical military percussion, snare marching rhythm, low brass stabs, tense strings, 100 bpm, infantry invasion on an island city.
+
+archivo:  tank
+dónde:    combate de tanques (Battlezone)
+género:   industrial pesado y gritty | 105 bpm | opresivo, máquinas, metal
+prompt:   Gritty industrial bass-heavy music, mechanical metallic percussion, distorted low synth drone, 105 bpm, tank battle in a ruined city, oppressive and heavy.
+
+archivo:  port
+dónde:    asalto al puerto (vista lateral)
+género:   rock-funk de acción con bajo marcado | 130 bpm | acción callejera, contagioso
+prompt:   Action rock-funk with a punchy groovy bass line, tight drums, brass stabs and electric guitar riffs, 130 bpm, street assault on a harbor, catchy and energetic.
+
+archivo:  heli
+dónde:    helicóptero Blackhawk
+género:   synthwave oscuro / outrun | 124 bpm | vuelo nocturno, motor constante
+prompt:   Dark synthwave outrun, pulsing analog bass, driving drum machine, lush arpeggiated synths, 124 bpm, night helicopter mission.
+
+archivo:  beach
+dónde:    desembarco: la playa
+género:   percusión étnica tropical + guitarra acústica oscura | 118 bpm | tensión bajo el sol
+prompt:   Dark tropical tension, world percussion and congas, muted acoustic guitar, low drones, 118 bpm, amphibious landing on a beach under fire.
+
+archivo:  infil
+dónde:    desembarco: infiltración
+género:   dark ambient de sigilo | 84 bpm | silencio tenso, pulsos graves
+prompt:   Dark ambient stealth music, deep sub pulses, ticking textures, faint distant metallic hits, 84 bpm, silent infiltration behind enemy lines, extremely tense.
+
+archivo:  holdout
+dónde:    desembarco: resistir
+género:   orquesta híbrida con percusión intensa | 148 bpm | último reducto, desesperado y heroico
+prompt:   Intense hybrid orchestral with relentless percussion and rising strings, 148 bpm, last stand defending a position, desperate and heroic.
+
+archivo:  extract
+dónde:    desembarco: extracción
+género:   electro-rock frenético | 160 bpm | huida, urgencia máxima
+prompt:   Frantic electro-rock, fast pounding drums, driving bass, aggressive synth arpeggios and guitar, 160 bpm, extraction under fire, maximum urgency.
+
+archivo:  radio
+dónde:    hackeo de radio
+género:   thriller tecnológico con glitch | 112 bpm | espionaje, concentración
+prompt:   Tech thriller electronic, glitch percussion, steady electronic pulse, subtle morse-like blips, 112 bpm, intercepting enemy radio signals, focused and suspenseful.
+
+archivo:  hack
+dónde:    hackeo
+género:   techno minimal cyberpunk | 124 bpm | digital, hipnótico
+prompt:   Cyberpunk minimal techno, hypnotic repeating synth sequence, crisp hi-hats, deep kick, 124 bpm, hacking a network, digital and cold.
