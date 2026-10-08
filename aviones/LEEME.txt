@@ -1,0 +1,25 @@
+RETRO LEGACY - aviones (sprites PNG)
+====================================
+Cada archivo reemplaza el dibujo por código de ese avión. Si falta un archivo, el juego usa el dibujo de siempre.
+
+  avion_jefe_1.png   Comandante Stealth (oleada 1)
+  avion_jefe_2.png   Nodriza Tifón      (oleada 2)
+  avion_jefe_3.png   Fantasma           (oleada 3)
+  avion_jefe_4.png   Artillero Pesado   (oleada 4)
+  avion_jefe_5.png   Tormenta           (oleada 5)
+  avion_jefe_6.png   Titán Aéreo        (oleada 6)
+
+  avion_f16_jugador.png   El caza del jugador (morro hacia arriba, ~90 px de alto en pantalla)
+  avion_caza_enemigo.png  El caza enemigo común, de color cobre (morro hacia arriba, ~76 px de alto en pantalla)
+  avion_stealth_pequeno.png  El stealth enemigo pequeño (morro hacia arriba, ~66 px de ancho en pantalla)
+  avion_bombardero.png    El bombardero enemigo (morro hacia arriba, ~176 px de ancho en pantalla)
+  torreta_titan.png       Torreta doble de las alas del Titán Aéreo (cañones hacia ARRIBA; gira sobre el centro de la corona, ~66 px de diámetro)
+  avion_kamikaze.png      Dron kamikaze (morro hacia arriba, ~48 px de ancho). Si falta, usa el caza enemigo teñido de rojo
+  avion_artillera_pequena.png  Nave artillera pequeña (morro hacia arriba, ~110 px de ancho). Si falta, usa el bombardero reducido
+  mina.png                Mina aérea (vista cenital, ~54 px de diámetro; gira lentamente)
+
+Formato: PNG con fondo transparente, vista desde arriba, de ~640 px de ancho.
+Los archivos se guardan con el morro hacia ARRIBA; el juego los da vuelta solo para dibujarlos con el morro hacia abajo.
+Para compilar con PyInstaller: --add-data "aviones;aviones"
+
+El Titán Aéreo (avion_jefe_6) tiene dos discos en las alas: ahí se dibujan las torretas giratorias (posición fija en el código: +-135 px del centro, 34 px hacia el morro).

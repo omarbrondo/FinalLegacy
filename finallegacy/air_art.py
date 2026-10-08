@@ -2,6 +2,7 @@
 Cada pieza del casco se dibuja como una placa con bisel (luz arriba a la izquierda), juntas, remaches y luces; al final todo
 el sprite recibe sombreado, luz de borde y contorno (polish)."""
 import math
+import os
 import pygame
 import random
 
@@ -13,8 +14,33 @@ def _S():
 ENG = {}          # posiciones (relativas al centro del sprite) de las toberas de cada jefe, para los resplandores de los motores
 
 
+BOSS_W = (320, 300, 250, 300, 280, 340)
+# toberas de los jefes con PNG (relativas al centro del sprite, ya con el morro hacia abajo): ahí se dibuja el resplandor del motor
+PNG_ENG = {2: [(-32, -72), (31, -72), (-65, -54), (66, -54)], 3: [(-57, -8), (57, -8)], 4: [(-13, -92), (13, -92)]}         # ancho en pantalla de cada jefe cuando se usa su PNG
+
+
+def load_png_sprite(name, width=None, flip=True, height=None, folder='aviones'):
+    """Sprite de aviones/<name>.png escalado a 'width' (o 'height') px y, con flip, con el morro hacia abajo; None si no existe."""
+    path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), folder, name + '.png')
+    if not os.path.isfile(path):
+        return None
+    try:
+        img = pygame.image.load(path).convert_alpha()
+    except pygame.error:
+        return None
+    if width is None:
+        width = max(1, round(img.get_width() * height / img.get_height()))
+    img = pygame.transform.smoothscale(img, (width, max(1, round(img.get_height() * width / img.get_width()))))
+    return pygame.transform.flip(img, False, True) if flip else img
+
+
 def make_air_boss(k):
     """Jefe aéreo k (0 = el comandante stealth se construye aparte). Mira hacia abajo (sur)."""
+    png = load_png_sprite('avion_jefe_%d' % (k + 1), BOSS_W[k])
+    if png is not None:
+        if k in PNG_ENG:
+            ENG[k] = PNG_ENG[k]
+        return png
     fn = [None, _nodriza, _fantasma, _artillero, _tormenta, _titan][k]
     return polish(fn())
 
@@ -482,8 +508,24 @@ def _titan():
     return c.done([], 5)
 
 
+def _pod_from_png():
+    """Torreta de aviones/torreta_titan.png (cañones hacia arriba): lienzo cuadrado con el eje de giro en el centro."""
+    spr = load_png_sprite('torreta_titan', width=67, flip=False)
+    if spr is None:
+        return None
+    w, h = spr.get_size()
+    px, py = w / 2, h * 0.647                           # centro de la corona dentada
+    r = int(max(py, h - py, px)) + 2
+    out = pygame.Surface((2 * r, 2 * r), pygame.SRCALPHA)
+    out.blit(spr, (r - px, r - py))
+    return out
+
+
 def make_pod_turret():
     """Torreta doble del Titán Aéreo, con los cañones hacia arriba (se rota hacia el jugador al dibujarla)."""
+    png = _pod_from_png()
+    if png is not None:
+        return png
     S = 3
     W = H = 100
     s = pygame.Surface((W * S, H * S), pygame.SRCALPHA)

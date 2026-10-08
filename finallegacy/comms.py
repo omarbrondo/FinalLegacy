@@ -232,7 +232,14 @@ class CommsMixin:
         tag = pygame.Surface((PW, 22), pygame.SRCALPHA)
         pygame.draw.rect(tag, (10, 12, 20, 210), (0, 0, PW, 22), border_bottom_left_radius=10, border_bottom_right_radius=10)
         cv.blit(tag, (x, y + PH - 22))
-        self.text(cv, c.get('name') or r['name'], self.f_s, col, x + PW // 2, y + PH - 20, 'c', shadow=False)
+        nm = c.get('name') or r['name']
+        if self.f_s.size(nm)[0] <= PW - 10:
+            self.text(cv, nm, self.f_s, col, x + PW // 2, y + PH - 20, 'c', shadow=False)
+        else:                                                              # nombres largos (COMANDANTE STEALTH): se achican para entrar en la etiqueta
+            ts = self.f_s.render(nm, True, col)
+            k = (PW - 10) / ts.get_width()
+            ts = pygame.transform.smoothscale(ts, (PW - 10, max(1, int(ts.get_height() * k))))
+            cv.blit(ts, (x + 5, y + PH - 20 + (self.f_s.get_height() - ts.get_height()) // 2))
         # globo
         bt = t - ENTER * 0.7
         if bt <= 0 or t > ENTER + c['hold']:

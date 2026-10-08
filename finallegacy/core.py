@@ -20,7 +20,7 @@ from .sprites import (
 from .car_art import make_bike_sprites, make_car_sprites
 from .tk_art import make_tank_sprites, make_tk_textures
 from .boss_art import BOSS_TYPES, make_boss_sprite
-from .air_art import polish
+from .air_art import BOSS_W, load_png_sprite, polish
 
 
 class CoreMixin:
@@ -132,12 +132,14 @@ class CoreMixin:
         # ---- naves
         self.ships = {}
 
-        def reg(key, surf):
+        def reg(key, surf, png=None, height=None):
+            if png:                                           # barcos/<png>.png (proa hacia arriba) reemplaza al dibujo por código
+                surf = load_png_sprite(png, height=height, flip=False, folder='barcos') or surf
             self.ships[key] = (surf, make_shadow(surf))
-        reg('p_map', make_ship(24, 66, (70, 140, 170), (110, 170, 190), (255, 210, 70)))
-        reg('e_map', make_ship(22, 60, (150, 60, 60), (170, 90, 80), (30, 30, 30)))
-        reg('p_hull', make_ship(46, 124, (70, 140, 170), (110, 170, 190), (255, 210, 70), False))
-        reg('e_hull', make_ship(42, 112, (150, 60, 60), (170, 90, 80), (30, 30, 30), False))
+        reg('p_map', make_ship(24, 66, (70, 140, 170), (110, 170, 190), (255, 210, 70)), 'barco_jugador_mapa', 66)
+        reg('e_map', make_ship(22, 60, (150, 60, 60), (170, 90, 80), (30, 30, 30)), 'barco_enemigo_mapa', 60)
+        reg('p_hull', make_ship(46, 124, (70, 140, 170), (110, 170, 190), (255, 210, 70), False), 'barco_jugador_combate', 124)
+        reg('e_hull', make_ship(42, 112, (150, 60, 60), (170, 90, 80), (30, 30, 30), False), 'barco_enemigo_combate', 112)
         reg('s_map', make_sub(16, 62))
         reg('s_hull', make_sub(32, 128))
         reg('c_map', make_cargo(26, 70))
@@ -173,11 +175,11 @@ class CoreMixin:
         gb = pygame.Surface((80, 80), pygame.SRCALPHA)
         draw_cover(gb, dict(x=40, y=40, r=24, kind='sandbag', seed=3))
         self.air = dict(
-            f16=polish(make_f16((170, 182, 196), (108, 120, 138), (60, 100, 200), 0.9)),
-            viper=polish(flip(make_f16((172, 100, 90), (112, 58, 54), (30, 30, 30), 0.72))),
-            stealth=polish(flip(make_f117((220, 70, 56), 0.62))),
-            bomber=polish(flip(make_f117((255, 150, 40), 1.7))),
-            boss=polish(flip(make_f117((255, 90, 60), 3.0))),
+            f16=load_png_sprite('avion_f16_jugador', height=90, flip=False) or polish(make_f16((170, 182, 196), (108, 120, 138), (60, 100, 200), 0.9)),
+            viper=load_png_sprite('avion_caza_enemigo', height=76) or polish(flip(make_f16((172, 100, 90), (112, 58, 54), (30, 30, 30), 0.72))),
+            stealth=load_png_sprite('avion_stealth_pequeno', width=66) or polish(flip(make_f117((220, 70, 56), 0.62))),
+            bomber=load_png_sprite('avion_bombardero', width=176) or polish(flip(make_f117((255, 150, 40), 1.7))),
+            boss=load_png_sprite('avion_jefe_1', BOSS_W[0]) or polish(flip(make_f117((255, 90, 60), 3.0))),
             shadows={}, isl=isl, isl_r=isl_r, gbase=gb.convert_alpha(),
             clouds=[make_cloud(s_) for s_ in (1, 2, 3, 4)])
         self.antenna_gfx = self.make_antenna()
