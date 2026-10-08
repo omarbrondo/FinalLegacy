@@ -959,7 +959,10 @@ class PortMixin:
             gun_ang = 0.0
             if arm in ('wind', 'rel'):
                 pose = arm
-            elif aim is not None and pose in ('run', 'idle', 'crouch', 'jump', 'fall'):
+            elif base == 'knife':                            # cuchillero: al atacar (brazo en alto) usa el cuadro de la cuchillada
+                if aim is not None and abs(aim[1] - 0.1) > 0.02 and aim[1] < 0.1 and 'attack' in art['body'][kind]:
+                    pose = 'attack'
+            elif aim is not None and base == 'player' and pose in ('run', 'idle', 'crouch', 'jump', 'fall'):
                 th_ = math.degrees(math.atan2(aim[1], aim[0] if face > 0 else -aim[0]))
                 th_ = clamp(th_, -PT_AIM_MAX, PT_AIM_DOWN)
                 gun_ang = round(th_ * (0.66 if th_ > 0 else 0.86) / 2) * 2.0        # hacia abajo el torso se inclina menos (se encorva)         # el torso (con los brazos y el arma) gira hacia donde apunta el mouse
@@ -1013,7 +1016,7 @@ class PortMixin:
             cv.blit(img, (sx - ax_, fy - ay_))
         if baked:
             mzl = baked['mz'].get(pose)
-            if not mzl or pose in ('die', 'wind', 'rel'):
+            if not mzl or pose in ('die', 'wind', 'rel') or base != 'player':
                 return None
             mxr, myr = mzl[fi % len(mzl)]
             if gun_ang:
