@@ -417,7 +417,7 @@ class AerialMixin:
         if b and not a['boss_dead'] and b['hp'] <= 0:
             a['boss_dead'] = True
             from .air_boss import AIR_BOSSES
-            self.say('jefe_avion', AIR_LINES[b['k'] % 6][1], 'warn', pose='bad', v=b['k'] % 6 + 1, name=AIR_BOSSES[b['k']]['name'])
+            self.say('jefe_avion', AIR_LINES[b['k'] % 6][1], 'warn', pose='bad', urgent=True, v=b['k'] % 6 + 1, name=AIR_BOSSES[b['k']]['name'])
             self.add_score(4000)
             for _ in range(10):
                 self.air_boom(b['x'] + random.uniform(-90, 90), b['y'] + random.uniform(-60, 60), 1.6, True, 'boom_l')

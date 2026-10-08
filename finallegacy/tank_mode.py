@@ -187,6 +187,22 @@ class TankMixin:
     def tk_boom(self, x, z, size, life=1.1, y=1.4):
         self.k['booms'].append(dict(x=x, y=y, z=z, size=size, life=life, age=0.0))
 
+    def tk_blast(self, x, z, size=6.5):
+        """Explosión grande de un tanque: bola de fuego en varias capas, onda de choque en el suelo, humo negro que sube y restos que arden."""
+        k = self.k
+        for i in range(6):
+            a = random.uniform(0, 6.283)
+            r = random.uniform(0, size * 0.28)
+            k['booms'].append(dict(x=x + math.cos(a) * r, y=random.uniform(0.8, 3.4), z=z + math.sin(a) * r, size=size * random.uniform(0.55, 1.0),
+                                   life=random.uniform(0.9, 1.35), age=-i * 0.07))
+        k.setdefault('rings', []).append(dict(x=x, z=z, size=size, age=0.0, life=0.75))
+        for _ in range(8):
+            a = random.uniform(0, 6.283)
+            r = random.uniform(0, size * 0.35)
+            k.setdefault('smokes', []).append(dict(x=x + math.cos(a) * r, y=random.uniform(1.0, 2.2), z=z + math.sin(a) * r, vy=random.uniform(2.2, 4.4),
+                                                  size=size * random.uniform(0.35, 0.6), age=-random.uniform(0.2, 0.6), life=random.uniform(2.2, 3.4)))
+        k.setdefault('wrecks', []).append(dict(x=x, z=z, size=size, age=0.0, life=7.0))
+
     def tk_debris(self, x, z, n):
         for _ in range(n):
             a = random.uniform(0, 6.283)
@@ -212,8 +228,9 @@ class TankMixin:
         self.pop('+%d' % pts, W // 2, 180, (120, 255, 160))
         self.audio.play('boom_s', .8)
         self.shake = max(self.shake, 6)
-        self.tk_debris(e['x'], e['z'], 22)
-        self.tk_boom(e['x'], e['z'], 6.5)
+        self.tk_debris(e['x'], e['z'], 30)
+        self.tk_blast(e['x'], e['z'], 9.0 if e.get('boss') else 6.5)
+        self.shake = max(self.shake, 11 if e.get('boss') else 8)
         if e.get('boss'):
             k['p']['hp'] = min(TK_HP, k['p']['hp'] + 60)
             self.tk_say('¡TANQUE JEFE ELIMINADO! +60 ARMADURA')
@@ -263,7 +280,7 @@ class TankMixin:
             e['tur'] = e['h']
             if alive and d < 5.2:
                 self.tk_hurt(36)
-                self.tk_boom(e['x'], e['z'], 7.5)
+                self.tk_blast(e['x'], e['z'], 7.5)
                 self.tk_debris(e['x'], e['z'], 26)
                 self.audio.play('boom_l', .8)
                 if e in k['tanks']:
@@ -464,6 +481,14 @@ class TankMixin:
             bm['age'] += dt
             if bm['age'] >= bm['life']:
                 k['booms'].remove(bm)
+        for lst in ('rings', 'smokes', 'wrecks'):
+            for o_ in k.get(lst, [])[:]:
+                o_['age'] += dt
+                if lst == 'smokes' and o_['age'] > 0:
+                    o_['y'] += o_['vy'] * dt
+                    o_['size'] *= 1 + 0.35 * dt
+                if o_['age'] >= o_['life']:
+                    k[lst].remove(o_)
         for d_ in k['debris'][:]:
             d_['life'] -= dt
             d_['x'] += d_['vx'] * dt
@@ -951,7 +976,39 @@ class TankMixin:
             a = self.tk_cam(d_['x'], d_['y'], d_['z'])
             b = self.tk_cam(d_['x'] - d_['vx'] * .07, d_['y'] - d_['vy'] * .07, d_['z'] - d_['vz'] * .07)
             self.tk_line(cv, a, b, (255, int(150 + 100 * clamp(d_['life'], 0, 1)), 60), 2)
+        for w_ in k.get('wrecks', []):                              # restos de tanques que siguen ardiendo
+            c = self.tk_cam(w_['x'], 0.6, w_['z'])
+            if c[2] < 2:
+                continue
+            sx, sy = self.tk_prj(c)
+            u_ = self.TK_F / c[2]
+            fade = 1 - max(0.0, (w_['age'] - 4.5) / 2.5)
+            pygame.draw.ellipse(cv, (14, 12, 12), (sx - u_ * 2.4, sy - u_ * 0.5, u_ * 4.8, u_ * 1.1))
+            pygame.draw.rect(cv, (30, 26, 26), (sx - u_ * 1.5, sy - u_ * 1.0, u_ * 3.0, u_ * 0.9), border_radius=2)
+            glow(cv, sx + math.sin(self.t * 11 + w_['x']) * u_ * 0.4, sy - u_ * 1.1, max(4, int(u_ * 1.5)), (255, 120, 40), 0.55 * fade * (0.6 + 0.4 * math.sin(self.t * 17 + w_['z'])))
+        for rg in k.get('rings', []):                               # onda de choque sobre el suelo
+            c = self.tk_cam(rg['x'], 0.1, rg['z'])
+            if c[2] < 2:
+                continue
+            sx, sy = self.tk_prj(c)
+            a_ = rg['age'] / rg['life']
+            rr = int(self.TK_F * rg['size'] * (0.2 + a_ * 1.6) / c[2])
+            if rr > 2:
+                pygame.draw.ellipse(cv, (255, 220, 160), (sx - rr, sy - rr * 0.28, rr * 2, rr * 0.56), 2)
+        for sm in k.get('smokes', []):                              # humo negro que sube
+            if sm['age'] < 0:
+                continue
+            c = self.tk_cam(sm['x'], sm['y'], sm['z'])
+            if c[2] < 1.5:
+                continue
+            sx, sy = self.tk_prj(c)
+            a_ = sm['age'] / sm['life']
+            rr = min(150, int(self.TK_F * sm['size'] * 0.45 / c[2]))
+            if rr > 2:
+                draw_circ(cv, sx, sy, rr, (24, 22, 24), 150 * (1 - a_))
         for bm in k['booms']:
+            if bm['age'] < 0:
+                continue
             c = self.tk_cam(bm['x'], bm['y'], bm['z'])
             if c[2] < 1.5:
                 continue
@@ -960,10 +1017,13 @@ class TankMixin:
             r = min(170, int(self.TK_F * bm['size'] * (0.35 + age * 0.9) / c[2]))
             if r < 2:
                 continue
-            draw_circ(cv, sx, sy - r * 0.3, r, (40, 36, 40), 150 * (1 - age))
-            glow(cv, sx, sy, int(r * 1.5), (255, 150, 60), 1 - age)
-            if age < 0.45:
-                glow(cv, sx, sy, int(r), (255, 240, 190), 1 - age * 2)
+            if bm['size'] < 4:
+                draw_circ(cv, sx, sy - r * 0.3, r, (40, 36, 40), 150 * (1 - age))
+            glow(cv, sx, sy, int(r * (2.0 if bm['size'] >= 4 else 1.5)), (255, 130, 40), 1 - age)
+            if bm['size'] >= 4:
+                glow(cv, sx, sy - r * 0.15, int(r * 1.25), (255, 190, 80), 1 - age * 0.9)
+            if age < 0.55:
+                glow(cv, sx, sy, int(r), (255, 245, 205), min(1.0, 1.3 - age * 2))
         wx = k['wx']
         if wx != 'clear':
             cache = self.__dict__.setdefault('_tk_wx', {})

@@ -175,7 +175,13 @@ class MapMixin:
                         empty.append('munición')
                 if empty and self.t - getattr(self, 'stock_toast', -9) > 4:
                     self.stock_toast = self.t
-                    self.toast('%s sin %s hasta que se reponga' % (docking['name'], ', '.join(empty)), (255, 190, 120))
+                    role = self.city_role(docking)
+                    if role != 'all' and self.city_cap(docking, role) > 0 and len(empty) == 1 and empty[0] == {'fuel': 'combustible', 'repair': 'reparaciones', 'ammo': 'munición'}.get(role):
+                        self.toast('%s sin %s hasta que se reponga' % (docking['name'], empty[0]), (255, 190, 120))
+                    elif role != 'all':
+                        self.toast('%s solo abastece %s' % (docking['name'], ROLE_TXT[role].lower()), (255, 190, 120))
+                    else:
+                        self.toast('%s sin %s hasta que se reponga' % (docking['name'], ', '.join(empty)), (255, 190, 120))
                 if changed and self.dock_t <= 0:
                     self.dock_t = 0.28
                     self.audio.play('dock', .5)
@@ -297,18 +303,22 @@ class MapMixin:
             self.wave_clear()
 
     def next_strike_kind(self):
-        """Baraja de ataques: sale cada tipo con frecuencia pareja, nunca repite el anterior y hay un solo ataque aéreo por oleada."""
+        """Baraja de ataques: una carta de cada tipo (misiles, aéreo, tanques y desembarco) y recién se vuelve a barajar cuando se acaban,
+        así salen todos los tipos con la misma frecuencia y ninguno se repite seguido. Hay un solo ataque aéreo por oleada."""
         def ok(k):
             return k != self.strike_kind and not (k == 'aerial' and getattr(self, 'aerial_wave', 0) == self.wave)
         kind = None
         if self.strike_n <= 1:
-            kind = 'missile'
-        elif self.strike_n == 2 and self.wave == 1:      # el segundo ataque de la oleada 1 es aéreo, para conocerlo temprano
-            kind = 'aerial'
+            kind = 'missile'                                     # el primero siempre es de misiles (para aprender)
+        elif self.strike_n == 2 and getattr(self, 'aerial_wave', 0) != self.wave:
+            kind = 'aerial'                                      # el segundo es aéreo, para conocerlo temprano
+            if 'aerial' in self.strike_deck:
+                self.strike_deck.remove('aerial')
         else:
             if not any(ok(k) for k in self.strike_deck):
-                self.strike_deck = ['missile', 'aerial', 'tank', 'aerial', 'ground', 'missile']
-                random.shuffle(self.strike_deck)
+                nuevo = ['missile', 'aerial', 'tank', 'ground']
+                random.shuffle(nuevo)
+                self.strike_deck = nuevo
             for i, k in enumerate(self.strike_deck):
                 if ok(k):
                     kind = self.strike_deck.pop(i)
@@ -580,7 +590,7 @@ class MapMixin:
         self.convoy_t = min(self.convoy_t, 35.0)       # cada oleada nueva trae un convoy pronto
         self.port_tries = 0
         self.port_done = False
-        self.audio.play('win', .7)
+        self.audio.play('fanfare', .7)
         self.autosave(True)                           # autoguardado al terminar la oleada
         self.say('secretaria', 'Oleada superada. Bonificación de %d puntos; ciudades reparadas, +12 munición y +40 casco.' % bonus, 'ok', 'right', 640)
         self.start_upgrade()
@@ -630,9 +640,22 @@ class MapMixin:
         dx, dy = vec(en['h'], en['v'] * dt)
         en['x'] = clamp(en['x'] + dx, 40, WORLD_W - 40)
         en['y'] = clamp(en['y'] + dy, 40, WORLD_H - 40)
+        self.ai_keep_off_land(en, 74 if is_boss else 30)
         if random.random() < dt * (18 if is_boss else 14):
             bx, by = vec(en['h'], -62 if is_boss else -24)
             self.fxm.add('foam', en['x'] + bx, en['y'] + by, life=1.3, r0=4 if is_boss else 3, r1=14 if is_boss else 10, col=(230, 245, 255))
+
+    def ai_keep_off_land(self, en, margin):
+        """Los barcos enemigos nunca pisan una isla: si el giro lento los lleva a la costa, se los empuja de vuelta al agua y se frenan."""
+        for ix, iy, ir, sd in self.islands:
+            dd = dist(en['x'], en['y'], ix, iy) or 1.0
+            lim = coast_r(ir, sd, math.atan2(en['y'] - iy, en['x'] - ix), 1.1) + margin
+            if dd < lim:
+                en['x'] = ix + (en['x'] - ix) / dd * lim
+                en['y'] = iy + (en['y'] - iy) / dd * lim
+                en['v'] *= 0.6
+                if en.get('state') == 'patrol':
+                    en['wp'] = self.rand_wp()
 
     # ---- mapa
     def draw_map(self, cv):
@@ -787,8 +810,14 @@ class MapMixin:
             if st['fuel'] < 1 and st['repair'] < 1 and st['ammo'] < 1:
                 self.text(cv, '%s: suministros agotados hasta que se reponga' % dk['name'], self.f_m, (255, 170, 120), W // 2, H - 148, 'c')
             else:
-                self.text(cv, 'PUERTO: mantené R para reabastecer  |  Combustible %d  Reparación %d  Munición %d' %
-                          (st['fuel'], st['repair'], st['ammo']), self.f_m, (140, 255, 210), W // 2, H - 148, 'c')
+                role = self.city_role(dk)
+                if role == 'all':
+                    self.text(cv, 'PUERTO: mantené R para reabastecer  |  Combustible %d  Reparación %d  Munición %d' %
+                              (st['fuel'], st['repair'], st['ammo']), self.f_m, (140, 255, 210), W // 2, H - 148, 'c')
+                else:
+                    key = role
+                    self.text(cv, 'PUERTO: mantené R para reabastecer %s: %d  |  solo abastece este recurso' % (ROLE_TXT[role].lower(), st[key]),
+                              self.f_m, (140, 255, 210), W // 2, H - 148, 'c')
         elif self.near_helipad(260) and self.heli_sorties > 0:
             self.text(cv, 'HELIPUERTO: presioná B para despegar en el BLACKHAWK (misiones: %d)' % self.heli_sorties,
                       self.f_m, (130, 255, 190), W // 2, H - 148, 'c')

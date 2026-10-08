@@ -24,7 +24,7 @@ if exist dist rmdir /s /q dist
 if exist RetroLegacy.spec del /q RetroLegacy.spec
 
 echo [3/4] Compilando...
-python -m PyInstaller --clean --noconsole --onedir --name RetroLegacy --collect-all imageio_ffmpeg --add-data "videos;videos" --add-data "fonts;fonts" --add-data "portraits;portraits" --add-data "aviones;aviones" --add-data "barcos;barcos" --add-data "icono;icono" --icon "icono\retro_legacy.ico" retro_legacy.py
+python -m PyInstaller --clean --noconsole --onedir --name RetroLegacy --collect-all imageio_ffmpeg --add-data "videos;videos" --add-data "fonts;fonts" --add-data "portraits;portraits" --add-data "aviones;aviones" --add-data "barcos;barcos" --add-data "soldados;soldados" --add-data "icono;icono" --icon "icono\retro_legacy.ico" retro_legacy.py
 if errorlevel 1 ( echo La compilacion fallo. Revisa los mensajes de arriba. & pause & exit /b 1 )
 
 python -m PyInstaller --version

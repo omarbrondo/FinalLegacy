@@ -484,8 +484,8 @@ def _arm_layer(kind, mode):
 
 
 POSE_MAP = {'run': 'correr', 'idle': 'reposo', 'crouch': 'agachado', 'jump': 'salto', 'fall': 'caida', 'die': 'muerte',
-            'wind': 'granada_preparar', 'rel': 'granada_lanzar', 'up': 'arriba', 'down': 'abajo'}
-BAKED_FILES = {'player': 'soldado', 'player_f': 'soldada'}
+            'wind': 'granada_preparar', 'rel': 'granada_lanzar', 'up': 'arriba', 'down': 'abajo', 'attack': 'ataque'}
+BAKED_FILES = {'player': 'soldado', 'player_f': 'soldada', 'knife': 'cuchillero', 'knife_f': 'cuchillera'}
 
 
 def load_baked_soldier(art, kind):
@@ -534,6 +534,10 @@ def build_pt_art():
         art['arm'][fk] = art['arm'][fk[:-2]]
     for kd in BAKED_FILES:
         load_baked_soldier(art, kd)
+    for kd in ('knife',):                                  # mientras no exista la versión mujer, usa el dibujo del hombre
+        if kd in art.get('baked', {}) and kd + '_f' not in art['baked']:
+            art['body'][kd + '_f'] = art['body'][kd]
+            art['baked'][kd + '_f'] = art['baked'][kd]
     return art
 
 
