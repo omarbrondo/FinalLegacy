@@ -960,7 +960,7 @@ class PortMixin:
                 pose = arm
             elif aim is not None and pose in ('run', 'idle', 'crouch', 'jump', 'fall'):
                 th_ = math.degrees(math.atan2(aim[1], aim[0] if face > 0 else -aim[0]))
-                gun_ang = round(clamp(th_, -PT_AIM_MAX, PT_AIM_MAX) * 0.8 / 3) * 3.0         # el torso (con los brazos y el arma) gira hacia donde apunta el mouse
+                gun_ang = round(clamp(th_, -PT_AIM_MAX, PT_AIM_MAX) / 2) * 2.0         # el torso (con los brazos y el arma) gira hacia donde apunta el mouse
         frames = art['body'][kind][pose]
         fi %= len(frames)
         spr, shx, shy = frames[fi]
@@ -1080,8 +1080,13 @@ class PortMixin:
         dx, dy = px - cx, py - cy
         nx, ny = cx + dx * c_ + dy * s_, cy - dx * s_ + dy * c_
         out = pygame.Surface((w, h), pygame.SRCALPHA)
-        ov = 16                                              # la pelvis queda debajo del torso que gira: rellena el hueco de la cintura
-        out.blit(spr, (0, int(hip) - ov), (0, int(hip) - ov, w, h - int(hip) + ov))
+        out.blit(spr, (0, int(hip)), (0, int(hip), w, h - int(hip)))
+        h0 = int(hip)                                        # relleno de la cintura: se estiran hacia arriba los píxeles de la pelvis (solo el ancho del cuerpo, sin brazos ni arma)
+        for xx in range(int(ax) - 9, int(ax) + 10):
+            if 0 <= xx < w and 0 <= h0 + 1 < h:
+                col = spr.get_at((xx, h0 + 1))
+                if col.a > 200:
+                    pygame.draw.line(out, col, (xx, h0 - 18), (xx, h0), 1)
         out.blit(rot, (int(round(px - (rot.get_width() / 2 + (nx - cx)))), int(round(py - (rot.get_height() / 2 + (ny - cy))))))
         return out
 
