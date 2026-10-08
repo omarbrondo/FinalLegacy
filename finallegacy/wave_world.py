@@ -16,7 +16,7 @@ PROFILES = {
 ROLES = {'PUERTO BRONDO': 'fuel', 'NUEVA ESPERANZA': 'repair', 'FORT LEGACY': 'ammo', 'BAHIA AZUL': 'all'}
 ROLE_TXT = {'fuel': 'COMBUSTIBLE', 'repair': 'REPARACIONES', 'ammo': 'MUNICIÓN', 'all': 'TODO'}
 CUR_W, CUR_L = 240.0, 1200.0
-OFF_ROLE = 0.4              # una ciudad tiene solo el 40 % de los recursos que no son los suyos
+OFF_ROLE = 0.0              # una ciudad no tiene nada de los recursos que no son los suyos (solo la de rol TODO abastece los tres)
 
 
 class WaveWorldMixin:
@@ -69,8 +69,7 @@ class WaveWorldMixin:
         return ROLES.get(c['name'], 'all')
 
     def city_cap(self, c, key=None):
-        """Tope de suministros: 100 (menos si la ciudad está dañada). Cada ciudad tiene el 100 % de su recurso y el 40 % del resto;
-        la ciudad de rol TODO tiene el 100 % de los tres."""
+        """Tope de suministros: 100 (menos si la ciudad está dañada). Cada ciudad abastece solo su recurso; la de rol TODO abastece los tres."""
         base = 100.0 * (0.5 + 0.5 * clamp(c['hp'] / 100.0, 0.0, 1.0))
         if key is None:
             return base
