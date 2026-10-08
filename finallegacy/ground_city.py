@@ -183,6 +183,8 @@ class GroundCityMixin:
                             builds.append((bx, by, 56, 56, rnd.randint(12, 24), rnd.choice(pals), rnd.randrange(10 ** 6)))
             elif kind == 'park' and png_top('bloque_parque') is not None:          # bloque dibujado (la fuente y los árboles ya vienen en el arte)
                 land.blit(png_top('bloque_parque'), (X0 + u - 70, Y0 + v - 70))
+            elif kind == 'parking' and png_top('bloque_helipuerto') is not None and rnd.random() < 0.4:   # algunos estacionamientos son un helipuerto
+                land.blit(png_top('bloque_helipuerto'), (X0 + u - 70, Y0 + v - 70))
             elif kind == 'parking' and png_top('bloque_estacionamiento') is not None:   # los 6 autos vienen dibujados: solo se agregan sus colisiones
                 land.blit(png_top('bloque_estacionamiento'), (X0 + u - 70, Y0 + v - 70))
                 for row in (-34, 31):
@@ -351,6 +353,13 @@ class GroundCityMixin:
                     spr.blit(pygame.transform.smoothscale(art.subsurface((0, cut, art.get_width(), art.get_height() - cut)), (w, hh)), (0, rh))
                 _BUILD[key] = spr
             s.blit(spr, (X, Y))
+            mark = png_top('helipuerto_marca')
+            if mark is not None and pal != 'hall' and hh >= 26 and w >= 100 and rh >= 70 and rnd.random() < 0.5:    # helipuerto en el techo de los edificios grandes
+                dm = min(w, rh) - 24
+                mk = _BUILD.get(('h', dm))
+                if mk is None:
+                    mk = _BUILD[('h', dm)] = pygame.transform.smoothscale(mark, (dm, dm))
+                s.blit(mk, (X + w // 2 - dm // 2, Y + rh // 2 - dm // 2))
             return
         if pal == 'hall':
             wall, roof, hi, lo = (228, 226, 216), (110, 150, 134), (170, 206, 188), (72, 108, 94)
