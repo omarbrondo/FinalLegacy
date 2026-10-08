@@ -56,7 +56,7 @@ class NavalMixin:
             self.say('marinero', '¡Escudo caído! ' + BOSS_TYPES[self.c['btype']]['hint'], 'bad')
         else:
             self.banner('¡COMBATE NAVAL!', 'Hundí al buque enemigo', (255, 150, 90), 2.8)
-            self.say('marinero', 'Buque enemigo a la vista. WASD navegar, clic para misil, Q descarga, R torpedo, F humo, G control de daños y E para huir.', 'info')
+            self.say('marinero', 'Buque enemigo a la vista. WASD navegar, clic para misil, Q descarga, R torpedo, F humo, G control de daños, Z cortina antiaérea y E para huir.', 'info')
 
     def launch_missile(self, ship, ang, speed, own, off=0.0, dmg=(22, 12)):
         ox, oy = vec(ship['h'], off)

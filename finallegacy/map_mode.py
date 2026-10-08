@@ -633,6 +633,7 @@ class MapMixin:
         self.radars_reset()                           # los radares enemigos vuelven a operar
         self.war_advance()
         self.nests_new_wave()
+        self.jet_new_wave()
         self.convoy_t = min(self.convoy_t, 35.0)       # cada oleada nueva trae un convoy pronto
         self.port_tries = 0
         self.port_done = False
@@ -835,8 +836,8 @@ class MapMixin:
         thr = 1.0 if self.attack is not None else 1 - clamp(self.strike_t / 60.0, 0, 1)
         self.text(cv, 'AMENAZA ENEMIGA', self.f_s, (255, 190, 170), W - 296 + 8, 76)
         self.bar(cv, W - 296, 96, 282, 14, thr, (255, 90 + int(100 * (1 - thr)), 60), '')
-        self.text(cv, 'BLACKHAWK: %d misión(es) | próxima a los %d pts | bidón (C): %s' % (
-            self.heli_sorties, self.heli_next, 'en camino' if self.heli_fl else ('%ds' % math.ceil(self.heli_cd) if self.heli_cd > 0 else 'listo')),
+        self.text(cv, 'BLACKHAWK: %d | F-16: %d | próxima a los %d pts | bidón (C): %s' % (
+            self.heli_sorties, self.jet_sorties, self.heli_next, 'en camino' if self.heli_fl else ('%ds' % math.ceil(self.heli_cd) if self.heli_cd > 0 else 'listo')),
             self.f_s, (130, 255, 190), 14, 96)
         n_ant = sum(self.antennas.values())
         need = self.antennas_needed()
@@ -869,8 +870,8 @@ class MapMixin:
                     key = role
                     self.text(cv, 'PUERTO: mantené R para reabastecer %s: %d  |  solo abastece este recurso' % (ROLE_TXT[role].lower(), st[key]),
                               self.f_m, (140, 255, 210), W // 2, H - 148, 'c')
-        elif self.near_helipad(260) and self.heli_sorties > 0:
-            self.text(cv, 'HELIPUERTO: presioná B para despegar en el BLACKHAWK (misiones: %d)' % self.heli_sorties,
+        elif self.near_helipad(260) and (self.heli_sorties > 0 or self.jet_sorties > 0):
+            self.text(cv, 'BASE AÉREA: B Blackhawk (%d)  |  J caza F-16 (%d)' % (self.heli_sorties, self.jet_sorties),
                       self.f_m, (130, 255, 190), W // 2, H - 148, 'c')
         elif self.nearest_radar() is not None:
             self.text(cv, 'RADAR ENEMIGO: presioná H para hackearlo  |  1) nodos  2) señal de radio', self.f_m, (255, 190, 150), W // 2, H - 148, 'c')
