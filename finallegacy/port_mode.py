@@ -942,9 +942,21 @@ class PortMixin:
         if (kind == 'player' and self.pt.get('pfem')) or fem:
             if kind + '_f' in art['body']:
                 kind = kind + '_f'
+        baked = art.get('baked', {}).get(kind)
+        if baked:                                            # soldado dibujado a mano: cuadros con el arma incluida
+            gun_ang = 0.0
+            if arm in ('wind', 'rel'):
+                pose = arm
+            elif pose == 'idle' and aim is not None and 'up' in art['body'][kind]:
+                th_ = math.degrees(math.atan2(aim[1], aim[0] if face > 0 else -aim[0]))
+                if th_ < -20:
+                    pose, gun_ang = 'up', -25.0
+                elif th_ > 20:
+                    pose, gun_ang = 'down', 25.0
         frames = art['body'][kind][pose]
         fi %= len(frames)
         spr, shx, shy = frames[fi]
+        ax_, ay_ = baked['anchor'] if baked else (PT_AX, PT_AY)
         if shadow:
             fl_ = self.pt_floor(sx + self.pt['cam'], fy)
             if fl_ - fy < 200:
@@ -958,9 +970,10 @@ class PortMixin:
         img = self.pt_cache.get(key)
         if img is None:
             img = spr if right else pygame.transform.flip(spr, True, False)
-            img = img.copy()
-            img.fill((12, 12, 14, 0), special_flags=pygame.BLEND_RGB_ADD)             # levanta un poco las sombras para que se lean sobre el fondo oscuro
-            img = rim_light(img, a_top=130, a_front=90)
+            if not baked:
+                img = img.copy()
+                img.fill((12, 12, 14, 0), special_flags=pygame.BLEND_RGB_ADD)         # levanta un poco las sombras para que se lean sobre el fondo oscuro
+                img = rim_light(img, a_top=130, a_front=90)
             self.pt_cache[key] = img
         if hit > 0 or alpha < 255:
             img = img.copy()
@@ -983,9 +996,23 @@ class PortMixin:
                 sc = pygame.transform.smoothscale(img, (max(1, int(img.get_width() * sxs)), max(1, int(img.get_height() * sys_))))
                 if hit <= 0 and alpha >= 255:
                     self.pt_cache[qk] = sc
-            cv.blit(sc, (sx - PT_AX * sxs, fy - PT_AY * sys_))
+            cv.blit(sc, (sx - ax_ * sxs, fy - ay_ * sys_))
         else:
-            cv.blit(img, (sx - PT_AX, fy - PT_AY))
+            cv.blit(img, (sx - ax_, fy - ay_))
+        if baked:
+            mzl = baked['mz'].get(pose)
+            if not mzl or pose in ('die', 'wind', 'rel'):
+                return None
+            mxr, myr = mzl[fi % len(mzl)]
+            ln = self.PT_MUZ.get(base, 74)
+            tha = math.radians(gun_ang)
+            mx = sx + (mxr if right else -mxr) * sxs
+            my = fy + myr * sys_
+            px = mx - (math.cos(tha) if right else -math.cos(tha)) * ln
+            py = my - math.sin(tha) * ln
+            if flash:
+                self.pt_flash(cv, mx, my, -gun_ang if right else gun_ang, right)
+            return px, py
         if not arm or arm not in art['arm'][kind] or pose == 'die':
             return None
         layer = art['arm'][kind][arm]
