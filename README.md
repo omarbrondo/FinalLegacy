@@ -123,7 +123,7 @@ Con PyInstaller se arma una carpeta que se puede pasar a otra persona sin que in
 
 ```
 pip install pyinstaller
-python -m PyInstaller --noconsole --onedir --name RetroLegacy --collect-all imageio_ffmpeg --add-data "videos;videos" --add-data "fonts;fonts" --add-data "portraits;portraits" --add-data "icono;icono" --icon icono/retro_legacy.ico retro_legacy.py
+python -m PyInstaller --noconsole --onedir --name RetroLegacy --collect-all imageio_ffmpeg --add-data "videos;videos" --add-data "fonts;fonts" --add-data "portraits;portraits" --add-data "aviones;aviones" --add-data "icono;icono" --icon icono/retro_legacy.ico retro_legacy.py
 ```
 
 - **Atajo**: ejecutá `compilar.bat` (doble clic o desde la consola): instala PyInstaller, limpia `build/` y `dist/`, compila con todas las opciones (incluido el ícono) y refresca la caché de íconos de Windows.

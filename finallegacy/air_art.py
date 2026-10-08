@@ -2,6 +2,7 @@
 Cada pieza del casco se dibuja como una placa con bisel (luz arriba a la izquierda), juntas, remaches y luces; al final todo
 el sprite recibe sombreado, luz de borde y contorno (polish)."""
 import math
+import os
 import pygame
 import random
 
@@ -13,8 +14,27 @@ def _S():
 ENG = {}          # posiciones (relativas al centro del sprite) de las toberas de cada jefe, para los resplandores de los motores
 
 
+BOSS_W = (320, 300, 250, 300, 280, 340)         # ancho en pantalla de cada jefe cuando se usa su PNG
+
+
+def load_png_sprite(name, width, flip=True):
+    """Sprite de aviones/<name>.png escalado a 'width' px de ancho y con el morro hacia abajo; None si no existe."""
+    path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'aviones', name + '.png')
+    if not os.path.isfile(path):
+        return None
+    try:
+        img = pygame.image.load(path).convert_alpha()
+    except pygame.error:
+        return None
+    img = pygame.transform.smoothscale(img, (width, max(1, round(img.get_height() * width / img.get_width()))))
+    return pygame.transform.flip(img, False, True) if flip else img
+
+
 def make_air_boss(k):
     """Jefe aéreo k (0 = el comandante stealth se construye aparte). Mira hacia abajo (sur)."""
+    png = load_png_sprite('avion_jefe_%d' % (k + 1), BOSS_W[k])
+    if png is not None:
+        return png
     fn = [None, _nodriza, _fantasma, _artillero, _tormenta, _titan][k]
     return polish(fn())
 
