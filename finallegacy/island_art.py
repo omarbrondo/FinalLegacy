@@ -40,7 +40,7 @@ def _pick(r, is_city):
 
 def paint(land, x, y, r, seed, is_city):
     """Dibuja la isla con arte sobre 'land'; devuelve False si no hay arte (el llamador usa el dibujo por código)."""
-    if np is None or r > 140:
+    if np is None or r > 160:
         return False
     art = _load()
     if '_none' in art:
