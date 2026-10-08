@@ -75,13 +75,26 @@ def hacer_icono():
     return img
 
 
+def _entrada_bmp(img, t):
+    """Imagen de t x t como DIB de 32 bits (el formato clásico de los .ico: lo entienden todas las versiones de Windows y PyInstaller)."""
+    sup = pygame.transform.smoothscale(img, (t, t))
+    bgra = pygame.image.tostring(sup, 'BGRA')
+    filas = [bgra[y * t * 4:(y + 1) * t * 4] for y in range(t)][::-1]           # de abajo hacia arriba
+    mascara = bytes(((t + 31) // 32) * 4 * t)                                  # máscara AND vacía (la transparencia va en el canal alfa)
+    cab = struct.pack('<IiiHHIIiiII', 40, t, t * 2, 1, 32, 0, len(bgra) + len(mascara), 0, 0, 0, 0)
+    return cab + b''.join(filas) + mascara
+
+
 def guardar_ico(img, ruta, tamanos=(16, 24, 32, 48, 64, 128, 256)):
-    """ICO con imágenes PNG incrustadas (lo entiende Windows desde Vista)."""
+    """ICO con DIB de 32 bits para los tamaños chicos y PNG incrustado para 256 (como los que genera Windows)."""
     datos = []
     for t in tamanos:
-        buf = io.BytesIO()
-        pygame.image.save(pygame.transform.smoothscale(img, (t, t)), buf, 'icon.png')
-        datos.append(buf.getvalue())
+        if t >= 256:
+            buf = io.BytesIO()
+            pygame.image.save(pygame.transform.smoothscale(img, (t, t)), buf, 'icon.png')
+            datos.append(buf.getvalue())
+        else:
+            datos.append(_entrada_bmp(img, t))
     cab = struct.pack('<HHH', 0, 1, len(datos))
     off = 6 + 16 * len(datos)
     ent = b''

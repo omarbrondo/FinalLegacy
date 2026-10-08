@@ -36,7 +36,7 @@ class SaveMixin:
     # ------------------------------------------------------------------ volumen
     def vol_load(self):
         d = self.sv_read()
-        self.audio.set_vols(float(d.get('vol_music', 1.0)), float(d.get('vol_sfx', 1.0)))
+        self.audio.set_vols(float(d.get('vol_music', 0.6)), float(d.get('vol_sfx', 0.6)))
 
     def vol_step(self, kind, delta, wrap=False):
         """kind = 'music' o 'sfx'; sube o baja 10 %. Con wrap, pasa de 100 % a 0 %."""
