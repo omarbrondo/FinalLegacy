@@ -71,7 +71,14 @@ class CoreMixin:
 
     def roll_player_fem(self):
         """Sexo del soldado en cada batalla a pie: al azar salvo que PLAYER_FEMALE lo fije."""
-        return random.random() < 0.5 if PLAYER_FEMALE is None else bool(PLAYER_FEMALE)
+        if PLAYER_FEMALE is not None:
+            return bool(PLAYER_FEMALE)
+        hist = getattr(self, '_fem_hist', [])
+        fem = random.random() < 0.5
+        if len(hist) >= 2 and hist[-1] == hist[-2] == fem:          # al azar, pero nunca tres veces seguidas el mismo sexo
+            fem = not fem
+        self._fem_hist = (hist + [fem])[-4:]
+        return fem
 
     def make_font(self, size, weight=700):
         """Orbitron (carpeta fonts/); si falta, una fuente monoespaciada del sistema."""
