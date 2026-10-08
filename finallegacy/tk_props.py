@@ -159,7 +159,7 @@ class TankPropsMixin:
         z = c[2]
         if z < 2.5 or z > 190:
             return
-        hi = int(round(((pr['rot'] - p['yaw']) % 360) / (360.0 / TK_ANG))) % TK_ANG
+        hi = int(round(((pr['rot'] - p['yaw']) % 360) / (360.0 / len(frames)))) % len(frames)
         img0, ax, ay = frames[hi]
         sx, sy = self.tk_prj(c)
         scale = (self.TK_F / z) / TK_PXU

@@ -1,10 +1,11 @@
-"""Autos de la ciudad del tanque: modelo 3D de baja cantidad de polígonos pre-renderizado desde TK_ANG ángulos
+"""Autos de la ciudad del tanque: modelo 3D de baja cantidad de polígonos pre-renderizado desde CAR_ANG ángulos
 (nuevo, intacto, quemado y aplastado), con el mismo método que los tanques."""
 import math
 import random
 import pygame
-from .tk_art import TK_ANG, TK_PXU, Solid, disc_x, quad_x, quad_y, render_solids, s_box, s_extrude
+from .tk_art import TK_PXU, Solid, disc_x, quad_x, quad_y, render_solids, s_box, s_extrude
 
+CAR_ANG = 64        # vistas pre-renderizadas de autos y bicicletas (más que los tanques, para que giren más suave)
 CAR_COLORS = [(176, 36, 34), (34, 82, 168), (222, 188, 60), (200, 204, 210), (36, 124, 84), (212, 112, 36), (28, 30, 36), (120, 60, 140)]
 GLASS, GLASS_BROKEN = (52, 76, 98), (16, 18, 20)
 TIRE, RIM, CHROME, UNDER = (20, 20, 22), (168, 170, 176), (186, 190, 198), (18, 18, 20)
@@ -56,8 +57,8 @@ def build_car_model(color, state, seed=0):
     def pc(c):
         return rnd.choice(patches) if burnt else c
     # carrocería baja (capó con pendiente, baúl corto)
-    prof = [(-2.2, 0.30), (-2.2, 0.94), (-1.15, 1.0), (1.35, 1.0), (2.2, 0.80), (2.2, 0.30)]
-    solids.append(s_extrude(prof, -0.92, 0.92, pc(body), [pc(body), pc(body), pc(body), pc(body), pc(body), UNDER]))
+    prof = [(-2.2, 0.30), (-2.2, 0.82), (-2.08, 0.95), (-1.15, 1.0), (1.35, 1.0), (1.92, 0.93), (2.2, 0.80), (2.2, 0.30)]
+    solids.append(s_extrude(prof, -0.92, 0.92, pc(body), [pc(body)] * 7 + [UNDER]))
     # habitáculo: parabrisas y luneta inclinados, techo del color de la carrocería
     cab = [(-1.28, 1.0), (-0.82, 1.52), (0.62, 1.52), (1.4, 1.0)]
     solids.append(s_extrude(cab, -0.80, 0.80, glass, [glass, pc(body), glass, pc(body)]))
@@ -72,7 +73,11 @@ def build_car_model(color, state, seed=0):
         solids[0].details.append(quad_x(0.925 * sd, 0.80, 0.86, -0.78, -0.55, trim, nx))              # manija
         solids[0].details.append(quad_x(0.925 * sd, 0.80, 0.86, 0.3, 0.52, trim, nx))
         solids[0].details.append(quad_x(0.925 * sd, 0.30, 0.38, -1.7, 1.7, shade(body, 0.4), nx))     # zócalo
-    solids[0].details.append(quad_y(1.002, -0.5, 0.5, 1.5, 2.0, shade(body, 0.8)))                      # relieve del capó
+    solids[0].details.append(quad_y(1.002, -0.5, 0.5, 1.5, 1.85, shade(body, 0.8)))                     # relieve del capó
+    for sd in (-1, 1):
+        solids[0].details.append(quad_x(0.927 * sd, 0.94, 0.99, -1.0, 1.95, trim, float(sd)))                                        # cintura cromada
+        solids[0].details.append(quad_x(0.927 * sd, 0.30, 0.33, -2.1, 2.1, shade(trim, 0.7), float(sd)))                             # moldura baja
+    solids[0].details.append(quad_y(1.002, -0.62, 0.62, -2.0, -1.45, shade(body, 0.85)))                                               # tapa del baúl
     # paragolpes, luces y parrilla
     solids.append(s_box(-0.97, 0.97, 0.28, 0.5, 2.16, 2.34, trim))
     solids.append(s_box(-0.97, 0.97, 0.28, 0.5, -2.34, -2.16, trim))
@@ -82,30 +87,45 @@ def build_car_model(color, state, seed=0):
         solids.append(s_box(x0, x1, 0.62, 0.8, -2.24, -2.17, (60, 30, 24) if burnt else (212, 30, 28)))
         mx0, mx1 = (0.92, 1.1) if sd > 0 else (-1.1, -0.92)
         solids.append(s_box(mx0, mx1, 1.06, 1.2, 0.85, 1.05, pc(body)))                               # espejo
+        bx0, bx1 = (0.48, 0.9) if sd > 0 else (-0.9, -0.48)
+        solids.append(s_box(bx0, bx1, 0.56, 0.84, 2.14, 2.2, trim))                                     # marco de los faros
+        solids.append(s_box(bx0, bx1, 0.56, 0.84, -2.2, -2.14, trim))
+        ex = 0.5 * sd
+        solids.append(s_box(ex - 0.07, ex + 0.07, 0.2, 0.3, -2.42, -2.2, UNDER))                        # escape
+        ax0, ax1 = (0.5, 0.58) if sd > 0 else (-0.58, -0.5)
+        solids.append(s_box(ax0, ax1, 0.62, 0.7, 2.18, 2.26, (255, 170, 40) if not burnt else (60, 40, 20)))   # intermitente
+    solids.append(s_box(0.62, 0.68, 0.95, 1.85, -1.9, -1.86, (20, 20, 22)))                              # antena
     solids[0].details.append(quad_z(2.202, -0.4, 0.4, 0.5, 0.72, (14, 14, 16), 1.0))                 # parrilla
+    for gx in (-0.3, -0.15, 0.0, 0.15, 0.3):
+        solids[0].details.append(quad_z(2.203, gx - 0.015, gx + 0.015, 0.5, 0.72, (70, 70, 74), 1.0))   # barras de la parrilla
     solids[0].details.append(quad_z(-2.202, -0.3, 0.3, 0.48, 0.64, (230, 230, 220) if not burnt else (50, 50, 46), -1.0))   # patente
     # ruedas
     for sd in (-1, 1):
         for z in (-1.42, 1.42):
             x0, x1 = (0.70, 0.94) if sd > 0 else (-0.94, -0.70)
-            w = s_cyl_x(0.0, 0.38, z, x0, x1, 0.38, 12, TIRE)
+            w = s_cyl_x(0.0, 0.38, z, x0, x1, 0.38, 20, TIRE)
             xo = (x1 + 0.012) if sd > 0 else (x0 - 0.012)
-            w.details.append(disc_x(xo, 0.38, z, 0.22, 10, (60, 56, 52) if burnt else RIM, float(sd)))
-            w.details.append(disc_x(xo + 0.01 * sd, 0.38, z, 0.07, 6, TIRE, float(sd)))
+            w.details.append(disc_x(xo, 0.38, z, 0.29, 20, shade(TIRE, 1.5), float(sd)))                           # flanco del neumático
+            w.details.append(disc_x(xo + 0.004 * sd, 0.38, z, 0.22, 16, (60, 56, 52) if burnt else RIM, float(sd)))
+            w.details.append(disc_x(xo + 0.008 * sd, 0.38, z, 0.15, 12, shade(TIRE, 1.2), float(sd)))
+            for k in range(5):
+                a = 2 * math.pi * k / 5
+                w.details.append(disc_x(xo + 0.010 * sd, 0.38 + math.sin(a) * 0.11, z + math.cos(a) * 0.11, 0.028, 6, CHROME, float(sd)))   # tuercas
+            w.details.append(disc_x(xo + 0.012 * sd, 0.38, z, 0.06, 8, CHROME if not burnt else (60, 56, 52), float(sd)))
             solids.append(w)
     return solids
 
 
 def make_car_sprites():
-    """{(variante, estado): lista de TK_ANG cuadros (img, ancla x, ancla y)}; variante = índice de color."""
+    """{(variante, estado): lista de CAR_ANG cuadros (img, ancla x, ancla y)}; variante = índice de color."""
     size = (230, 150)
     out = {}
     jobs = [(i, 'ok') for i in range(len(CAR_COLORS))] + [(0, 'burnt'), (0, 'crushed'), (3, 'crushed')]
     for var, state in jobs:
         solids = build_car_model(CAR_COLORS[var], state, 7 + var)
         frames = []
-        for i in range(TK_ANG):
-            img, ax, ay = render_solids(solids, i * 360.0 / TK_ANG, size, TK_PXU, shadow=True, shadow_w=4.8)
+        for i in range(CAR_ANG):
+            img, ax, ay = render_solids(solids, i * 360.0 / CAR_ANG, size, TK_PXU, shadow=True, shadow_w=4.8)
             r = img.get_bounding_rect()
             if r.w < 2 or r.h < 2:
                 r = pygame.Rect(0, 0, 2, 2)
@@ -201,15 +221,15 @@ def build_bike_model(color, state, seed=0, var=0):
 
 
 def make_bike_sprites():
-    """{(variante, estado): TK_ANG cuadros (img, ancla x, ancla y)} de las bicicletas (mismo método que los autos)."""
+    """{(variante, estado): CAR_ANG cuadros (img, ancla x, ancla y)} de las bicicletas (mismo método que los autos)."""
     size = (150, 120)
     out = {}
     jobs = [(i, 'ok') for i in range(len(BIKE_COLORS))] + [(0, 'crushed'), (1, 'crushed')]
     for var, state in jobs:
         solids = build_bike_model(BIKE_COLORS[var], state, 11 + var, var)
         frames = []
-        for i in range(TK_ANG):
-            img, ax, ay = render_solids(solids, i * 360.0 / TK_ANG, size, TK_PXU, shadow=True, shadow_w=2.6)
+        for i in range(CAR_ANG):
+            img, ax, ay = render_solids(solids, i * 360.0 / CAR_ANG, size, TK_PXU, shadow=True, shadow_w=2.6)
             r = img.get_bounding_rect()
             if r.w < 2 or r.h < 2:
                 r = pygame.Rect(0, 0, 2, 2)
