@@ -123,14 +123,14 @@ Con PyInstaller se arma una carpeta que se puede pasar a otra persona sin que in
 
 ```
 pip install pyinstaller
-python -m PyInstaller --noconsole --onedir --name RetroLegacy --collect-all imageio_ffmpeg --add-data "videos;videos" --add-data "fonts;fonts" --add-data "portraits;portraits" retro_legacy.py
+python -m PyInstaller --noconsole --onedir --name RetroLegacy --collect-all imageio_ffmpeg --add-data "videos;videos" --add-data "fonts;fonts" --add-data "portraits;portraits" --add-data "icono;icono" --icon icono/retro_legacy.ico retro_legacy.py
 ```
 
 - Se llama con `python -m PyInstaller` (y no `pyinstaller` a secas) porque `pip` instala el programa en una carpeta de usuario que muchas veces no está en el PATH ("command not found"); así funciona igual.
 - En una consola MSYS2/Git Bash, que traduce los argumentos con `;` como si fueran rutas de Linux, anteponé `MSYS2_ARG_CONV_EXCL="*"` al comando, o ejecutalo desde PowerShell o el CMD de Windows.
 
 - El resultado queda en `dist/RetroLegacy/` (ejecutable: `RetroLegacy.exe`). Para compartirlo, comprimí **toda la carpeta** en un ZIP.
-- `--collect-all imageio_ffmpeg` incluye el decodificador de los videos; `--add-data "videos;videos"`, `--add-data "fonts;fonts"` y `--add-data "portraits;portraits"` incluyen los MP4, la fuente Orbitron y los retratos de los personajes (sin esa última opción el `.exe` usa siluetas provisorias).
+- `--collect-all imageio_ffmpeg` incluye el decodificador de los videos; `--add-data "videos;videos"`, `--add-data "fonts;fonts"` y `--add-data "portraits;portraits"` incluyen los MP4, la fuente Orbitron y los retratos de los personajes (sin esa última opción el `.exe` usa siluetas provisorias). `--icon icono/retro_legacy.ico` le pone el ícono del juego al `.exe` y `--add-data "icono;icono"` lo incluye para la ventana y la barra de tareas. Para regenerar el ícono: `python icono/generar_icono.py`.
 - Se usa `--onedir` (carpeta) y no `--onefile`, porque abre más rápido y guarda bien las partidas.
 - Las partidas (`final_legacy_saves.json`) y el récord (`final_legacy_hiscore.txt`) quedan dentro de `dist/RetroLegacy/_internal/`: copialos antes de recompilar, porque la compilación nueva los reemplaza.
 - A veces el antivirus de Windows marca el `.exe` como sospechoso (falso positivo conocido de PyInstaller); hay que permitirlo.
