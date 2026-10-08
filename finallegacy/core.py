@@ -4,6 +4,7 @@ import os
 import pygame
 import random
 import sys
+from . import island_art
 from .common import (
     ANTENNA_ISLANDS, CITY_DEFS, DECOR_ISLANDS, ENEMY_PORT,
     EXTRA_ISLANDS, FPS, H, HZ,
@@ -243,6 +244,8 @@ class CoreMixin:
         self.crt = crt.convert_alpha()
 
     def paint_island(self, land, x, y, r, seed, is_city):
+        if island_art.paint(land, x, y, r, seed, is_city):
+            return
         for sc, a in ((1.55, 30), (1.38, 45), (1.22, 65)):
             pygame.draw.polygon(land, (90, 205, 215, a), blob(x, y, r, seed, sc))
         pygame.draw.polygon(land, (236, 250, 255, 110), blob(x, y, r, seed, 1.1), 3)
