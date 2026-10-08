@@ -1083,17 +1083,16 @@ class PortMixin:
         out = pygame.Surface((w, h), pygame.SRCALPHA)
         out.blit(spr, (0, int(hip)), (0, int(hip), w, h - int(hip)))
         h0 = int(hip)                                        # relleno de la cintura: se estiran hacia arriba los píxeles de la pelvis (sin brazos ni arma)
-        n_up = 5 + int(abs(ang) * 0.22)
-        last = None
-        for xx in range(int(ax) - 9, int(ax) + 10):
-            col = spr.get_at((xx, h0 - 5)) if 0 <= xx < w and 0 <= h0 - 5 < h else None
-            if col is not None and col.a > 200:
-                last = col
-            elif last is not None:
-                col = last
-            else:
-                continue
-            pygame.draw.line(out, col, (xx, h0 - n_up), (xx, h0), 1)
+        n_up = 4 + int(abs(ang) * 0.2)
+        sm, cnt = [0, 0, 0], 0                                # color promedio del uniforme (solo píxeles verdes de la zona de la cintura)
+        for xx in range(int(ax) - 8, int(ax) + 9):
+            for yy in range(h0 - 12, h0 + 3):
+                if 0 <= xx < w and 0 <= yy < h:
+                    c = spr.get_at((xx, yy))
+                    if c.a > 200 and c.g >= c.r and c.g >= c.b and c.g > 45 and (c.r + c.g + c.b) > 150:
+                        sm[0] += c.r; sm[1] += c.g; sm[2] += c.b; cnt += 1
+        fill = (sm[0] // cnt, sm[1] // cnt, sm[2] // cnt, 255) if cnt else (62, 80, 52, 255)
+        pygame.draw.rect(out, fill, (int(ax) - 7, h0 - n_up, 15, n_up + 1))
         out.blit(rot, (int(round(px - (rot.get_width() / 2 + (nx - cx)))), int(round(py - (rot.get_height() / 2 + (ny - cy))))))
         return out
 
