@@ -10,6 +10,7 @@ from .pt_art import (
 
 from .comms import PORT_LINES
 
+PT_AIM_MAX = 52         # el jugador no puede disparar casi vertical: tope de inclinación del arma (grados) hacia arriba y hacia abajo
 HIP_UP = 44            # altura de la cadera sobre los pies en el soldado dibujado a mano
 
 
@@ -847,12 +848,13 @@ class PortMixin:
             dx, dy = tx - mx, ty - my
             right = face > 0
             th = math.atan2(dy, dx if right else -dx)
-            th = clamp(th, -math.radians(80), math.radians(80))
+            th = clamp(th, -math.radians(PT_AIM_MAX), math.radians(PT_AIM_MAX))
             return mx, my, (math.cos(th) if right else -math.cos(th)), math.sin(th)
         dx, dy = tx - px, ty - py
         right = face > 0
         th = math.atan2(dy, dx if right else -dx)
-        th = clamp(th, -math.radians(80), math.radians(80))
+        lim = PT_AIM_MAX if kind == 'player' else 80
+        th = clamp(th, -math.radians(lim), math.radians(lim))
         dirx, diry = (math.cos(th) if right else -math.cos(th)), math.sin(th)
         ln = self.PT_MUZ.get(kind, 74)
         return px + dirx * ln, py + diry * ln, dirx, diry
@@ -958,7 +960,7 @@ class PortMixin:
                 pose = arm
             elif aim is not None and pose in ('run', 'idle', 'crouch', 'jump', 'fall'):
                 th_ = math.degrees(math.atan2(aim[1], aim[0] if face > 0 else -aim[0]))
-                gun_ang = round(clamp(th_, -62, 62) * 0.75 / 3) * 3.0         # el torso (con los brazos y el arma) gira hacia donde apunta el mouse
+                gun_ang = round(clamp(th_, -PT_AIM_MAX, PT_AIM_MAX) * 0.8 / 3) * 3.0         # el torso (con los brazos y el arma) gira hacia donde apunta el mouse
         frames = art['body'][kind][pose]
         fi %= len(frames)
         spr, shx, shy = frames[fi]
@@ -1034,7 +1036,7 @@ class PortMixin:
         if aim is not None and arm in ('gun', 'knife'):
             dx, dy = aim
             rot = -math.degrees(math.atan2(dy, dx)) if right else math.degrees(math.atan2(dy, -dx))
-            rot = clamp(rot, -80, 80)
+            rot = clamp(rot, -PT_AIM_MAX, PT_AIM_MAX) if base == 'player' else clamp(rot, -80, 80)
         else:
             rot = 0.0
         rk = (kind, arm, right, int(rot / 3))
