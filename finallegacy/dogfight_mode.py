@@ -2,10 +2,11 @@
 import math
 import random
 import pygame
-from .common import H, W, Particles, angle_diff, bearing, clamp, dist, draw_circ, glow, vec
+from .common import H, HELIPAD, W, Particles, angle_diff, bearing, clamp, dist, draw_circ, glow, vec
 
 STAGES = 4
 SPAWN_R = 820
+GROUND = ('destroyer', 'sub', 'fort')
 
 
 def _wrap_turn(h, want, rate, dt):
@@ -31,21 +32,64 @@ class DogfightMixin:
         if self.attack is not None or self.warned:
             self.toast('Hay un ataque en curso: no es momento de despegar', (255, 150, 110))
             return
-        self.jet_sorties -= 1
-        self.start_jets()
+        ref = (HELIPAD[0], HELIPAD[1])
+        c = [dict(kind='duel', x=ref[0], y=ref[1])]
+        tg = [dict(kind='sub' if en.get('sub') else 'ship', tg=en, x=en['x'], y=en['y']) for en in self.enemies if not en.get('is_boss')]
+        tg += [dict(kind='nest', tg=n, x=n['x'], y=n['y']) for n in self.nests if n['alive'] and not n.get('ally')]
+        tg.sort(key=lambda d: dist(d['x'], d['y'], *ref))
+        self.jet_cands = (c + tg)[:4]
+        self.go('jetsel')
 
-    def start_jets(self):
+    def jet_pick(self, i):
+        if self.state != 'jetsel' or not 0 <= i < len(self.jet_cands):
+            return
+        c = self.jet_cands[i]
+        self.jet_sorties -= 1
+        self.start_jets(None if c['kind'] == 'duel' else c)
+
+    def jet_sel_rect(self, i):
+        return pygame.Rect(W // 2 - 500, 190 + i * 118, 1000, 104)
+
+    def draw_jetsel(self, cv):
+        t = self.t
+        self.draw_ocean(cv, t * 20, t * 6, t)
+        self.dim(cv, 45)
+        self.text(cv, 'ELEGÍ LA MISIÓN DEL ESCUADRÓN F-16', self.f_l, (150, 220, 255), W // 2, 70, 'c')
+        self.text(cv, 'Salidas: %d   |   1-4 o clic para despegar   |   ESC volver' % self.jet_sorties, self.f_s, (200, 225, 255), W // 2, 130, 'c')
+        mx, my = pygame.mouse.get_pos()
+        for i, c in enumerate(self.jet_cands):
+            r = self.jet_sel_rect(i)
+            hov = r.collidepoint(mx, my)
+            self.panel(cv, r.move(0, -4 if hov else 0), 215 if hov else 175)
+            k = c['kind']
+            if k == 'duel':
+                title, desc, col = 'DUELO AÉREO', 'Cuatro oleadas de cazas, barcos y submarinos antiaéreos, con dos alas aliados', (150, 220, 255)
+            elif k == 'ship':
+                title, desc, col = 'ATACAR BUQUE ENEMIGO', 'Hundilo con misiles y bombas (E) bajo fuego antiaéreo: cuenta para la oleada', (255, 150, 120)
+            elif k == 'sub':
+                title, desc, col = 'CAZAR SUBMARINO', 'Solo es vulnerable en superficie: esperá a que emerja y bombardealo', (120, 230, 210)
+            else:
+                title, desc, col = 'BOMBARDEAR BATERÍA COSTERA', 'Cañones antiaéreos y misiles: destruila y queda el islote en ruinas', (255, 210, 110)
+            d = dist(c['x'], c['y'], HELIPAD[0], HELIPAD[1])
+            self.text(cv, str(i + 1), self.f_l, col, r.x + 22, r.y + 28)
+            self.text(cv, title, self.f_m, (255, 255, 255), r.x + 80, r.y + 18)
+            self.text(cv, desc, self.f_s, (210, 225, 245), r.x + 80, r.y + 52)
+            if k != 'duel':
+                self.text(cv, '%d m' % d, self.f_s, col, r.right - 24, r.y + 18, 'r')
+            pygame.draw.rect(cv, col, r.move(0, -4 if hov else 0), 2, border_radius=6)
+
+    def start_jets(self, mission=None):
         w = self.wave
         hp = 100.0
         self.fx = Particles()
         self.jt = dict(
-            p=dict(x=0.0, y=0.0, h=0.0, v=230.0, hp=hp, max=hp, gcd=0.0, mcd=0.0, msl=6, flares=5, fcd=0.0, boost=1.0, bank=0.0, hit=0.0, lock=None, warn=0.0),
+            p=dict(x=0.0, y=0.0, h=0.0, v=230.0, hp=hp, max=hp, gcd=0.0, mcd=0.0, msl=6, flares=5, bomb=5 if mission else 3, bcd=0.0, bkey=False, fcd=0.0, boost=1.0, bank=0.0, hit=0.0, lock=None, warn=0.0),
             allies=[dict(x=-90.0, y=70.0, h=0.0, v=230.0, hp=45.0, max=45.0, cd=0.0, id=0), dict(x=90.0, y=70.0, h=0.0, v=230.0, hp=45.0, max=45.0, cd=0.0, id=1)],
-            foes=[], bullets=[], missiles=[], flares=[], flak=[], spawns=[], stage=0, phase='intro', pt=0.0, t=0.0, kills=0, pts=0, cx=0.0, cy=0.0, lost=0, tr=0.0)
+            foes=[], bullets=[], missiles=[], flares=[], flak=[], bombs=[], mission=mission, nst=2 if mission else STAGES, spawns=[], stage=0, phase='intro', pt=0.0, t=0.0, kills=0, pts=0, cx=0.0, cy=0.0, lost=0, tr=0.0)
         self.jt_stage_setup()
         self.go('jets')
         self.audio.play('alarm', .4)
-        self.banner('¡F-16 EN EL AIRE!', 'W/S velocidad  A/D girar  Clic: cañón  Q/clic der.: misil  F: bengalas  Shift: postquemador', (150, 220, 255), 4.8)
+        self.banner('¡F-16 EN EL AIRE!', 'W/S velocidad  A/D girar  Clic: cañón  Q: misil  E: bomba  F: bengalas  Shift: postquemador', (150, 220, 255), 4.8)
         self.say('piloto', 'Escuadrón en formación, capitán. Dos alas conmigo. Cazas al frente y, abajo, barcos y submarinos con misiles antiaéreos: usá bengalas y no vueles en línea recta.', 'info')
 
     def jt_stage_setup(self):
@@ -56,7 +100,18 @@ class DogfightMixin:
             a0 = random.uniform(0, 360) if side is None else side
             for i in range(n):
                 sp.append((t0 + i * gap, kind, (a0 + random.uniform(-18, 18)) % 360))
-        if s == 0:
+        if jt['mission']:
+            m = jt['mission']['kind']
+            if s == 0:
+                add({'ship': 'destroyer', 'sub': 'sub', 'nest': 'fort'}[m], 1, 1.0, 1.0)
+                sp[-1] = (sp[-1][0], sp[-1][1], sp[-1][2], True)
+                add('viper', 2 + w // 3, 3.0, 1.5)
+                if w >= 3:
+                    add('stealth', 1, 6.0, 1.0)
+            else:
+                add('stealth', 2, 1.0, 1.5)
+                add('viper', 2 + w // 3, 3.5, 1.3)
+        elif s == 0:
             add('viper', 3 + w // 3, 1.0, 1.4)
             if w >= 2:
                 add('destroyer', 1, 2.0, 1.0)
@@ -74,14 +129,14 @@ class DogfightMixin:
             add('viper', 2 + w // 4, 7.0, 1.3)
             add('sub', 1, 5.0, 1.0)
             add('destroyer', 1, 6.0, 1.0)
-        jt['spawns'] = sorted(sp)
+        jt['spawns'] = sorted(sp, key=lambda q: q[0])
         jt['st'] = 0.0
 
-    def jt_spawn(self, kind, a):
+    def jt_spawn(self, kind, a, main=False):
         jt = self.jt
         p = jt['p']
         w = self.wave
-        dx, dy = vec(a, SPAWN_R if kind not in ('destroyer', 'sub') else random.uniform(520, 700))
+        dx, dy = vec(a, SPAWN_R if kind not in GROUND else random.uniform(520, 700))
         x, y = p['x'] + dx, p['y'] + dy
         h = bearing(p['x'] - x, p['y'] - y)
         d = dict(kind=kind, x=x, y=y, h=h, cd=random.uniform(0.5, 1.5), mcd=random.uniform(4, 7), burst=0, hp=1.0, v=235.0, r=24, jk=0.0, jd=1, tgt='p', flash=0.0)
@@ -95,9 +150,12 @@ class DogfightMixin:
             d.update(hp=60.0 + 8 * w, v=290.0, turn=95 + 2 * w, r=30)
         elif kind == 'destroyer':
             d.update(hp=30.0 + 4 * w, v=30.0, r=44, h=(h + random.uniform(-60, 60)) % 360, aa=random.uniform(3, 5), fk=random.uniform(1.5, 3))
+        elif kind == 'fort':
+            d.update(hp=40.0 + 5 * w, v=0.0, r=52, aa=random.uniform(2, 4), fk=random.uniform(1, 2))
         elif kind == 'sub':
             d.update(hp=22.0 + 3 * w, v=22.0, r=30, surf=False, st=random.uniform(2, 5), h=random.uniform(0, 360), aa=2.0, n=0)
         d['max'] = d['hp']
+        d['main'] = main
         jt['foes'].append(d)
 
     # ------------------------------------------------------------------ utilidades de combate
@@ -120,9 +178,9 @@ class DogfightMixin:
         jt = self.jt
         f['dead'] = True
         jt['kills'] += 1
-        pts = {'viper': 100, 'stealth': 250, 'bomber': 900, 'ace': 1500, 'destroyer': 450, 'sub': 500}[f['kind']]
+        pts = {'viper': 100, 'stealth': 250, 'bomber': 900, 'ace': 1500, 'destroyer': 450, 'sub': 500, 'fort': 600}[f['kind']]
         jt['pts'] += pts
-        big = f['kind'] in ('bomber', 'ace', 'destroyer', 'sub')
+        big = f['kind'] in ('bomber', 'ace', 'destroyer', 'sub', 'fort')
         if f['kind'] in ('destroyer', 'sub'):
             self.fx.splash(f['x'], f['y'], 1.6)
         self.fx.explode_art(f['x'], f['y'], 2.0 if big else 1.0, True)
@@ -174,12 +232,12 @@ class DogfightMixin:
                 p['msl'] = min(6, p['msl'] + 3)
                 p['flares'] = min(5, p['flares'] + 2)
                 self.jt_stage_setup()
-                self.banner('OLEADA %d/%d' % (jt['stage'] + 1, STAGES), '¡El as enemigo entra en combate!' if jt['stage'] == STAGES - 1 else 'Más cazas al frente', (255, 200, 110), 2.4)
+                self.banner('OLEADA %d/%d' % (jt['stage'] + 1, jt['nst']), ('¡Interceptores enemigos!' if jt['mission'] else '¡El as enemigo entra en combate!') if jt['stage'] == jt['nst'] - 1 else 'Más cazas al frente', (255, 200, 110), 2.4)
         else:
             jt['st'] += dt
             while jt['spawns'] and jt['spawns'][0][0] <= jt['st']:
-                _, kind, a = jt['spawns'].pop(0)
-                self.jt_spawn(kind, a)
+                q = jt['spawns'].pop(0)
+                self.jt_spawn(q[1], q[2], len(q) > 3)
         self.jt_player(dt)
         self.jt_move_world(dt, True)
         if ph == 'play':
@@ -190,7 +248,7 @@ class DogfightMixin:
                 self.banner('¡F-16 DERRIBADO!', 'El piloto se eyectó', (255, 100, 90), 3.0)
                 return
             if not jt['spawns'] and not [f for f in jt['foes'] if not f.get('dead')]:
-                if jt['stage'] >= STAGES - 1:
+                if jt['stage'] >= jt['nst'] - 1:
                     jt['phase'], jt['pt'] = 'win', 0.0
                     self.audio.play('fanfare', .8)
                     self.banner('¡CIELO LIMPIO!', 'Misión cumplida, regresamos a la base', (130, 255, 190), 3.0)
@@ -239,6 +297,8 @@ class DogfightMixin:
             d = dist(p['x'], p['y'], f['x'], f['y'])
             if f['kind'] == 'sub' and not f['surf']:
                 continue
+            if f['kind'] in GROUND:
+                continue
             if d < 950 and abs(angle_diff(bearing(f['x'] - p['x'], f['y'] - p['y']), p['h'])) < 38 and d < bd_:
                 best, bd_ = f, d
         p['lock'] = best
@@ -260,6 +320,15 @@ class DogfightMixin:
             fx_, fy_ = vec(p['h'], 20)
             self.jt_missile(p['x'] + fx_, p['y'] + fy_, p['h'], True, p['lock'], 22.0)
             self.audio.play('launch', .6)
+        bk = bool(keys[pygame.K_e])
+        if live and bk and not p['bkey'] and p['bomb'] > 0 and p['bcd'] <= 0:
+            p['bomb'] -= 1
+            p['bcd'] = 0.6
+            lx, ly = vec(p['h'], p['v'] * 0.55)
+            jt['bombs'].append(dict(x0=p['x'], y0=p['y'], x=p['x'] + lx, y=p['y'] + ly, t=0.0))
+            self.audio.play('launch', .35)
+        p['bkey'] = bk
+        p['bcd'] = max(0.0, p['bcd'] - dt)
         if live and keys[pygame.K_f] and p['fcd'] <= 0 and p['flares'] > 0:
             p['fcd'] = 0.5
             p['flares'] -= 1
@@ -305,7 +374,7 @@ class DogfightMixin:
             k = f['kind']
             if not live:
                 continue
-            if k in ('destroyer', 'sub'):
+            if k in GROUND:
                 self.jt_ship_ai(f, dt)
                 continue
             f['cd'] -= dt
@@ -353,7 +422,7 @@ class DogfightMixin:
             if b['own']:
                 for f in jt['foes']:
                     if not f.get('dead') and dist(b['x'], b['y'], f['x'], f['y']) < f['r'] and not (f['kind'] == 'sub' and not f['surf']):
-                        self.jt_dmg(f, b['dmg'] * (0.3 if f['kind'] in ('destroyer', 'sub') else 1.0))
+                        self.jt_dmg(f, b['dmg'] * (0.3 if f['kind'] in GROUND else 1.0))
                         b['life'] = 0
                         self.fx.add('spark', b['x'], b['y'], random.uniform(-90, 90), random.uniform(-90, 90), 0.25, col=(255, 220, 130))
                         break
@@ -379,6 +448,17 @@ class DogfightMixin:
             if random.random() < dt * 20:
                 self.fx.add('glow', fl['x'], fl['y'], 0, 0, 0.3, 6, 18, (255, 220, 140))
         jt['flares'] = [fl for fl in jt['flares'] if fl['life'] > 0]
+        for bm in jt['bombs']:
+            bm['t'] += dt
+            if bm['t'] >= 0.7:
+                bm['done'] = True
+                self.fx.explode_art(bm['x'], bm['y'], 1.3, True)
+                self.audio.play('boom_l', .55)
+                self.shake = max(self.shake, 5)
+                for f in jt['foes']:
+                    if f['kind'] in GROUND and not f.get('dead') and not (f['kind'] == 'sub' and not f['surf']) and dist(bm['x'], bm['y'], f['x'], f['y']) < 78 + f['r'] * 0.5:
+                        self.jt_dmg(f, 28.0)
+        jt['bombs'] = [bm for bm in jt['bombs'] if not bm.get('done')]
         for fk in jt['flak']:
             fk['t'] += dt
             if fk['t'] >= 0.9 and not fk.get('done'):
@@ -452,16 +532,18 @@ class DogfightMixin:
         f['x'] += dx
         f['y'] += dy
         dd = dist(f['x'], f['y'], p['x'], p['y'])
-        if dd > 1100:                                         # se quedó muy lejos: vuelve hacia el jugador
+        if f['kind'] == 'fort':
+            pass
+        elif dd > 1100:                                         # se quedó muy lejos: vuelve hacia el jugador
             f['h'] = _wrap_turn(f['h'], bearing(p['x'] - f['x'], p['y'] - f['y']), 30, dt)
-        if random.random() < dt * 5:
+        if f['kind'] != 'fort' and random.random() < dt * 5:
             bx, by = vec(f['h'], -f['r'])
             self.fx.add('foam', f['x'] + bx, f['y'] + by, 0, 0, 1.2, 4, 12, (235, 244, 255))
-        if f['kind'] == 'destroyer':
+        if f['kind'] in ('destroyer', 'fort'):
             f['aa'] -= dt
             f['fk'] -= dt
             if f['aa'] <= 0 and dd < 760:
-                f['aa'] = random.uniform(5.0, 7.5) * max(0.7, 1 - 0.03 * self.wave)
+                f['aa'] = random.uniform(5.0, 7.5) * max(0.7, 1 - 0.03 * self.wave) * (0.7 if f['kind'] == 'fort' else 1.0)
                 self.jt_missile(f['x'], f['y'], bearing(p['x'] - f['x'], p['y'] - f['y']), False, p, 16.0)
                 self.audio.play('launch', .35)
                 self.audio.play('alarm', .25)
@@ -505,7 +587,13 @@ class DogfightMixin:
             self.ammo = min(40, self.ammo + 8)
             self.hull = min(self.hull_max, self.hull + 20)
             self.fuel = min(100.0, self.fuel + 25)
-            self.banner('¡ESCUADRÓN VICTORIOSO!', '+%d puntos  |  +8 munición, +20 casco, +25 combustible' % bonus, (130, 255, 190), 4.4)
+            m = jt['mission']
+            if m:
+                if m['kind'] == 'nest':
+                    m['tg']['alive'] = False
+                elif m['tg'] in self.enemies:
+                    self.enemies.remove(m['tg'])
+            self.banner('¡ESCUADRÓN VICTORIOSO!' if not m else '¡OBJETIVO DESTRUIDO!', '+%d puntos  |  +8 munición, +20 casco, +25 combustible' % bonus, (130, 255, 190), 4.4)
             self.say('piloto', 'Aterrizamos sin novedad. Buen vuelo, capitán.' if not jt['lost'] else 'Aterrizamos... pero con bajas. Buen vuelo, capitán.', 'ok')
         else:
             self.banner('MISIÓN FRACASADA', 'El F-16 se perdió. Se repone una salida por oleada', (255, 120, 100), 4.0)
@@ -519,6 +607,15 @@ class DogfightMixin:
             sh = pygame.mask.from_surface(r).to_surface(setcolor=(0, 0, 0, 70), unsetcolor=(0, 0, 0, 0))
             cv.blit(sh, (int(x) - sh.get_width() // 2 + 22, int(y) - sh.get_height() // 2 + 30))
         cv.blit(r, (int(x) - r.get_width() // 2, int(y) - r.get_height() // 2))
+
+    def jt_island(self, f):
+        cache = self.__dict__.setdefault('_jt_isl', {})
+        sd = int(f.get('sd', 0)) or f.setdefault('sd', random.randint(1, 80))
+        if sd not in cache:
+            s_ = pygame.Surface((330, 330), pygame.SRCALPHA)
+            self.paint_island(s_, 165, 165, 80, sd, False)
+            cache[sd] = s_
+        return cache[sd]
 
     def draw_jets(self, cv):
         jt = self.jt
@@ -547,7 +644,16 @@ class DogfightMixin:
         # enemigos
         for f in jt['foes']:
             sx, sy = f['x'] - cx, f['y'] - cy
-            if f['kind'] == 'destroyer':
+            if f['kind'] == 'fort':
+                isl = self.jt_island(f)
+                cv.blit(isl, (int(sx - isl.get_width() / 2), int(sy - isl.get_height() / 2)))
+                pygame.draw.circle(cv, (110, 112, 108), (int(sx), int(sy)), 30)
+                pygame.draw.circle(cv, (70, 76, 74), (int(sx), int(sy)), 22)
+                ta = bearing(p['x'] - f['x'], p['y'] - f['y'])
+                tx_, ty_ = vec(ta, 26)
+                pygame.draw.line(cv, (40, 44, 46), (sx, sy), (sx + tx_, sy + ty_), 6)
+                pygame.draw.circle(cv, (120, 128, 128), (int(sx), int(sy)), 9)
+            elif f['kind'] == 'destroyer':
                 self.blit_ship(cv, 'e_map', f['x'], f['y'], f['h'], cx, cy)
             elif f['kind'] == 'sub':
                 self.blit_ship(cv, 's_map', f['x'], f['y'], f['h'], cx, cy, alpha=255 if f['surf'] else 70)
@@ -564,9 +670,15 @@ class DogfightMixin:
                 draw_circ(cv, sx, sy, 40, (255, 70, 60), 40, 2)
             if f.get('flash', 0) > 0:
                 glow(cv, sx, sy, f['r'] + 10, (255, 255, 255), 0.5)
-            if f['kind'] in ('bomber', 'ace') or f['hp'] < f['max']:
+            if f['kind'] in ('bomber', 'ace') or f.get('main') or f['hp'] < f['max']:
                 pygame.draw.rect(cv, (8, 12, 24), (sx - 28, sy - f['r'] - 16, 56, 6))
                 pygame.draw.rect(cv, (240, 80, 70), (sx - 27, sy - f['r'] - 15, int(54 * max(0, f['hp']) / f['max']), 4))
+        for bm in jt['bombs']:
+            k_ = bm['t'] / 0.7
+            draw_circ(cv, bm['x'] - cx, bm['y'] - cy, 78, (255, 200, 90), 40 + 90 * k_, 2)
+            bx_ = bm['x0'] + (bm['x'] - bm['x0']) * k_ - cx
+            by_ = bm['y0'] + (bm['y'] - bm['y0']) * k_ - cy
+            pygame.draw.circle(cv, (28, 30, 30), (int(bx_), int(by_)), 5)
         for fk in jt['flak']:
             k_ = fk['t'] / 0.9
             draw_circ(cv, fk['x'] - cx, fk['y'] - cy, 58 * (1.15 - 0.25 * min(1.0, k_)), (255, 70, 60), 40 + 120 * min(1.0, k_), 2)
@@ -611,11 +723,11 @@ class DogfightMixin:
         jt = self.jt
         p = jt['p']
         self.bar(cv, W // 2 - 200, 20, 400, 22, max(0.0, p['hp']) / p['max'], (110, 235, 150) if p['hp'] > 35 else (255, 110, 90), 'F-16')
-        self.text(cv, 'OLEADA %d/%d' % (jt['stage'] + 1, STAGES), self.f_m, (255, 225, 140), W // 2, 50, 'c')
+        self.text(cv, 'OLEADA %d/%d' % (jt['stage'] + 1, jt['nst']), self.f_m, (255, 225, 140), W // 2, 50, 'c')
         left = len([f for f in jt['foes'] if not f.get('dead')]) + len(jt['spawns'])
         self.text(cv, 'ENEMIGOS %d   |   ALAS %d/2' % (left, len([a for a in jt['allies'] if a['hp'] > 0])), self.f_s, (255, 170, 150), W // 2, 76, 'c')
         self.bar(cv, 30, H - 110, 240, 16, p['boost'], (255, 190, 100), 'POSTQUEMADOR (SHIFT)')
-        self.text(cv, 'MISILES %d  (Q / clic der.)' % p['msl'], self.f_s, (200, 230, 255), 30, H - 84)
+        self.text(cv, 'MISILES %d (Q)   BOMBAS %d (E)' % (p['msl'], p['bomb']), self.f_s, (200, 230, 255), 30, H - 84)
         self.text(cv, 'BENGALAS %d  (F)' % p['flares'], self.f_s, (255, 230, 170), 30, H - 60)
         self.text(cv, 'VELOCIDAD %d' % int(p['v']), self.f_s, (170, 255, 200), 30, H - 36)
         self.text(cv, 'Puntos: %d' % jt['pts'], self.f_s, (200, 225, 250), W - 30, H - 36, 'r')
@@ -629,8 +741,8 @@ class DogfightMixin:
             d = math.hypot(dx, dy)
             if d > rr - 3:
                 dx, dy = dx / d * (rr - 3), dy / d * (rr - 3)
-            if f['kind'] in ('destroyer', 'sub'):
-                pygame.draw.rect(cv, (255, 170, 70) if f['kind'] == 'destroyer' or f['surf'] else (120, 120, 130), (int(rx + dx) - 3, int(ry + dy) - 3, 6, 6))
+            if f['kind'] in GROUND:
+                pygame.draw.rect(cv, (255, 170, 70) if f['kind'] != 'sub' or f['surf'] else (120, 120, 130), (int(rx + dx) - 3, int(ry + dy) - 3, 6, 6))
             else:
                 pygame.draw.circle(cv, (255, 80, 70), (int(rx + dx), int(ry + dy)), 4 if f['kind'] in ('bomber', 'ace') else 3)
         for a in jt['allies']:

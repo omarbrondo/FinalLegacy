@@ -576,8 +576,8 @@ class CoreMixin:
         if state == 'title':
             self.menu_reset()
         pygame.mouse.set_visible(state in ('upgrade',) or state not in ('defense', 'combat', 'aerial', 'ground', 'tank', 'port', 'heli', 'radio', 'lifeboat', 'batdef', 'jets'))
-        calm = state in ('title', 'map', 'upgrade', 'helisel')
-        ctx = {'helisel': 'upgrade', 'gameover': None, 'lifeboat': 'defense'}.get(state, state)
+        calm = state in ('title', 'map', 'upgrade', 'helisel', 'jetsel')
+        ctx = {'helisel': 'upgrade', 'jetsel': 'upgrade', 'gameover': None, 'lifeboat': 'defense'}.get(state, state)
         if state == 'combat' and (getattr(self, 'c', None) or {}).get('is_boss'):
             ctx = 'boss'
         self.audio.music(ctx, getattr(self, 'wave', 1), 'calm' if calm else 'battle')
@@ -753,6 +753,10 @@ class CoreMixin:
                 self.heli_pick(e.key - pygame.K_1)
             elif self.state == 'helisel' and e.key == pygame.K_ESCAPE:
                 self.go('map')
+            elif self.state == 'jetsel' and e.key in (pygame.K_1, pygame.K_2, pygame.K_3, pygame.K_4):
+                self.jet_pick(e.key - pygame.K_1)
+            elif self.state == 'jetsel' and e.key == pygame.K_ESCAPE:
+                self.go('map')
             elif self.state in ('ground', 'port') and e.key == pygame.K_t and not self.paused:
                 self.tomahawk()
             elif self.state == 'map' and e.key == pygame.K_f and not self.paused:
@@ -799,6 +803,8 @@ class CoreMixin:
                     self.na_damage_control()
                 elif e.key == pygame.K_z:
                     self.na_flak()
+                elif e.key == pygame.K_x:
+                    self.na_call_jets()
                 elif e.key == pygame.K_SPACE:
                     self.fire_shell()
                 elif e.key == pygame.K_e:
@@ -832,6 +838,10 @@ class CoreMixin:
                 for i in range(len(self.heli_cands)):
                     if self.heli_sel_rect(i).collidepoint(e.pos):
                         self.heli_pick(i)
+            elif self.state == 'jetsel':
+                for i in range(len(self.jet_cands)):
+                    if self.jet_sel_rect(i).collidepoint(e.pos):
+                        self.jet_pick(i)
             elif self.state == 'upgrade':
                 for i in range(len(self.up_cards)):
                     if self.up_card_rect(i).collidepoint(e.pos):
@@ -982,6 +992,8 @@ class CoreMixin:
             self.draw_heli(cv)
         elif self.state == 'helisel':
             self.draw_helisel(cv)
+        elif self.state == 'jetsel':
+            self.draw_jetsel(cv)
         elif self.state == 'port':
             self.draw_port(cv)
         elif self.state == 'ground':
