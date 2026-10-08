@@ -216,9 +216,9 @@ class PortMixin:
         if e['kind'] == 'tank':
             pt['boss'] = None
             if e.get('variant') == 'heli':
-                self.say('jefe_puerto_heli', PORT_LINES['heli'][1], 'warn', pose='bad', v=self.wave // 2 % 2 + 1, name='PILOTO ENEMIGO')
+                self.say('jefe_puerto_heli', PORT_LINES['heli'][1], 'warn', pose='bad', urgent=True, v=self.wave // 2 % 2 + 1, name='PILOTO ENEMIGO')
             else:
-                self.say('jefe_puerto_tanque', PORT_LINES['tank'][1], 'warn', pose='bad', v=self.wave // 2 % 2 + 1, name='COMANDANTE DEL TANQUE')
+                self.say('jefe_puerto_tanque', PORT_LINES['tank'][1], 'warn', pose='bad', urgent=True, v=self.wave // 2 % 2 + 1, name='COMANDANTE DEL TANQUE')
             self.shake = 22
             for _ in range(6):
                 self.fx.explode(e['x'] + random.uniform(-110, 110), e['y'] - random.uniform(10, 90), 1.4, True)

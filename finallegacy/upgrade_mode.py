@@ -38,6 +38,7 @@ class UpgradeMixin:
         if self.up_left <= 0:                       # en las oleadas 3 y 5 (hitos) elegís dos mejoras
             self.up_left = 2 if self.wave in (4, 6) else 1
         self.banners = []
+        self.comms_purge()                                    # en la pantalla de mejoras no aparecen mensajes viejos de la misión
         self.go('upgrade')
         self.say('secretaria', 'Tiene autorizadas %s. Elija con criterio, capitán.' % ('dos mejoras' if self.up_left > 1 else 'una mejora'), 'info', 'right', 640)
 

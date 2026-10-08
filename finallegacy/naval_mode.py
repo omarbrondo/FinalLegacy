@@ -292,6 +292,8 @@ class NavalMixin:
             self.fx.explode(e['x'], e['y'], 3.0 if c['is_boss'] else 1.8, True)
             c['slow'], c['white'] = (2.4 if c['is_boss'] else 1.3), 0.7
             c['flashes'].append([e['x'], e['y'], 220, (255, 200, 120), 1.0])
+            if c['is_boss']:                                          # el jefe habla apenas se hunde (no cuando termina la animación)
+                self.say('jefe_barco', BOSS_LINES[c['btype'] % 6][1], 'warn', pose='bad', v=c['btype'] % 6 + 1, name=e.get('name') or (self.enemy_ref or {}).get('name'), urgent=True)
             self.fx.add('ring', e['x'], e['y'], life=0.9, r0=10, r1=330 if c['is_boss'] else 190, col=(255, 230, 190))
             self.call_out('¡BUQUE JEFE HUNDIDO!' if c['is_boss'] else ('¡BATERÍA SILENCIADA!' if c['nest'] else '¡BLANCO ELIMINADO!'),
                           (255, 230, 120), 'kill', 5)
@@ -304,8 +306,6 @@ class NavalMixin:
         self.fx.update(dt)
         if e['sink'] is not None and e['sink'] > (4.0 if c['is_boss'] else 2.4) and not self.nb_busy():
             boss_kill = c.get('is_boss', False)
-            if boss_kill:
-                self.say('jefe_barco', BOSS_LINES[c['btype'] % 6][1], 'warn', pose='bad', v=c['btype'] % 6 + 1, name=self.enemy_ref['name'] if self.enemy_ref else None)
             if c['nest']:
                 nst = self.enemy_ref
                 nst['alive'] = False

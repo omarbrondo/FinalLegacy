@@ -156,7 +156,7 @@ class CommsMixin:
             self._cm_img[key] = img
         return img
 
-    def say(self, who, text, mood='info', side=None, y=None, v=None, name=None, pose=None):
+    def say(self, who, text, mood='info', side=None, y=None, v=None, name=None, pose=None, urgent=False):
         """pose: ánimo de la imagen si difiere del color del globo ('' = imagen normal)."""
         """Un personaje comunica algo: aparece por un costado, lo dice en un globo y se retira por el mismo costado."""
         cm = self.cm
@@ -167,8 +167,19 @@ class CommsMixin:
             who = 'soldada' if fem else 'soldado'
         if (cm['cur'] and cm['cur']['text'] == text) or any(q['text'] == text for q in cm['queue']):
             return
-        cm['queue'].append(dict(who=who, v=v if v is not None else self.comms_pick(who), name=name, pose=mood if pose is None else pose, text=text, mood=mood, side=side or ROLES[who]['side'], y=LANE_Y if y is None else y))
+        item = dict(who=who, v=v if v is not None else self.comms_pick(who), name=name, pose=mood if pose is None else pose, text=text, mood=mood, side=side or ROLES[who]['side'], y=LANE_Y if y is None else y)
+        if urgent:                                                                  # sale ya: pasa al frente y corta el globo que se estaba mostrando
+            cm['queue'].insert(0, item)
+            if cm['cur'] is not None:
+                cm['cur']['t'] = max(cm['cur']['t'], ENTER + cm['cur']['hold'])
+            return
+        cm['queue'].append(item)
         del cm['queue'][:-4]
+
+    def comms_purge(self):
+        """Descarta los globos pendientes y el que se está mostrando (al cambiar de pantalla, para que no aparezcan mensajes viejos)."""
+        self.cm['queue'].clear()
+        self.cm['cur'] = None
 
     def comms_update(self, dt):
         cm = self.cm
@@ -301,3 +312,4 @@ PORT_LINES = {
     'heli': ('Desde el aire no tienen escapatoria. ¡Abran fuego!', '¡Me derribaron! ¡Mayday!'),
     'tank': ('Este puerto es nuestro. Será aplastado.', 'Mi tanque... destruido. Retirada...'),
 }
+
