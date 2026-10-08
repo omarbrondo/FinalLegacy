@@ -1,0 +1,12 @@
+RETRO LEGACY - barcos (sprites PNG)
+===================================
+Cada archivo reemplaza el dibujo por código de ese barco. Si falta un archivo, el juego usa el dibujo de siempre.
+
+  barco_jugador_mapa.png      Tu barco en el mapa              (proa hacia ARRIBA, 66 px de alto en pantalla)
+  barco_enemigo_mapa.png      Barco enemigo rojo en el mapa    (proa hacia ARRIBA, 60 px de alto)
+  barco_jugador_combate.png   Tu barco en el combate naval     (proa hacia ARRIBA, 124 px de alto)
+  barco_enemigo_combate.png   Barco enemigo rojo en el combate (proa hacia ARRIBA, 112 px de alto)
+
+Formato: PNG con fondo transparente, vista desde arriba, con la proa hacia ARRIBA, de ~600 px de alto (el juego lo reduce).
+Las torretas del combate se dibujan aparte encima del casco: dejá el casco sin cañones ni torretas dibujados.
+Para compilar con PyInstaller: --add-data "barcos;barcos"

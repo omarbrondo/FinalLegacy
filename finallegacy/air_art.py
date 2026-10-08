@@ -19,9 +19,9 @@ BOSS_W = (320, 300, 250, 300, 280, 340)
 PNG_ENG = {2: [(-32, -72), (31, -72), (-65, -54), (66, -54)], 3: [(-57, -8), (57, -8)], 4: [(-13, -92), (13, -92)]}         # ancho en pantalla de cada jefe cuando se usa su PNG
 
 
-def load_png_sprite(name, width=None, flip=True, height=None):
+def load_png_sprite(name, width=None, flip=True, height=None, folder='aviones'):
     """Sprite de aviones/<name>.png escalado a 'width' (o 'height') px y, con flip, con el morro hacia abajo; None si no existe."""
-    path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'aviones', name + '.png')
+    path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), folder, name + '.png')
     if not os.path.isfile(path):
         return None
     try:

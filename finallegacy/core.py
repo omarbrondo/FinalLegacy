@@ -132,12 +132,14 @@ class CoreMixin:
         # ---- naves
         self.ships = {}
 
-        def reg(key, surf):
+        def reg(key, surf, png=None, height=None):
+            if png:                                           # barcos/<png>.png (proa hacia arriba) reemplaza al dibujo por código
+                surf = load_png_sprite(png, height=height, flip=False, folder='barcos') or surf
             self.ships[key] = (surf, make_shadow(surf))
-        reg('p_map', make_ship(24, 66, (70, 140, 170), (110, 170, 190), (255, 210, 70)))
-        reg('e_map', make_ship(22, 60, (150, 60, 60), (170, 90, 80), (30, 30, 30)))
-        reg('p_hull', make_ship(46, 124, (70, 140, 170), (110, 170, 190), (255, 210, 70), False))
-        reg('e_hull', make_ship(42, 112, (150, 60, 60), (170, 90, 80), (30, 30, 30), False))
+        reg('p_map', make_ship(24, 66, (70, 140, 170), (110, 170, 190), (255, 210, 70)), 'barco_jugador_mapa', 66)
+        reg('e_map', make_ship(22, 60, (150, 60, 60), (170, 90, 80), (30, 30, 30)), 'barco_enemigo_mapa', 60)
+        reg('p_hull', make_ship(46, 124, (70, 140, 170), (110, 170, 190), (255, 210, 70), False), 'barco_jugador_combate', 124)
+        reg('e_hull', make_ship(42, 112, (150, 60, 60), (170, 90, 80), (30, 30, 30), False), 'barco_enemigo_combate', 112)
         reg('s_map', make_sub(16, 62))
         reg('s_hull', make_sub(32, 128))
         reg('c_map', make_cargo(26, 70))
