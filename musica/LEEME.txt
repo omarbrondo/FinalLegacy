@@ -1,0 +1,12 @@
+MÚSICA DEL JUEGO
+Poné acá los archivos de música (OGG recomendado; también MP3 o WAV). El nombre es el del modo:
+
+  titulo, mapa..., ver lista abajo.  Nombres exactos:
+  title, map, upgrade, defense, combat, boss, bossf, aerial, ground, tank, port, heli,
+  beach, infil, holdout, extract, radio, hack
+
+  <modo>.ogg            -> suena en todas las oleadas de ese modo
+  <modo>_<oleada>.ogg   -> (opcional) suena solo en esa oleada, tiene prioridad. Ej: defense_1.ogg
+
+Si falta el archivo de un modo, suena la música compuesta por código. Los archivos se repiten en bucle.
+Al compilar con PyInstaller hay que agregar:  --add-data "musica;musica"
