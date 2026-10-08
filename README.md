@@ -131,6 +131,7 @@ python -m PyInstaller --noconsole --onedir --name RetroLegacy --collect-all imag
 
 - El resultado queda en `dist/RetroLegacy/` (ejecutable: `RetroLegacy.exe`). Para compartirlo, comprimí **toda la carpeta** en un ZIP.
 - `--collect-all imageio_ffmpeg` incluye el decodificador de los videos; `--add-data "videos;videos"`, `--add-data "fonts;fonts"` y `--add-data "portraits;portraits"` incluyen los MP4, la fuente Orbitron y los retratos de los personajes (sin esa última opción el `.exe` usa siluetas provisorias). `--icon icono/retro_legacy.ico` le pone el ícono del juego al `.exe` y `--add-data "icono;icono"` lo incluye para la ventana y la barra de tareas. Para regenerar el ícono: `python icono/generar_icono.py`.
+- Si el `.exe` sigue mostrando el ícono de Python: (1) verificá que exista la carpeta `icono/` (si no, hacé `git pull origin main`); (2) borrá las carpetas `build/` y `dist/` y el archivo `RetroLegacy.spec` y agregá `--clean` al comando; (3) Windows guarda los íconos en una caché: renombrá el `.exe` o ejecutá `ie4uinit.exe -show` (o reiniciá el Explorador) para que lo recargue.
 - Se usa `--onedir` (carpeta) y no `--onefile`, porque abre más rápido y guarda bien las partidas.
 - Las partidas (`final_legacy_saves.json`) y el récord (`final_legacy_hiscore.txt`) quedan dentro de `dist/RetroLegacy/_internal/`: copialos antes de recompilar, porque la compilación nueva los reemplaza.
 - A veces el antivirus de Windows marca el `.exe` como sospechoso (falso positivo conocido de PyInstaller); hay que permitirlo.
