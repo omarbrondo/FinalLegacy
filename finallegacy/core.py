@@ -651,6 +651,10 @@ class CoreMixin:
         if e.type == pygame.QUIT:
             pygame.quit()
             sys.exit()
+        if self.confirm_event(e):
+            return
+        if self.saves_mouse(e):
+            return
         if self.menu_event(e):
             return
         if e.type == pygame.MOUSEMOTION:
@@ -968,6 +972,7 @@ class CoreMixin:
             self.draw_saves(cv)
         self.postfx.apply(cv, self.state, self.shake)
         self.draw_overlays(cv)
+        self.draw_confirm(cv)
         ox = oy = 0
         if self.shake > 0.5:
             ox, oy = int(random.uniform(-self.shake, self.shake)), int(random.uniform(-self.shake, self.shake))

@@ -222,6 +222,26 @@ class SaveMixin:
             self.saves_confirm()
 
     def saves_confirm(self):
+        """Pide confirmación antes de guardar o cargar la ranura elegida."""
+        m = self.sv_menu
+        slot = SLOT_KEYS[m['cur']]
+        d = self.sv_slots().get(slot)
+        name = 'AUTOGUARDADO' if slot == 'auto' else 'la ranura %s' % slot
+        if m['mode'] == 'save':
+            if d:
+                lines = ['%s ya tiene una partida: oleada %d, %d puntos.' % (name.capitalize(), d['wave'], d['score']), 'Se va a sobrescribir.']
+            else:
+                lines = ['Se guardará en %s.' % name]
+            self.confirm_open('¿GUARDAR PARTIDA?', lines, self.saves_do)
+        else:
+            if not d:
+                m['msg'] = 'Esa ranura está vacía'
+                self.audio.play('hit', .4)
+                return
+            m['msg'] = ''
+            self.confirm_open('¿CARGAR PARTIDA?', ['Cargar %s: oleada %d, %d puntos.' % (name, d['wave'], d['score']), 'Se pierde el progreso actual que no hayas guardado.'], self.saves_do)
+
+    def saves_do(self):
         m = self.sv_menu
         slot = SLOT_KEYS[m['cur']]
         if m['mode'] == 'save':
@@ -230,14 +250,39 @@ class SaveMixin:
             self.say('secretaria', ('Progreso archivado en la ranura %s, capitán.' % slot) if ok else 'No pude archivar su progreso. Intente nuevamente.', 'ok' if ok else 'bad')
             self.audio.play('win' if ok else 'lose', .5)
             self.close_saves()
-        else:
-            if slot not in self.sv_slots():
-                m['msg'] = 'Esa ranura está vacía'
-                self.audio.play('hit', .4)
-                return
-            if self.sv_load(slot):
-                self.audio.play('win', .6)
-                self.say('secretaria', 'Partida cargada. Retomamos donde la dejó, capitán.', 'info')
+        elif self.sv_load(slot):
+            self.audio.play('win', .6)
+            self.say('secretaria', 'Partida cargada. Retomamos donde la dejó, capitán.', 'info')
+
+    # ratón en el menú de ranuras: pasar el cursor selecciona, clic pide confirmación, clic derecho vuelve
+    def saves_rects(self):
+        n = 3 if self.sv_menu['mode'] == 'save' else 4
+        return [pygame.Rect(W // 2 - 400, 200 + i * 110, 800, 92) for i in range(n)], pygame.Rect(W // 2 - 100, 636, 200, 42)
+
+    def saves_mouse(self, e):
+        if self.state != 'saves' or not hasattr(self, 'sv_menu'):
+            return False
+        rows, back = self.saves_rects()
+        m = self.sv_menu
+        if e.type == pygame.MOUSEMOTION:
+            for i, r in enumerate(rows):
+                if r.collidepoint(e.pos):
+                    m['cur'] = i
+            return False
+        if e.type == pygame.MOUSEBUTTONDOWN:
+            if e.button == 3:
+                self.close_saves()
+                return True
+            if e.button == 1:
+                if back.collidepoint(e.pos):
+                    self.close_saves()
+                    return True
+                for i, r in enumerate(rows):
+                    if r.collidepoint(e.pos):
+                        m['cur'] = i
+                        self.saves_confirm()
+                        return True
+        return False
 
     def draw_saves(self, cv):
         m = self.sv_menu
@@ -267,5 +312,8 @@ class SaveMixin:
                 self.text(cv, '(vacía)', self.f_s, (130, 145, 170), W // 2 - 380, y + 52)
         if m['msg']:
             self.text(cv, m['msg'], self.f_m, (255, 140, 120), W // 2, 690, 'c')
-        self.text(cv, 'ARRIBA/ABAJO + ENTER  |  1-3 elegir ranura' + ('' if save else '  |  A: autoguardado') + '  |  ESC: volver',
+        _, back = self.saves_rects()
+        self.panel(cv, (back.x, back.y, back.w, back.h), 170)
+        self.text(cv, 'VOLVER', self.f_m, (230, 240, 255), back.centerx, back.y + 8, 'c')
+        self.text(cv, 'CLIC EN UNA RANURA O ARRIBA/ABAJO + ENTER  |  1-3' + ('' if save else '  |  A: autoguardado') + '  |  ESC o clic derecho: volver',
                   self.f_s, (190, 210, 240), W // 2, 740, 'c')
