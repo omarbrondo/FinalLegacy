@@ -9,6 +9,8 @@ Cada archivo reemplaza el dibujo por código de ese avión. Si falta un archivo,
   avion_jefe_5.png   Tormenta           (oleada 5)
   avion_jefe_6.png   Titán Aéreo        (oleada 6)
 
+  avion_f16_jugador.png   El caza del jugador (morro hacia arriba, ~90 px de alto en pantalla)
+
 Formato: PNG con fondo transparente, vista desde arriba, de ~640 px de ancho.
 Los archivos se guardan con el morro hacia ARRIBA; el juego los da vuelta solo para dibujarlos con el morro hacia abajo.
 Para compilar con PyInstaller: --add-data "aviones;aviones"

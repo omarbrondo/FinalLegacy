@@ -19,8 +19,8 @@ BOSS_W = (320, 300, 250, 300, 280, 340)
 PNG_ENG = {2: [(-32, -72), (31, -72), (-65, -54), (66, -54)], 3: [(-57, -8), (57, -8)], 4: [(-13, -92), (13, -92)]}         # ancho en pantalla de cada jefe cuando se usa su PNG
 
 
-def load_png_sprite(name, width, flip=True):
-    """Sprite de aviones/<name>.png escalado a 'width' px de ancho y con el morro hacia abajo; None si no existe."""
+def load_png_sprite(name, width=None, flip=True, height=None):
+    """Sprite de aviones/<name>.png escalado a 'width' (o 'height') px y, con flip, con el morro hacia abajo; None si no existe."""
     path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'aviones', name + '.png')
     if not os.path.isfile(path):
         return None
@@ -28,6 +28,8 @@ def load_png_sprite(name, width, flip=True):
         img = pygame.image.load(path).convert_alpha()
     except pygame.error:
         return None
+    if width is None:
+        width = max(1, round(img.get_width() * height / img.get_height()))
     img = pygame.transform.smoothscale(img, (width, max(1, round(img.get_height() * width / img.get_width()))))
     return pygame.transform.flip(img, False, True) if flip else img
 
