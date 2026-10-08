@@ -273,7 +273,8 @@ def make_tk_textures():
 TK_PXU = 32.0       # píxeles por unidad de mundo en los sprites pre-renderizados
 
 
-TK_ANG = 32         # ángulos de vista pre-renderizados
+TK_ANG = 32         # ángulos de vista pre-renderizados (autos, bicicletas y tanques usan más: ver CAR_ANG y TANK_ANG)
+TANK_ANG = 64       # vistas pre-renderizadas de cada parte de los tanques
 
 
 TK_PITCH = 12.0     # inclinación de la cámara (grados)
@@ -361,6 +362,10 @@ def quad_y(y, x0, x1, z0, z1, col):
     return ([(x0, y, z0), (x1, y, z0), (x1, y, z1), (x0, y, z1)], col, (0.0, 1.0, 0.0))
 
 
+def shade_c(c, k):
+    return tuple(max(0, min(255, int(v * k))) for v in c)
+
+
 def build_tank_model(heavy, seed):
     rnd = random.Random(seed)
     if heavy:
@@ -417,6 +422,19 @@ def build_tank_model(heavy, seed):
     hull[0].details.append(quad_y(1.41, -0.5, 0.5, 1.0, 1.4, (60, 60, 56)))
     hull.append(s_box(-0.32, 0.32, 1.40, 1.58, 1.05, 1.5, base))
     hull.append(s_box(-0.9, 0.9, 0.62, 1.0, 3.2, 3.32, base))
+    # detalles del casco: escotilla del conductor, guardabarros, ganchos de remolque, cables, rejillas del motor y herramientas
+    hull.append(s_box(-0.16, 0.16, 1.58, 1.64, 1.14, 1.42, (22, 22, 24)))
+    for sd in (-1, 1):
+        hull.append(s_box(0.7 * sd - 0.38, 0.7 * sd + 0.38, 0.9, 1.06, 3.3, 3.62, base))                      # guardabarros delanteros
+        hull.append(s_box(0.7 * sd - 0.1, 0.7 * sd + 0.1, 0.5, 0.62, 3.3, 3.5, (40, 40, 42)))              # ganchos de remolque
+        hull.append(s_box(0.7 * sd - 0.1, 0.7 * sd + 0.1, 0.5, 0.62, -3.5, -3.2, (40, 40, 42)))
+        cx0, cx1 = (1.5, 1.62) if sd > 0 else (-1.62, -1.5)
+        hull.append(s_box(cx0, cx1, 1.52, 1.6, -0.3, 1.3, (58, 54, 44)))                                        # cable de remolque sobre el guardabarros
+        hull.append(s_box(0.5 * sd - 0.4, 0.5 * sd + 0.4, 1.4, 1.5, -3.0, -2.5, (30, 30, 32)))              # rejillas del motor
+        hull.append(s_box(0.5 * sd - 0.35, 0.5 * sd + 0.35, 1.5, 1.54, -2.9, -2.6, (46, 46, 50)))
+        tx0, tx1 = (1.38, 1.5) if sd > 0 else (-1.5, -1.38)
+        hull.append(s_box(tx0, tx1, 1.27, 1.34, 0.4, 1.9, (92, 66, 40)))                                         # pala y herramientas
+    hull.append(s_box(-1.0, 1.0, 1.4, 1.52, -3.15, -2.8, shade_c(base, 0.8)))                                   # cubierta trasera del motor
     # torreta redonda con cúpula y cañón largo (todo girable aparte)
     tc = [camo_c() for _ in range(14)]
     tur.append(s_frustum(0.0, 0.1, 1.40, 1.78, 1.45 * S, 1.52 * S, 14, tc, 0.0, 1.0, 1.1))
@@ -436,6 +454,18 @@ def build_tank_model(heavy, seed):
     for sd in (-1, 1):
         for k in range(3):
             tur.append(s_cyl_z(1.28 * S * sd, 2.05 + k * 0.1, 0.35, 0.65, 0.07, 0.07, 6, (40, 40, 40)))
+    # cúpula del comandante con periscopios, ametralladora coaxial, proyector y mira
+    tur.append(s_frustum(-0.55, -0.55, 2.58, 2.98, 0.4, 0.34, 10, [(66, 72, 56)]))
+    for k in range(8):
+        a = 2 * math.pi * k / 8
+        px_, pz_ = -0.55 + math.cos(a) * 0.37, -0.55 + math.sin(a) * 0.37
+        tur.append(s_box(px_ - 0.05, px_ + 0.05, 2.78, 2.88, pz_ - 0.05, pz_ + 0.05, (14, 18, 22)))
+    tur.append(s_cyl_z(0.4 * S, 2.0, 1.8 * S, 3.1 * S, 0.05, 0.045, 6, (24, 24, 26)))
+    tur.append(s_box(1.12 * S, 1.4 * S, 2.3, 2.58, 0.95, 1.4, (96, 100, 90)))
+    tur.append(s_box(1.12 * S, 1.4 * S, 2.34, 2.54, 1.4, 1.46, (230, 226, 190)))
+    tur.append(s_box(-0.88 * S, -0.62 * S, 2.58, 2.76, 0.4, 0.95, (40, 44, 38)))
+    for k in range(4):
+        tur.append(s_box(-0.9 * S, 0.9 * S, 2.585, 2.6, -1.0 + k * 0.5, -0.94 + k * 0.5, (36, 38, 34)))     # líneas de paneles en el techo
     if heavy:
         tur.append(s_box(-0.7, 0.7, 2.58, 2.86, -1.2, -0.3, trim))
         tur.append(s_box(-1.52 * S, -1.34 * S, 1.6, 2.4, -0.6, 0.8, camo_c()))
@@ -487,7 +517,7 @@ def render_solids(solids, rel_deg, size, px, pitch=TK_PITCH, shadow=False, shado
 
 
 def make_tank_sprites():
-    """Pre-renderiza cada tanque (casco y torreta por separado) desde TK_ANG ángulos."""
+    """Pre-renderiza cada tanque (casco y torreta por separado) desde TANK_ANG ángulos."""
     size = (380, 250)
     out = {}
     for kind, heavy in (('tank', False), ('super', True)):
@@ -496,8 +526,8 @@ def make_tank_sprites():
         parts = {'px': px}
         for name, solids in (('hull', hull), ('tur', tur)):
             lst = []
-            for i in range(TK_ANG):
-                img, ax, ay = render_solids(solids, i * 360.0 / TK_ANG, size, px, shadow=(name == 'hull'))
+            for i in range(TANK_ANG):
+                img, ax, ay = render_solids(solids, i * 360.0 / TANK_ANG, size, px, shadow=(name == 'hull'))
                 r = img.get_bounding_rect()
                 if r.w < 2 or r.h < 2:
                     r = pygame.Rect(0, 0, 2, 2)
