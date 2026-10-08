@@ -20,7 +20,7 @@ from .sprites import (
 from .car_art import make_bike_sprites, make_car_sprites
 from .tk_art import make_tank_sprites, make_tk_textures
 from .boss_art import BOSS_TYPES, make_boss_sprite
-from .air_art import BOSS_W, load_png_sprite, polish
+from .air_art import BOSS_W, load_png_sprite, load_turret_png, polish
 
 
 class CoreMixin:
@@ -144,8 +144,8 @@ class CoreMixin:
         reg('s_hull', make_sub(32, 128))
         reg('c_map', make_cargo(26, 70))
         reg('esc_map', make_ship(16, 46, (70, 150, 110), (130, 200, 160), (255, 255, 255)))
-        self.tur_p = make_turret(8, (70, 140, 170))
-        self.tur_e = make_turret(8, (150, 60, 60))
+        self.tur_p = load_turret_png('torreta_jugador', 27) or make_turret(8, (70, 140, 170))
+        self.tur_e = load_turret_png('torreta_enemiga', 25) or make_turret(8, (150, 60, 60))
         self.tur_b = make_turret(12, (150, 160, 178))
         self.tur_b2 = make_turret(10, (150, 160, 178))
         for k_ in range(len(BOSS_TYPES)):

@@ -6,6 +6,8 @@ Cada archivo reemplaza el dibujo por código de ese barco. Si falta un archivo, 
   barco_enemigo_mapa.png      Barco enemigo rojo en el mapa    (proa hacia ARRIBA, 60 px de alto)
   barco_jugador_combate.png   Tu barco en el combate naval     (proa hacia ARRIBA, 124 px de alto)
   barco_enemigo_combate.png   Barco enemigo rojo en el combate (proa hacia ARRIBA, 112 px de alto)
+  torreta_jugador.png         Torreta de tu barco (cañones hacia ARRIBA, disco abajo; gira sobre el centro del disco, ~27 px de diámetro)
+  torreta_enemiga.png         Torreta del barco enemigo rojo (igual, ~25 px)
 
 Formato: PNG con fondo transparente, vista desde arriba, con la proa hacia ARRIBA, de ~600 px de alto (el juego lo reduce).
 Las torretas del combate se dibujan aparte encima del casco: dejá el casco sin cañones ni torretas dibujados.

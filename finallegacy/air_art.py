@@ -34,6 +34,20 @@ def load_png_sprite(name, width=None, flip=True, height=None, folder='aviones'):
     return pygame.transform.flip(img, False, True) if flip else img
 
 
+def load_turret_png(name, disc, folder='barcos'):
+    """Torreta de <folder>/<name>.png (cañones hacia arriba, disco abajo) escalada a 'disc' px de diámetro, en un lienzo cuadrado
+    con el eje de giro en el centro del disco; None si no existe."""
+    spr = load_png_sprite(name, width=disc, flip=False, folder=folder)
+    if spr is None:
+        return None
+    w, h = spr.get_size()
+    px, py = w / 2, h - w / 2
+    r = int(max(py, h - py, px)) + 2
+    out = pygame.Surface((2 * r, 2 * r), pygame.SRCALPHA)
+    out.blit(spr, (r - px, r - py))
+    return out
+
+
 def make_air_boss(k):
     """Jefe aéreo k (0 = el comandante stealth se construye aparte). Mira hacia abajo (sur)."""
     png = load_png_sprite('avion_jefe_%d' % (k + 1), BOSS_W[k])
