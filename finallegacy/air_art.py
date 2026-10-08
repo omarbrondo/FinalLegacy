@@ -14,7 +14,9 @@ def _S():
 ENG = {}          # posiciones (relativas al centro del sprite) de las toberas de cada jefe, para los resplandores de los motores
 
 
-BOSS_W = (320, 300, 250, 300, 280, 340)         # ancho en pantalla de cada jefe cuando se usa su PNG
+BOSS_W = (320, 300, 250, 300, 280, 340)
+# toberas de los jefes con PNG (relativas al centro del sprite, ya con el morro hacia abajo): ahí se dibuja el resplandor del motor
+PNG_ENG = {2: [(-32, -72), (31, -72), (-65, -54), (66, -54)]}         # ancho en pantalla de cada jefe cuando se usa su PNG
 
 
 def load_png_sprite(name, width, flip=True):
@@ -34,6 +36,8 @@ def make_air_boss(k):
     """Jefe aéreo k (0 = el comandante stealth se construye aparte). Mira hacia abajo (sur)."""
     png = load_png_sprite('avion_jefe_%d' % (k + 1), BOSS_W[k])
     if png is not None:
+        if k in PNG_ENG:
+            ENG[k] = PNG_ENG[k]
         return png
     fn = [None, _nodriza, _fantasma, _artillero, _tormenta, _titan][k]
     return polish(fn())
