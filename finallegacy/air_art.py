@@ -16,7 +16,7 @@ ENG = {}          # posiciones (relativas al centro del sprite) de las toberas d
 
 BOSS_W = (320, 300, 250, 300, 280, 340)
 # toberas de los jefes con PNG (relativas al centro del sprite, ya con el morro hacia abajo): ahí se dibuja el resplandor del motor
-PNG_ENG = {2: [(-32, -72), (31, -72), (-65, -54), (66, -54)], 3: [(-57, -8), (57, -8)]}         # ancho en pantalla de cada jefe cuando se usa su PNG
+PNG_ENG = {2: [(-32, -72), (31, -72), (-65, -54), (66, -54)], 3: [(-57, -8), (57, -8)], 4: [(-13, -92), (13, -92)]}         # ancho en pantalla de cada jefe cuando se usa su PNG
 
 
 def load_png_sprite(name, width, flip=True):
