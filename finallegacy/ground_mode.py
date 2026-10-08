@@ -8,7 +8,7 @@ from .common import (
     W, WIN_WAVE, angle_diff, bearing,
     clamp, coast_r, dist, draw_circ,
     glow, lerp, vec)
-from .sprites import ENEMY_TYPES, draw_cover
+from .sprites import ENEMY_TYPES, draw_cover, png_top
 from .landing import WX_LABEL
 from .ground_city import ATT_R, GC_R, SOL_SCALE, THEME_BY_NAME
 from .common import FEM_CHANCE
@@ -433,7 +433,7 @@ class GroundMixin:
         g = self.g
         p = g['p']
         x, y, R = n['x1'], n['y1'], 62 * (self.up_blast() if n['own'] == 'p' else 1.0)
-        self.fx.explode(x, y, 1.1, True)
+        self.fx.explode_art(x, y, 1.1, True)
         self.audio.play('boom_s', .7)
         self.shake = max(self.shake, 7)
         g['decals'].append((x, y, R * 0.55))
@@ -786,7 +786,7 @@ class GroundMixin:
                         cm['on'] = False
                         g['tleft'] += 10.0
                         self.gpop('+10 s', cm['x'], cm['y'] - 40, (140, 255, 200))
-                        self.fx.explode(cm['x'], cm['y'], 0.5)
+                        self.fx.explode_art(cm['x'], cm['y'], 0.5)
                         self.audio.play('boom_s', .4)
                         self.gpop('CÁMARA DESTRUIDA', cm['x'], cm['y'] - 20, (140, 255, 200))
                     continue
@@ -839,7 +839,7 @@ class GroundMixin:
             p['dead_t'] += dt
         elif p['hp'] <= 0:
             p['dead'] = True
-            self.fx.explode(p['x'], p['y'], 0.9)
+            self.fx.explode_art(p['x'], p['y'], 0.9)
             self.audio.play('boom_s')
             self.shake = 10
             if g['phase'] == 'play':
@@ -848,7 +848,7 @@ class GroundMixin:
         if g['mode'] == 'invasion' and city['hp'] <= 0 and not city['dead']:
             city['dead'] = True
             for _ in range(8):
-                self.fx.explode(W / 2 + random.uniform(-80, 80), H / 2 + random.uniform(-60, 60), 1.3, True)
+                self.fx.explode_art(W / 2 + random.uniform(-80, 80), H / 2 + random.uniform(-60, 60), 1.3, True)
             self.audio.play('boom_l')
             self.shake = 20
             if g['phase'] == 'play':
@@ -1014,8 +1014,15 @@ class GroundMixin:
         pygame.draw.lines(c, (*col, 90), False, [pts[1], pts[0], pts[-1]], 1)
         cv.blit(c, (x - mid + box.x, y - mid + box.y), box)
 
-    def blit_soldier(self, dst, key, x, y, ang, frame, hit=0.0, dead=False):
+    _crate_spr = {}
+
+    def blit_soldier(self, dst, key, x, y, ang, frame, hit=0.0, dead=False, age=None):
         sc = self.g.get('sscale', 1.0) if getattr(self, 'g', None) else 1.0
+        if dead and key in getattr(self, 'sol_dead', {}):          # cuerpo caído dibujado: cae (0,25 s), queda tendido y luego con charco
+            fr_ = self.sol_dead[key][2 if age is None else (0 if age < 0.25 else 1 if age < 0.7 else 2)]
+            r_ = pygame.transform.rotozoom(fr_, -ang, sc)
+            dst.blit(r_, (int(x) - r_.get_width() // 2, int(y) - r_.get_height() // 2))
+            return
         draw_circ(dst, x + 4 * sc, y + 5 * sc, 14 * sc, (0, 0, 0), 70)
         spr = self.sol[key][frame % 4]
         r = pygame.transform.rotate(spr, -ang) if sc == 1.0 else pygame.transform.rotozoom(spr, -ang, sc)
@@ -1030,6 +1037,18 @@ class GroundMixin:
     def draw_dog(self, cv, x, y, s):
         ks = self.g.get('sscale', 1.0)
         draw_circ(cv, x + 3 * ks, y + 4 * ks, 11 * ks, (0, 0, 0), 70)
+        strip = png_top('perro')
+        if strip is not None:
+            fr = strip.subsurface((64 * (int(s['ph'] * 0.8) % 4), 0, 64, 64))
+            if s['hit'] > 0:
+                fr = fr.copy()
+                fr.fill((110, 110, 110, 0), special_flags=pygame.BLEND_RGB_ADD)
+            r_ = pygame.transform.rotozoom(fr, -s['h'], ks)
+            cv.blit(r_, (int(x) - r_.get_width() // 2, int(y) - r_.get_height() // 2))
+            if s['hp'] < s['max']:
+                pygame.draw.rect(cv, (8, 12, 24), (x - 10, y - 20, 20, 4))
+                pygame.draw.rect(cv, (240, 80, 70), (x - 9, y - 19, int(18 * s['hp'] / s['max']), 2))
+            return
         fx, fy = vec(s['h'], 1.0)
         sx_, sy_ = -fy, fx
         body = (214, 214, 214) if s['hit'] > 0 else (96, 66, 44)
@@ -1056,6 +1075,11 @@ class GroundMixin:
             pygame.draw.rect(cv, (240, 80, 70), (x - 9, y - 19, int(18 * s['hp'] / s['max']), 2))
 
     def draw_boat(self, cv, x, y, a):
+        art = png_top('lancha')
+        if art is not None:
+            spr = pygame.transform.rotozoom(art, -a, 64.0 / art.get_height())
+            cv.blit(spr, (int(x) - spr.get_width() // 2, int(y) - spr.get_height() // 2))
+            return
         h = math.radians(a)
         sn, cs = math.sin(h), math.cos(h)
         pts = [(x + sn * (-ly) + cs * lx, y - cs * (-ly) + sn * lx) for lx, ly in ((0, -30), (15, -14), (15, 22), (-15, 22), (-15, -14))]
@@ -1093,10 +1117,15 @@ class GroundMixin:
             self.draw_boat(cv, x - cx_, y - cy_, a)
         for c in g['corpses']:
             if c['age'] < 14:
-                self.blit_soldier(cv, ('ef_' if c.get('fem') else 'e_') + c['kind'], c['x'] - cx_, c['y'] - cy_, c['h'], 0, dead=True)
+                self.blit_soldier(cv, ('ef_' if c.get('fem') else 'e_') + c['kind'], c['x'] - cx_, c['y'] - cy_, c['h'], 0, dead=True, age=c['age'])
         for q in g['crates']:
             qx, qy = q['x'] - cx_, q['y'] - cy_
             glow(cv, qx, qy, 28, (120, 255, 150) if q['kind'] in ('med', 'mask') else (255, 210, 70), 0.6)
+            art_ = png_top({'med': 'caja_med', 'mask': 'caja_mask'}.get(q['kind'], 'caja_gren'))
+            if art_ is not None:
+                spr_ = self._crate_spr.setdefault(q['kind'], pygame.transform.smoothscale(art_, (22, round(22 * art_.get_height() / art_.get_width()))))
+                cv.blit(spr_, (qx - spr_.get_width() // 2, qy - spr_.get_height() // 2))
+                continue
             pygame.draw.rect(cv, (236, 240, 236) if q['kind'] == 'med' else ((60, 90, 60) if q['kind'] == 'mask' else (96, 110, 70)), (qx - 9, qy - 9, 18, 18), border_radius=3)
             if q['kind'] == 'mask':
                 pygame.draw.ellipse(cv, (30, 36, 30), (qx - 7, qy - 6, 14, 12))
@@ -1186,6 +1215,16 @@ class GroundMixin:
         for b in g['bullets']:
             col = (255, 240, 150) if b['own'] in ('p', 'a') else (255, 150, 110)
             bx, by = b['x'] - cx_, b['y'] - cy_
+            bart_ = png_top('efecto_bala_a' if b['own'] in ('p', 'a') else 'efecto_bala_e')
+            if bart_ is not None:                            # bala dibujada con estela, girada hacia donde va (la cabeza queda en el centro)
+                ang_ = int(-math.degrees(math.atan2(b['vy'], b['vx'])) / 6) * 6
+                key_ = (b['own'] in ('p', 'a'), ang_)
+                spr_ = self._crate_spr.get(('b',) + key_)
+                if spr_ is None:
+                    spr_ = pygame.transform.rotozoom(bart_, ang_, 0.34)
+                    self._crate_spr[('b',) + key_] = spr_
+                cv.blit(spr_, (int(bx) - spr_.get_width() // 2, int(by) - spr_.get_height() // 2))
+                continue
             pygame.draw.line(cv, col, (bx, by), (bx - b['vx'] * 0.035, by - b['vy'] * 0.035), 2)
             glow(cv, bx, by, 7, col, 0.7)
         for n in g['nades']:
@@ -1200,6 +1239,11 @@ class GroundMixin:
             else:
                 draw_circ(cv, tx_, ty_, 62, (255, 255, 255), 60, 1)
             draw_circ(cv, x + 2, y + 3, 5, (0, 0, 0), 80)
+            gart_ = png_top('granada')
+            if gart_ is not None:
+                gs_ = self._crate_spr.setdefault('g', pygame.transform.smoothscale(gart_, (14, 14)))
+                cv.blit(gs_, (int(x) - 7, int(y - hh) - 7))
+                continue
             pygame.draw.circle(cv, (58, 74, 48), (int(x), int(y - hh)), 5)
             pygame.draw.circle(cv, (110, 128, 92), (int(x - 1), int(y - hh - 1)), 2)
         if g.get('lz'):

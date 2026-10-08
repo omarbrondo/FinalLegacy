@@ -164,7 +164,25 @@ class CoreMixin:
             self.sol['e_' + kd] = make_soldier_frames(kd, 'e')
             if kd != 'dog':
                 self.sol['ef_' + kd] = make_soldier_frames(kd, 'e', True, (40, 28, 24))
+        from .air_art import load_png_sprite as _lp
+        art_ = {}
+        for key_ in ('p', 'pf', 'a', 'af', 'e_rifle', 'ef_rifle', 'e_gren', 'ef_gren', 'e_sniper', 'ef_sniper', 'e_mg'):
+            strip_ = _lp('top_' + key_, width=84 * 4, flip=False, folder='soldados')
+            if strip_:
+                art_[key_] = [strip_.subsurface((84 * i_, 0, 84, 84)).copy() for i_ in range(4)]
+        if 'e_mg' in art_:
+            art_['ef_mg'] = art_['e_mg']
+        for k_, fr_ in art_.items():
+            self.sol[k_] = fr_
+        self.sol_dead = {}
+        for k_, d_ in (('p', 'p'), ('pf', 'pf'), ('a', 'a'), ('af', 'a'), ('e_rifle', 'e_rifle'), ('ef_rifle', 'e_rifle'), ('e_gren', 'e_gren'), ('ef_gren', 'e_gren'),
+                       ('e_sniper', 'e_sniper'), ('ef_sniper', 'e_sniper'), ('e_mg', 'e_mg'), ('ef_mg', 'e_mg')):
+            strip_ = _lp('muerte_' + d_, width=120 * 3, flip=False, folder='soldados')
+            if strip_:
+                self.sol_dead[k_] = [strip_.subsurface((120 * i_, 0, 120, 120)).copy() for i_ in range(3)]
         for k_ in ('e_sniper', 'ef_sniper'):
+            if k_ in art_:
+                continue
             for f_ in self.sol[k_]:
                 f_.fill((140, 170, 120, 255), special_flags=pygame.BLEND_RGBA_MULT)
         hurt = pygame.Surface((W, H), pygame.SRCALPHA)
@@ -189,8 +207,8 @@ class CoreMixin:
             boss=load_png_sprite('avion_jefe_1', BOSS_W[0]) or polish(flip(make_f117((255, 90, 60), 3.0))),
             shadows={}, isl=isl, isl_r=isl_r, gbase=gb.convert_alpha(),
             clouds=[make_cloud(s_) for s_ in (1, 2, 3, 4)])
-        self.antenna_gfx = self.make_antenna()
-        self.antenna_big = self.make_antenna(1.5)
+        self.antenna_gfx = self.antenna_art(1.0) or self.make_antenna()
+        self.antenna_big = self.antenna_art(1.5) or self.make_antenna(1.5)
         self.cockpit = self.make_cockpit()
         self.tk_tex = make_tk_textures()
         self.tk_spr = make_tank_sprites()
@@ -313,6 +331,19 @@ class CoreMixin:
         pygame.draw.rect(s, (255, 210, 70), (192, 54, 18, 4))
         pygame.draw.circle(s, (60, 70, 86), (232, 66), 11)
         return s
+
+    def antenna_art(self, scale=1.0):
+        """Antena de soldados/antena.png en el mismo lienzo (48x96 por escala) y con la base abajo; None si no existe."""
+        from .sprites import png_top
+        art = png_top('antena')
+        if art is None:
+            return None
+        w, h = int(48 * scale), int(96 * scale)
+        k = (h - 4 * scale) / art.get_height()
+        spr = pygame.transform.smoothscale(art, (max(1, round(art.get_width() * k)), round(h - 4 * scale)))
+        out = pygame.Surface((w, h), pygame.SRCALPHA)
+        out.blit(spr, ((w - spr.get_width()) // 2, h - 2 * scale - spr.get_height()))
+        return out
 
     def make_antenna(self, scale=1.0):
         S = 4

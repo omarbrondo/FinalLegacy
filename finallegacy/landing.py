@@ -154,7 +154,7 @@ class LandingMixin:
             s['t'] += dt
             if s['t'] >= 0.9:
                 lz['shells'].remove(s)
-                self.fx.explode(s['x'], s['y'], 1.2, True)
+                self.fx.explode_art(s['x'], s['y'], 1.2, True)
                 self.audio.play('boom_s', .5)
                 self.shake = max(self.shake, 5)
                 g['decals'].append((s['x'], s['y'], 26))
@@ -178,7 +178,7 @@ class LandingMixin:
         lz = g['lz']
         b['alive'] = False
         if b.get('mortar'):
-            self.fx.explode(b['x'], b['y'], 1.3, True)
+            self.fx.explode_art(b['x'], b['y'], 1.3, True)
             self.audio.play('boom_l', .6)
             self.shake = max(self.shake, 10)
             self.add_score(120)
@@ -192,9 +192,9 @@ class LandingMixin:
         for c in g['covers']:
             if c.get('bunker') is b:
                 c['x'] = c['y'] = -99999.0                # mantiene los índices de cobertura de las balas en vuelo
-        self.fx.explode(b['x'], b['y'], 1.5, True)
+        self.fx.explode_art(b['x'], b['y'], 1.5, True)
         for _ in range(3):
-            self.fx.explode(b['x'] + random.uniform(-26, 26), b['y'] + random.uniform(-26, 26), 1.0, True)
+            self.fx.explode_art(b['x'] + random.uniform(-26, 26), b['y'] + random.uniform(-26, 26), 1.0, True)
         self.audio.play('boom_l', .7)
         self.shake = max(self.shake, 12)
         g['decals'].append((b['x'], b['y'], 40))

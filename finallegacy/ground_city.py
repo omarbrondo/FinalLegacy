@@ -5,6 +5,7 @@ import random
 from collections import deque
 import pygame
 from .common import H, W, bearing, clamp, coast_r, vec
+from .sprites import png_top
 
 GC_R = 680                  # radio de la isla en la invasión de una ciudad
 PITCH, BLK, SWALK = 200, 140, 7
@@ -12,6 +13,8 @@ SOL_SCALE = 0.78            # los soldados se dibujan más chicos para que la ci
 ATT_R = 150                 # a esta distancia del ayuntamiento los invasores atacan la ciudad
 NAV = 16                    # tamaño de celda del campo de navegación
 RCS = 120                   # tamaño de celda de la grilla de colisiones
+_CARS = {}
+_BUILD = {}
 CAR_L, CAR_W = 54, 26         # los autos son más grandes que un soldado
 HALL = (-44, -34, 88, 68)   # ayuntamiento (u, v, ancho, alto), relativo al centro
 
@@ -248,6 +251,11 @@ class GroundCityMixin:
 
     def _gc_tree(self, s, x, y, r, sd):
         rnd = random.Random(sd)
+        art = png_top('arbol')
+        if art is not None:
+            spr = pygame.transform.rotozoom(art, (sd * 53) % 360, 2.15 * r / art.get_width())
+            s.blit(spr, (x - spr.get_width() // 2, y - spr.get_height() // 2))
+            return
         pygame.draw.circle(s, (34, 84, 46), (x + 1, y + 2), r)
         for _ in range(5):
             a = rnd.uniform(0, 6.28)
@@ -261,6 +269,21 @@ class GroundCityMixin:
         col = (42, 40, 40) if burnt else rnd.choice(getattr(self, '_gc_cols', CAR_COLS))
         dark = tuple(max(0, c - 50) for c in col)
         w, d = (CAR_L, CAR_W) if horiz else (CAR_W, CAR_L)
+        strip = png_top('autos')
+        if strip is not None:                                    # arte dibujado: colores o quemados (10 cuadros, frente hacia arriba; horizontal = girado a la derecha)
+            idx = 7 + rnd.randrange(3) if burnt else rnd.randrange(11)
+            key = (idx, horiz)
+            spr = _CARS.get(key)
+            if spr is None:
+                extra = png_top('autos2') if idx >= 10 else None
+                fr = extra.subsurface((90 * (idx - 10), 0, 90, 170)) if extra is not None else strip.subsurface((90 * (idx if idx < 10 else idx - 10), 0, 90, 170))
+                fr = fr.subsurface(fr.get_bounding_rect()).copy()
+                k_ = CAR_L / fr.get_height()
+                spr = pygame.transform.smoothscale(fr, (max(1, round(fr.get_width() * k_)), CAR_L))
+                spr = pygame.transform.rotate(spr, -90) if horiz else spr
+                _CARS[key] = spr
+            s.blit(spr, (x - spr.get_width() // 2, y - spr.get_height() // 2))
+            return
         r = pygame.Rect(x - w // 2, y - d // 2, w, d)
         pygame.draw.rect(s, dark, r, border_radius=5)
         pygame.draw.rect(s, col, r.inflate(-2, -2), border_radius=5)
@@ -281,6 +304,14 @@ class GroundCityMixin:
             pygame.draw.circle(s, (24, 22, 22), (x, y), 20, 3)
 
     def _gc_box(self, s, x, y, col, sd):
+        art = png_top('contenedor')
+        if art is not None:                       # contenedor dibujado; 'col' lo tiñe levemente para conservar la variedad de colores
+            spr = pygame.transform.smoothscale(art, (58, round(58 * art.get_height() / art.get_width())))
+            col_ = spr.copy(); col_.fill((*col, 255), special_flags=pygame.BLEND_RGBA_MULT)
+            col_ = col_.copy(); col_.fill((70, 70, 70, 0), special_flags=pygame.BLEND_RGB_ADD); col_.set_alpha(215)
+            spr = spr.copy(); spr.blit(col_, (0, 0))
+            s.blit(spr, (x - spr.get_width() // 2, y - spr.get_height() // 2))
+            return
         dark = tuple(max(0, c - 60) for c in col)
         r = pygame.Rect(x - 28, y - 10, 56, 20)
         pygame.draw.rect(s, dark, r)
@@ -293,6 +324,21 @@ class GroundCityMixin:
         rnd = random.Random(sd)
         X, Y = X0 + x, Y0 + y
         rh = d - hh
+        art = png_top('edif_hall' if pal == 'hall' else 'edif_%d' % PALS.index(pal))
+        if art is not None:                       # arte dibujado: el ayuntamiento entero; los demás en techo y fachada que se estiran por separado
+            key = (id(art), w, d, hh)
+            spr = _BUILD.get(key)
+            if spr is None:
+                if pal == 'hall':
+                    spr = pygame.transform.smoothscale(art, (w, d))
+                else:
+                    cut = int(art.get_height() * 0.69)
+                    spr = pygame.Surface((w, d), pygame.SRCALPHA)
+                    spr.blit(pygame.transform.smoothscale(art.subsurface((0, 0, art.get_width(), cut)), (w, rh)), (0, 0))
+                    spr.blit(pygame.transform.smoothscale(art.subsurface((0, cut, art.get_width(), art.get_height() - cut)), (w, hh)), (0, rh))
+                _BUILD[key] = spr
+            s.blit(spr, (X, Y))
+            return
         if pal == 'hall':
             wall, roof, hi, lo = (228, 226, 216), (110, 150, 134), (170, 206, 188), (72, 108, 94)
         else:
