@@ -175,7 +175,7 @@ class CoreMixin:
         self.air = dict(
             f16=load_png_sprite('avion_f16_jugador', height=90, flip=False) or polish(make_f16((170, 182, 196), (108, 120, 138), (60, 100, 200), 0.9)),
             viper=load_png_sprite('avion_caza_enemigo', height=76) or polish(flip(make_f16((172, 100, 90), (112, 58, 54), (30, 30, 30), 0.72))),
-            stealth=polish(flip(make_f117((220, 70, 56), 0.62))),
+            stealth=load_png_sprite('avion_stealth_pequeno', width=66) or polish(flip(make_f117((220, 70, 56), 0.62))),
             bomber=polish(flip(make_f117((255, 150, 40), 1.7))),
             boss=load_png_sprite('avion_jefe_1', BOSS_W[0]) or polish(flip(make_f117((255, 90, 60), 3.0))),
             shadows={}, isl=isl, isl_r=isl_r, gbase=gb.convert_alpha(),
