@@ -99,14 +99,29 @@ class NavalFleetMixin:
                         s_['ally'] = True
                     self.audio.play('launch', .3)
                     c['flashes'].append([a['x'], a['y'], 70, (200, 255, 220), 1.0])
-        # --- ataques aéreos (destructores de la oleada 4 en adelante)
-        if w >= 4 and not c['is_boss'] and not c['nest'] and not c['sub'] and not over and p['sink'] is None:
+        # --- ataques aéreos: destructores y submarinos desde la oleada 2, jefes desde la 3
+        c['flak_cd'] = max(0.0, c.get('flak_cd', 0.0) - dt)
+        for fk in c.setdefault('flak', [])[:]:
+            fk['t'] += dt
+            if fk['t'] >= 0.45:
+                c['flak'].remove(fk)
+                self.fx.add('glow', fk['x'], fk['y'], life=0.35, r0=20, r1=110, col=(255, 230, 150))
+                self.fx.add('ring', fk['x'], fk['y'], life=0.45, r0=10, r1=115, col=(255, 240, 190))
+                self.audio.play('boom_s', .4)
+                for pl in c['planes'][:]:
+                    if dist(pl['x'], pl['y'], fk['x'], fk['y']) < 115:
+                        c['planes'].remove(pl)
+                        self.fx.explode(pl['x'], pl['y'], 0.8)
+                        self.add_score(60)
+                        self.pop('+60', pl['x'], pl['y'] - 16, (255, 255, 160))
+                c['bombs'] = [bm for bm in c['bombs'] if dist(bm['x'], bm['y'], fk['x'], fk['y']) > 115]
+        if (w >= (3 if c['is_boss'] else 2)) and not c['nest'] and not over and p['sink'] is None:
             c['air_t'] -= dt
             if c['air_t'] <= 0:
                 c['air_t'] = random.uniform(18, 26)
                 side = random.choice((-1, 1))
                 y0 = clamp(p['y'] + random.uniform(-160, 60), 120, H - 140)
-                for i in range(2):
+                for i in range(2 + (w >= 7)):
                     c['planes'].append(dict(x=-50 - i * 90 if side > 0 else W + 50 + i * 90, y=y0 + (i - 1) * 70, vx=300.0 * side, hp=1.0, bt=0.0))
                 self.call_out('¡ATAQUE AÉREO!', (255, 190, 110), 'air', 6)
                 self.audio.play('alarm', .4)
@@ -202,6 +217,15 @@ class NavalFleetMixin:
             c['barrage'].clear()
             c['bombs'].clear()
 
+    def na_flak(self):
+        """Z: cortina antiaérea en el cursor; derriba aviones y detona bombas dentro del radio."""
+        c = self.c
+        if c.get('flak_cd', 0) > 0 or self.c['p']['sink'] is not None:
+            return
+        c['flak_cd'] = 5.0
+        c['flak'].append(dict(x=self.aim[0], y=self.aim[1], t=0.0))
+        self.audio.play('launch', .45)
+
     def nf_spawn_air(self, passes, hp=3.0):
         c = self.c
         e = c['e']
@@ -272,6 +296,11 @@ class NavalFleetMixin:
     def nf_draw(self, cv):
         c = self.c
         t = self.t
+        for fk in c.get('flak', ()):
+            draw_circ(cv, fk['x'], fk['y'], 115 * (0.4 + fk['t'] * 1.3), (255, 235, 170), 80, 1)
+        if c.get('planes') or c.get('bombs') or c.get('flak_cd', 0) > 0:
+            self.text(cv, 'CORTINA ANTIAÉREA (Z): %s' % ('lista' if c.get('flak_cd', 0) <= 0 else '%d s' % math.ceil(c['flak_cd'])), self.f_s,
+                      (255, 235, 170) if c.get('flak_cd', 0) <= 0 else (170, 170, 170), W // 2, H - 130, 'c')
         for b in c['boats']:
             if b['kind'] == 'boat':
                 self.blit_ship(cv, 'g_boat', b['x'], b['y'], b['h'])

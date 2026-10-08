@@ -797,6 +797,8 @@ class CoreMixin:
                     self.na_smoke()
                 elif e.key == pygame.K_g:
                     self.na_damage_control()
+                elif e.key == pygame.K_z:
+                    self.na_flak()
                 elif e.key == pygame.K_SPACE:
                     self.fire_shell()
                 elif e.key == pygame.K_e:
