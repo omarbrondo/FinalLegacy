@@ -1,6 +1,6 @@
 """Quita el fondo (liso o de tablero gris falso) de la imagen de un avión generada con IA y la recorta al contorno.
 
-Uso:  python herramientas/recortar_avion.py entrada.jpg salida.png [tolerancia_gris=6] [radio_apertura=9] [tolerancia_rojo=0] ["x0,y0,x1,y1 ..." cajas con fondo atrapado a borrar]
+Uso:  python herramientas/recortar_avion.py entrada.jpg salida.png [tolerancia_gris=6] [radio_apertura=9] [tolerancia_rojo=0] ["x0,y0,x1,y1 ..." cajas con fondo atrapado a borrar] [erosion_anticolado=0]
 Después se reduce a ~640 px de ancho y se guarda en aviones/ (ver aviones/LEEME.txt). Necesita: pip install pillow numpy scipy
 """
 import sys, numpy as np
@@ -16,9 +16,14 @@ neutral=(np.abs(a[:,:,1]-a[:,:,2])<=tol)&((a[:,:,0]-a[:,:,1])<=max(tol,red))&((a
 edge=np.concatenate([lum[:30].ravel(),lum[-30:].ravel(),lum[:,:30].ravel(),lum[:,-30:].ravel()])
 lo,hi=np.percentile(edge,1)-8,np.percentile(edge,99)+8                    # rango de grises del tablero (oscuro o claro), medido en los bordes
 passable=neutral&(lum>=lo)&(lum<=hi)
-lab,n=ndi.label(passable)
+leak=int(sys.argv[7]) if len(sys.argv) > 7 else 0                       # si el fondo se 'cuela' por un hueco del contorno, se separa erosionando antes de etiquetar
+core=ndi.binary_erosion(passable,iterations=leak,border_value=1) if leak else passable
+lab,n=ndi.label(core)
 border=set(np.unique(np.concatenate([lab[0],lab[-1],lab[:,0],lab[:,-1]])))-{0}
 bg=np.isin(lab,list(border))
+if leak:
+    bg=ndi.binary_dilation(bg,iterations=leak+1)&passable
+lab=ndi.label(passable)[0]
 pockets=np.zeros_like(bg)
 for bx in (sys.argv[6].split() if len(sys.argv) > 6 else []):          # fondo atrapado dentro del avión: cajas 'x0,y0,x1,y1' de la imagen original donde se borran los grises claros
     x0,y0,x1,y1=[int(v) for v in bx.split(',')]
