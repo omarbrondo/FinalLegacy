@@ -1014,6 +1014,8 @@ class GroundMixin:
         pygame.draw.lines(c, (*col, 90), False, [pts[1], pts[0], pts[-1]], 1)
         cv.blit(c, (x - mid + box.x, y - mid + box.y), box)
 
+    _crate_spr = {}
+
     def blit_soldier(self, dst, key, x, y, ang, frame, hit=0.0, dead=False, age=None):
         sc = self.g.get('sscale', 1.0) if getattr(self, 'g', None) else 1.0
         if dead and key in getattr(self, 'sol_dead', {}):          # cuerpo caído dibujado: cae (0,25 s), queda tendido y luego con charco
@@ -1119,6 +1121,11 @@ class GroundMixin:
         for q in g['crates']:
             qx, qy = q['x'] - cx_, q['y'] - cy_
             glow(cv, qx, qy, 28, (120, 255, 150) if q['kind'] in ('med', 'mask') else (255, 210, 70), 0.6)
+            art_ = png_top({'med': 'caja_med', 'mask': 'caja_mask'}.get(q['kind'], 'caja_gren'))
+            if art_ is not None:
+                spr_ = self._crate_spr.setdefault(q['kind'], pygame.transform.smoothscale(art_, (22, round(22 * art_.get_height() / art_.get_width()))))
+                cv.blit(spr_, (qx - spr_.get_width() // 2, qy - spr_.get_height() // 2))
+                continue
             pygame.draw.rect(cv, (236, 240, 236) if q['kind'] == 'med' else ((60, 90, 60) if q['kind'] == 'mask' else (96, 110, 70)), (qx - 9, qy - 9, 18, 18), border_radius=3)
             if q['kind'] == 'mask':
                 pygame.draw.ellipse(cv, (30, 36, 30), (qx - 7, qy - 6, 14, 12))
@@ -1222,6 +1229,11 @@ class GroundMixin:
             else:
                 draw_circ(cv, tx_, ty_, 62, (255, 255, 255), 60, 1)
             draw_circ(cv, x + 2, y + 3, 5, (0, 0, 0), 80)
+            gart_ = png_top('granada')
+            if gart_ is not None:
+                gs_ = self._crate_spr.setdefault('g', pygame.transform.smoothscale(gart_, (14, 14)))
+                cv.blit(gs_, (int(x) - 7, int(y - hh) - 7))
+                continue
             pygame.draw.circle(cv, (58, 74, 48), (int(x), int(y - hh)), 5)
             pygame.draw.circle(cv, (110, 128, 92), (int(x - 1), int(y - hh - 1)), 2)
         if g.get('lz'):

@@ -250,6 +250,11 @@ class GroundCityMixin:
 
     def _gc_tree(self, s, x, y, r, sd):
         rnd = random.Random(sd)
+        art = png_top('arbol')
+        if art is not None:
+            spr = pygame.transform.rotozoom(art, (sd * 53) % 360, 2.15 * r / art.get_width())
+            s.blit(spr, (x - spr.get_width() // 2, y - spr.get_height() // 2))
+            return
         pygame.draw.circle(s, (34, 84, 46), (x + 1, y + 2), r)
         for _ in range(5):
             a = rnd.uniform(0, 6.28)
@@ -265,11 +270,12 @@ class GroundCityMixin:
         w, d = (CAR_L, CAR_W) if horiz else (CAR_W, CAR_L)
         strip = png_top('autos')
         if strip is not None:                                    # arte dibujado: colores o quemados (10 cuadros, frente hacia arriba; horizontal = girado a la derecha)
-            idx = 7 + rnd.randrange(3) if burnt else rnd.randrange(7)
+            idx = 7 + rnd.randrange(3) if burnt else rnd.randrange(11)
             key = (idx, horiz)
             spr = _CARS.get(key)
             if spr is None:
-                fr = strip.subsurface((90 * idx, 0, 90, 170))
+                extra = png_top('autos2') if idx >= 10 else None
+                fr = extra.subsurface((90 * (idx - 10), 0, 90, 170)) if extra is not None else strip.subsurface((90 * (idx if idx < 10 else idx - 10), 0, 90, 170))
                 fr = fr.subsurface(fr.get_bounding_rect()).copy()
                 k_ = CAR_L / fr.get_height()
                 spr = pygame.transform.smoothscale(fr, (max(1, round(fr.get_width() * k_)), CAR_L))
@@ -297,6 +303,14 @@ class GroundCityMixin:
             pygame.draw.circle(s, (24, 22, 22), (x, y), 20, 3)
 
     def _gc_box(self, s, x, y, col, sd):
+        art = png_top('contenedor')
+        if art is not None:                       # contenedor dibujado; 'col' lo tiñe levemente para conservar la variedad de colores
+            spr = pygame.transform.smoothscale(art, (58, round(58 * art.get_height() / art.get_width())))
+            col_ = spr.copy(); col_.fill((*col, 255), special_flags=pygame.BLEND_RGBA_MULT)
+            col_ = col_.copy(); col_.fill((70, 70, 70, 0), special_flags=pygame.BLEND_RGB_ADD); col_.set_alpha(215)
+            spr = spr.copy(); spr.blit(col_, (0, 0))
+            s.blit(spr, (x - spr.get_width() // 2, y - spr.get_height() // 2))
+            return
         dark = tuple(max(0, c - 60) for c in col)
         r = pygame.Rect(x - 28, y - 10, 56, 20)
         pygame.draw.rect(s, dark, r)
