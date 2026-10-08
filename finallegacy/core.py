@@ -25,6 +25,10 @@ from .boss_art import BOSS_TYPES, make_boss_sprite
 class CoreMixin:
     def __init__(self):
         pygame.display.set_caption('RETRO LEGACY')
+        try:                                                  # ícono de la ventana y de la barra de tareas
+            pygame.display.set_icon(pygame.image.load(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'icono', 'retro_legacy.png')))
+        except (pygame.error, OSError):
+            pass
         try:
             self.screen = pygame.display.set_mode((W, H), pygame.SCALED)
         except pygame.error:                      # sin renderizador: ventana común (sin escalado)
