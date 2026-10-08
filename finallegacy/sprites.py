@@ -2,7 +2,21 @@
 import math
 import pygame
 import random
+import os
 from .common import shade
+
+_PNG = {}
+
+
+def png_top(name):
+    """soldados/<name>.png (arte cenital) o None si no existe; se carga una sola vez."""
+    if name not in _PNG:
+        path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'soldados', name + '.png')
+        try:
+            _PNG[name] = pygame.image.load(path).convert_alpha() if os.path.isfile(path) else None
+        except pygame.error:
+            _PNG[name] = None
+    return _PNG[name]
 
 
 def make_ship(wd, ln, hull, deck, acc, fore_static=True):
@@ -299,6 +313,12 @@ def draw_cover(surf, c):
     sh = pygame.Surface((r * 4, r * 4), pygame.SRCALPHA)
     pygame.draw.circle(sh, (0, 0, 0, 70), (r * 2 + 5, r * 2 + 7), int(r * 1.05))
     surf.blit(sh, (x - r * 2, y - r * 2))
+    art = png_top({'sandbag': 'cob_sandbag', 'rock': 'cob_rock'}.get(kind, 'cob_crates'))
+    if art is not None:
+        k = {'sandbag': 2.15, 'rock': 2.25}.get(kind, 2.4) * r / max(art.get_size())
+        spr = pygame.transform.rotozoom(art, (c['seed'] * 37) % 360, k)
+        surf.blit(spr, (x - spr.get_width() // 2, y - spr.get_height() // 2))
+        return
     if kind == 'sandbag':
         pygame.draw.circle(surf, (118, 98, 62), (x, y), r)
         for ring, rad, n in ((0, r - 5, 11), (1, r - 13, 7)):

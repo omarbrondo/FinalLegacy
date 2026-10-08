@@ -8,7 +8,7 @@ from .common import (
     W, WIN_WAVE, angle_diff, bearing,
     clamp, coast_r, dist, draw_circ,
     glow, lerp, vec)
-from .sprites import ENEMY_TYPES, draw_cover
+from .sprites import ENEMY_TYPES, draw_cover, png_top
 from .landing import WX_LABEL
 from .ground_city import ATT_R, GC_R, SOL_SCALE, THEME_BY_NAME
 from .common import FEM_CHANCE
@@ -1030,6 +1030,18 @@ class GroundMixin:
     def draw_dog(self, cv, x, y, s):
         ks = self.g.get('sscale', 1.0)
         draw_circ(cv, x + 3 * ks, y + 4 * ks, 11 * ks, (0, 0, 0), 70)
+        strip = png_top('perro')
+        if strip is not None:
+            fr = strip.subsurface((64 * (int(s['ph'] * 0.8) % 4), 0, 64, 64))
+            if s['hit'] > 0:
+                fr = fr.copy()
+                fr.fill((110, 110, 110, 0), special_flags=pygame.BLEND_RGB_ADD)
+            r_ = pygame.transform.rotozoom(fr, -s['h'], ks)
+            cv.blit(r_, (int(x) - r_.get_width() // 2, int(y) - r_.get_height() // 2))
+            if s['hp'] < s['max']:
+                pygame.draw.rect(cv, (8, 12, 24), (x - 10, y - 20, 20, 4))
+                pygame.draw.rect(cv, (240, 80, 70), (x - 9, y - 19, int(18 * s['hp'] / s['max']), 2))
+            return
         fx, fy = vec(s['h'], 1.0)
         sx_, sy_ = -fy, fx
         body = (214, 214, 214) if s['hit'] > 0 else (96, 66, 44)
@@ -1056,6 +1068,11 @@ class GroundMixin:
             pygame.draw.rect(cv, (240, 80, 70), (x - 9, y - 19, int(18 * s['hp'] / s['max']), 2))
 
     def draw_boat(self, cv, x, y, a):
+        art = png_top('lancha')
+        if art is not None:
+            spr = pygame.transform.rotozoom(art, -a, 64.0 / art.get_height())
+            cv.blit(spr, (int(x) - spr.get_width() // 2, int(y) - spr.get_height() // 2))
+            return
         h = math.radians(a)
         sn, cs = math.sin(h), math.cos(h)
         pts = [(x + sn * (-ly) + cs * lx, y - cs * (-ly) + sn * lx) for lx, ly in ((0, -30), (15, -14), (15, 22), (-15, 22), (-15, -14))]
