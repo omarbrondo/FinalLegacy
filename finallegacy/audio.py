@@ -1,5 +1,6 @@
 """Síntesis de audio por código y reproductor de efectos/música."""
 import array
+import os
 import math
 import pygame
 import random
@@ -263,7 +264,52 @@ class Audio:
             s.set_volume(clamp(vol * self.svol, 0, 1))
             s.play()
 
+    MUSIC_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'musica')
+    MUSIC_GAIN = 0.55                                   # los archivos vienen masterizados: se bajan para no tapar los efectos
+
+    def _music_file(self, style, wave):
+        """Ruta de musica/<modo>_<oleada>.<ext> o musica/<modo>.<ext> (ogg, mp3 o wav), o None si no hay archivo."""
+        cache = self.__dict__.setdefault('_mf_cache', {})
+        key = (style, wave)
+        if key not in cache:
+            found = None
+            for stem in ('%s_%d' % (style, wave), style):
+                for ext in ('ogg', 'mp3', 'wav'):
+                    path = os.path.join(self.MUSIC_DIR, '%s.%s' % (stem, ext))
+                    if os.path.isfile(path):
+                        found = path
+                        break
+                if found:
+                    break
+            cache[key] = found
+        return cache[key]
+
+    def _file_music_v(self):
+        return 0.0 if self.muted else self.MUSIC_GAIN * self.mvol
+
     def music(self, style, wave=1, fallback=None):
+        """style = modo ('map', 'defense', 'port'...), wave = oleada. Si hay un archivo en musica/ suena ese; si no, la pieza compuesta por código."""
+        if not self.ok:
+            return
+        path = self._music_file(style, wave) if style else None
+        if path:
+            if path != getattr(self, 'file_cur', None):
+                try:
+                    pygame.mixer.Channel(0).stop()
+                    self.want = self.cur_key = self.cur = None
+                    pygame.mixer.music.load(path)
+                    pygame.mixer.music.set_volume(self._file_music_v())
+                    pygame.mixer.music.play(-1, fade_ms=900)
+                    self.file_cur = path
+                    return
+                except pygame.error:
+                    self._mf_cache[(style, wave)] = None             # archivo ilegible: se usa la música por código
+                    self.file_cur = None
+            else:
+                return
+        elif getattr(self, 'file_cur', None):
+            pygame.mixer.music.fadeout(400)
+            self.file_cur = None
         """style = modo ('map', 'defense', 'port'...), wave = oleada. Mientras se compone la pieza suena la básica."""
         if not self.ok:
             return
@@ -304,8 +350,10 @@ class Audio:
             self.svol = clamp(svol, 0.0, 1.0)
         if self.ok:
             pygame.mixer.Channel(0).set_volume(self.music_v())
+            pygame.mixer.music.set_volume(self._file_music_v())
 
     def toggle_mute(self):
         self.muted = not self.muted
         if self.ok:
             pygame.mixer.Channel(0).set_volume(self.music_v())
+            pygame.mixer.music.set_volume(self._file_music_v())

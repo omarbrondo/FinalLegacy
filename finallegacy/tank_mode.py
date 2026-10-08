@@ -878,9 +878,10 @@ class TankMixin:
         spr = self.tk_spr[e['kind']]
         sx, sy = self.tk_prj(c)
         scale = (self.TK_F / z) / spr['px'] * e.get('big', 1.0)
-        step = 360.0 / TK_ANG
-        hi = int(round(((e['h'] - p['yaw']) % 360) / step)) % TK_ANG
-        ti = int(round(((e['tur'] - p['yaw']) % 360) / step)) % TK_ANG
+        n_ = len(spr['hull'])
+        step = 360.0 / n_
+        hi = int(round(((e['h'] - p['yaw']) % 360) / step)) % n_
+        ti = int(round(((e['tur'] - p['yaw']) % 360) / step)) % n_
         parts = (spr['hull'][hi], spr['tur'][ti])
         x0 = min(-a for _, a, _ in parts)
         x1 = max(im.get_width() - a for im, a, _ in parts)
