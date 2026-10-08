@@ -166,6 +166,22 @@ def glow(dst, x, y, r, col, k=1.0):
     dst.blit(s, (int(x) - r, int(y) - r), special_flags=pygame.BLEND_RGB_ADD)
 
 
+_BOOM = {}
+
+
+def _boom_frames(k):
+    """Cuadros de la explosión 's' (granada) o 'b' (grande) de soldados/efecto_boom_<k>.png, o [] si no hay arte."""
+    if k not in _BOOM:
+        import os
+        path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'soldados', 'efecto_boom_%s.png' % k)
+        try:
+            strip = pygame.image.load(path).convert_alpha() if os.path.isfile(path) else None
+        except pygame.error:
+            strip = None
+        _BOOM[k] = [strip.subsurface((206 * i, 0, 206, 200)).copy() for i in range(5)] if strip else []
+    return _BOOM[k]
+
+
 class Particles:
     def __init__(self):
         self.L = []
@@ -205,6 +221,18 @@ class Particles:
                 draw_fire(dst, sx, sy, r, 1 - t, int(life * 997) % 3)
             elif kind == 'foam':
                 draw_circ(dst, sx, sy, r, col, 110 * (1 - t))
+            elif kind == 'boom':                                   # explosión dibujada: tira de 5 cuadros con fundido entre ellos (col = 'b' grande / 's' chica)
+                fr_ = _boom_frames(col)
+                if fr_:
+                    f_ = t * 4.999
+                    i_ = int(f_)
+                    for j_, al_ in ((i_, 1.0), (i_ + 1, f_ - i_)):
+                        if j_ < 5 and al_ > 0.02:
+                            img_ = fr_[j_]
+                            k_ = r0 * (1 + 0.12 * t)
+                            sp_ = pygame.transform.smoothscale(img_, (max(2, int(img_.get_width() * k_)), max(2, int(img_.get_height() * k_))))
+                            sp_.set_alpha(int(255 * (al_ if j_ > i_ else 1 - 0.6 * (f_ - i_)) * (1 if t < 0.8 else (1 - t) / 0.2)))
+                            dst.blit(sp_, (sx - sp_.get_width() // 2, sy - sp_.get_height() // 2))
             elif kind == 'glow':
                 glow(dst, sx, sy, r, col, 1 - t)
             elif kind == 'ring':
@@ -212,6 +240,17 @@ class Particles:
             elif kind == 'spark':
                 c = tuple(int(v * (1 - t)) for v in col)
                 pygame.draw.line(dst, c, (sx, sy), (int(sx - vx * 0.04), int(sy - vy * 0.04)), 2)
+
+    def explode_art(self, x, y, size=1.0, big=False):
+        """Explosión con el arte de soldados/efecto_boom_*.png (modos cenitales); si falta el arte usa la de partículas."""
+        if not _boom_frames('b' if big else 's'):
+            return self.explode(x, y, size, big)
+        self.add('boom', x, y, life=1.0 if big else 0.8, r0=(0.62 if big else 0.7) * size, col='b' if big else 's')
+        self.add('glow', x, y, life=0.2, r0=10 * size, r1=40 * size, col=(255, 255, 220))
+        for _ in range(int((12 if big else 7) * size)):
+            a = random.uniform(0, 6.28)
+            sp = random.uniform(60, 220) * size
+            self.add('spark', x, y, math.cos(a) * sp, math.sin(a) * sp, random.uniform(0.3, 0.7), col=(255, 200, 90), drag=1.5)
 
     def explode(self, x, y, size=1.0, big=False):
         self.add('fire', x, y, life=0.55, r0=14 * size, r1=58 * size)

@@ -163,7 +163,7 @@ class LandingOpsMixin:
         p = g['p']
         m['alive'] = False
         x, y = m['x'], m['y']
-        self.fx.explode(x, y, 1.1, True)
+        self.fx.explode_art(x, y, 1.1, True)
         self.audio.play('boom_s', .7)
         self.shake = max(self.shake, 9)
         g['decals'].append((x, y, 22))
@@ -241,7 +241,7 @@ class LandingOpsMixin:
             s['t'] += dt
             if s['t'] >= 1.5:
                 lz['mshells'].remove(s)
-                self.fx.explode(s['x'], s['y'], 1.2, True)
+                self.fx.explode_art(s['x'], s['y'], 1.2, True)
                 self.audio.play('boom_s', .6)
                 self.shake = max(self.shake, 7)
                 g['decals'].append((s['x'], s['y'], 30))

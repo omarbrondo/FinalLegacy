@@ -433,7 +433,7 @@ class GroundMixin:
         g = self.g
         p = g['p']
         x, y, R = n['x1'], n['y1'], 62 * (self.up_blast() if n['own'] == 'p' else 1.0)
-        self.fx.explode(x, y, 1.1, True)
+        self.fx.explode_art(x, y, 1.1, True)
         self.audio.play('boom_s', .7)
         self.shake = max(self.shake, 7)
         g['decals'].append((x, y, R * 0.55))
@@ -786,7 +786,7 @@ class GroundMixin:
                         cm['on'] = False
                         g['tleft'] += 10.0
                         self.gpop('+10 s', cm['x'], cm['y'] - 40, (140, 255, 200))
-                        self.fx.explode(cm['x'], cm['y'], 0.5)
+                        self.fx.explode_art(cm['x'], cm['y'], 0.5)
                         self.audio.play('boom_s', .4)
                         self.gpop('CÁMARA DESTRUIDA', cm['x'], cm['y'] - 20, (140, 255, 200))
                     continue
@@ -839,7 +839,7 @@ class GroundMixin:
             p['dead_t'] += dt
         elif p['hp'] <= 0:
             p['dead'] = True
-            self.fx.explode(p['x'], p['y'], 0.9)
+            self.fx.explode_art(p['x'], p['y'], 0.9)
             self.audio.play('boom_s')
             self.shake = 10
             if g['phase'] == 'play':
@@ -848,7 +848,7 @@ class GroundMixin:
         if g['mode'] == 'invasion' and city['hp'] <= 0 and not city['dead']:
             city['dead'] = True
             for _ in range(8):
-                self.fx.explode(W / 2 + random.uniform(-80, 80), H / 2 + random.uniform(-60, 60), 1.3, True)
+                self.fx.explode_art(W / 2 + random.uniform(-80, 80), H / 2 + random.uniform(-60, 60), 1.3, True)
             self.audio.play('boom_l')
             self.shake = 20
             if g['phase'] == 'play':
@@ -1215,6 +1215,16 @@ class GroundMixin:
         for b in g['bullets']:
             col = (255, 240, 150) if b['own'] in ('p', 'a') else (255, 150, 110)
             bx, by = b['x'] - cx_, b['y'] - cy_
+            bart_ = png_top('efecto_bala_a' if b['own'] in ('p', 'a') else 'efecto_bala_e')
+            if bart_ is not None:                            # bala dibujada con estela, girada hacia donde va (la cabeza queda en el centro)
+                ang_ = int(-math.degrees(math.atan2(b['vy'], b['vx'])) / 6) * 6
+                key_ = (b['own'] in ('p', 'a'), ang_)
+                spr_ = self._crate_spr.get(('b',) + key_)
+                if spr_ is None:
+                    spr_ = pygame.transform.rotozoom(bart_, ang_, 0.34)
+                    self._crate_spr[('b',) + key_] = spr_
+                cv.blit(spr_, (int(bx) - spr_.get_width() // 2, int(by) - spr_.get_height() // 2))
+                continue
             pygame.draw.line(cv, col, (bx, by), (bx - b['vx'] * 0.035, by - b['vy'] * 0.035), 2)
             glow(cv, bx, by, 7, col, 0.7)
         for n in g['nades']:
