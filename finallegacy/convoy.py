@@ -486,25 +486,26 @@ class ConvoyMixin:
                 glow(cv, fx_[0] - cx + math.cos(a) * FLAK_R * k, fx_[1] - cy + math.sin(a) * FLAK_R * k, 16, (255, 220, 140), 1 - k)
         # panel (columna derecha, bajo la amenaza enemiga)
         px, yy = W - 244, 158
-        self.panel(cv, (px - 230, yy, 460, 88), 190)
+        self.panel(cv, (px - 230, yy, 460, 106), 190)
         alive = sum(1 for e in c['escorts'] if e['hp'] > 0)
-        self.text(cv, 'CONVOY a %s  |  casco %d%%  |  escoltas %d/2' % (c['dst']['name'], max(0, c['hp']), alive), self.f_s,
-                  (150, 255, 200) if c['hp'] > 40 else (255, 120, 100), px, yy + 6, 'c')
+        self.text(cv, 'CONVOY a %s' % c['dst']['name'], self.f_s, (150, 255, 200), px, yy + 6, 'c')
+        self.text(cv, 'Casco %d%%  |  Escoltas %d/2' % (max(0, c['hp']), alive), self.f_s,
+                  (150, 255, 200) if c['hp'] > 40 else (255, 120, 100), px, yy + 26, 'c')
         bx0, bw = px - 205, 410
-        pygame.draw.rect(cv, (8, 12, 24), (bx0, yy + 30, bw, 12), border_radius=4)
-        pygame.draw.rect(cv, (120, 255, 190), (bx0 + 1, yy + 31, int((bw - 2) * c['f']), 10), border_radius=4)
+        pygame.draw.rect(cv, (8, 12, 24), (bx0, yy + 50, bw, 12), border_radius=4)
+        pygame.draw.rect(cv, (120, 255, 190), (bx0 + 1, yy + 51, int((bw - 2) * c['f']), 10), border_radius=4)
         for ev in c['events']:
             x = bx0 + bw * ev['f']
             col = (120, 120, 120) if ev['done'] else ((255, 120, 90) if ev['kind'] in ('raid1', 'raid2') else ((255, 220, 100) if ev['kind'] in ('air', 'air2') else (150, 190, 255)))
-            pygame.draw.polygon(cv, col, [(x, yy + 26), (x + 5, yy + 36), (x, yy + 46), (x - 5, yy + 36)])
+            pygame.draw.polygon(cv, col, [(x, yy + 46), (x + 5, yy + 56), (x, yy + 66), (x - 5, yy + 56)])
         left = dist(c['x'], c['y'], c['dst']['dock'][0], c['dst']['dock'][1])
         if c['state'] == 'unload':
-            self.text(cv, 'DESCARGANDO %d%%  |  +%d de cada recurso' % (int(100 * c['unload'] / UNLOAD_T), int(c['delivered'])), self.f_s, (150, 255, 200), px, yy + 50, 'c')
+            self.text(cv, 'DESCARGANDO %d%%  |  +%d de cada recurso' % (int(100 * c['unload'] / UNLOAD_T), int(c['delivered'])), self.f_s, (150, 255, 200), px, yy + 70, 'c')
         else:
-            self.text(cv, 'Faltan %d m  |  cazadores: %d' % (left, sum(1 for en in self.enemies if en.get('raider'))), self.f_s, (200, 220, 240), px, yy + 50, 'c')
+            self.text(cv, 'Faltan %d m  |  cazadores: %d' % (left, sum(1 for en in self.enemies if en.get('raider'))), self.f_s, (200, 220, 240), px, yy + 70, 'c')
         ready = c['flak_cd'] <= 0
-        self.text(cv, 'F: ANTIAÉREO %s' % ('LISTO' if ready else '%d s' % math.ceil(c['flak_cd'])), self.f_s, (255, 230, 140) if ready else (160, 160, 170), px, yy + 68, 'c')
+        self.text(cv, 'F: ANTIAÉREO %s' % ('LISTO' if ready else '%d s' % math.ceil(c['flak_cd'])), self.f_s, (255, 230, 140) if ready else (160, 160, 170), px, yy + 88, 'c')
         for i, (who, txt, col, life) in enumerate(c['calls']):
             a = int(255 * clamp(life * 2, 0, 1))
-            self.text(cv, who + ': ' + txt, self.f_s, col, px, yy + 96 + i * 20, 'c', alpha=a)
+            self.text(cv, who + ': ' + txt, self.f_s, col, px, yy + 116 + i * 20, 'c', alpha=a)
         self.draw_pointer(cv, cx, cy, c['x'], c['y'], 'CONVOY', (120, 255, 190), 0.5 + 0.5 * math.sin(t * 5))
