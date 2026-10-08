@@ -213,7 +213,7 @@ class WaveWorldMixin:
                 if -80 < ex < W + 80 and -80 < ey < H + 80:
                     glow(cv, ex, ey, 46, (255, 90, 70) if not en.get('is_boss') else (255, 90, 230), 0.55 + 0.25 * math.sin(t * 5 + ex))
             for nst in self.nests:
-                if nst['alive'] and (nst['seen'] or self.radar_t > 0):
+                if nst['alive'] and not nst.get('ally') and (nst['seen'] or self.radar_t > 0):
                     glow(cv, nst['x'] - cx, nst['y'] - cy, 60, (255, 90, 60), 0.5 + 0.3 * math.sin(t * 4))
             for wk in self.war['wrecks']:
                 if wk['fire']:

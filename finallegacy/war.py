@@ -29,6 +29,9 @@ class WarMixin:
         m = int(r * 2.1)
         self.land.fill((0, 0, 0, 0), pygame.Rect(int(x) - m, int(y) - m, 2 * m, 2 * m))
         self.islands[idx] = (nx, ny, r, seed)
+        for n in getattr(self, 'nests', ()):
+            if n.get('isl') == idx:                              # la batería (o sus ruinas) se muda con el islote
+                n['x'], n['y'] = nx, ny
         self.paint_island(self.land, nx, ny, r, seed, False)
         self.war['scars'] = [s for s in self.war['scars'] if s['isl'] != idx]
         if (nx, ny) == (DECOR_ISLANDS[k][0], DECOR_ISLANDS[k][1]):

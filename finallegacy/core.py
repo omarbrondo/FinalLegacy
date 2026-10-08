@@ -575,7 +575,7 @@ class CoreMixin:
         self.fade = 1.0
         if state == 'title':
             self.menu_reset()
-        pygame.mouse.set_visible(state in ('upgrade',) or state not in ('defense', 'combat', 'aerial', 'ground', 'tank', 'port', 'heli', 'radio', 'lifeboat'))
+        pygame.mouse.set_visible(state in ('upgrade',) or state not in ('defense', 'combat', 'aerial', 'ground', 'tank', 'port', 'heli', 'radio', 'lifeboat', 'batdef'))
         calm = state in ('title', 'map', 'upgrade', 'helisel')
         ctx = {'helisel': 'upgrade', 'gameover': None, 'lifeboat': 'defense'}.get(state, state)
         if state == 'combat' and (getattr(self, 'c', None) or {}).get('is_boss'):
@@ -616,10 +616,14 @@ class CoreMixin:
                 self.warned = False
                 self.attack = None
                 self.start_defense(self.strike_city)
+        elif key == pygame.K_b:
+            al = [n for n in self.nests if n['alive'] and n.get('ally')]
+            if al:
+                self.start_batdef(al[0])
         elif key == pygame.K_F9:
             self.wave = min(WIN_WAVE, self.wave + 1)
             self.enemies = []
-            self.spawn_nests()
+            self.nests_new_wave()
             self.spawn_wave()
             self.banner('MODO PRUEBA: OLEADA %d' % self.wave, 'Ahora F2-F8 muestran los modos con la dificultad de esa oleada', (255, 220, 120), 3.0)
         elif key == pygame.K_F10:
@@ -674,7 +678,7 @@ class CoreMixin:
             elif e.key in (pygame.K_MINUS, pygame.K_KP_MINUS, pygame.K_EQUALS, pygame.K_PLUS, pygame.K_KP_PLUS) and self.state != 'title':
                 pct = self.vol_step('music', -1 if e.key in (pygame.K_MINUS, pygame.K_KP_MINUS) else 1)
                 self.toast('MÚSICA: %d%%' % pct, (160, 220, 255))
-            elif e.key in (pygame.K_F8, pygame.K_F9, pygame.K_F10, pygame.K_F12, pygame.K_n) and self.state == 'map' and not self.paused:
+            elif e.key in (pygame.K_F8, pygame.K_F9, pygame.K_F10, pygame.K_F12, pygame.K_n, pygame.K_b) and self.state == 'map' and not self.paused:
                 self.debug_key(e.key)
             elif e.key == pygame.K_F7 and self.state == 'map' and not self.paused:
                 self.port_tries = min(self.port_tries, 1)
@@ -692,7 +696,7 @@ class CoreMixin:
                     self.warned = False
                     self.attack = None
                     {pygame.K_F2: self.start_tank, pygame.K_F3: self.start_aerial, pygame.K_F4: self.start_ground}[e.key](self.strike_city)
-            elif e.key in (pygame.K_p, pygame.K_ESCAPE) and self.state in ('map', 'defense', 'combat', 'ground', 'aerial', 'hack', 'radio', 'tank', 'port', 'heli', 'lifeboat'):
+            elif e.key in (pygame.K_p, pygame.K_ESCAPE) and self.state in ('map', 'defense', 'combat', 'ground', 'aerial', 'hack', 'radio', 'tank', 'port', 'heli', 'lifeboat', 'batdef'):
                 self.pause_set(not self.paused)
             elif self.state == 'saves':
                 self.saves_key(e.key)
@@ -722,6 +726,8 @@ class CoreMixin:
                 if gp['reload'] <= 0:
                     gp['wpn'] = 'pistol' if gp['wpn'] == 'rifle' else 'rifle'
                     self.audio.play('blip', .5)
+            elif self.state == 'map' and e.key == pygame.K_e and not self.paused:
+                self.try_batdef()
             elif self.state == 'ground' and e.key == pygame.K_e and not self.paused:
                 self.takedown()
             elif self.state == 'ground' and e.key == pygame.K_TAB and not self.paused and self.g.get('lz'):
@@ -871,6 +877,8 @@ class CoreMixin:
             self.upd_tank(dt)
         elif self.state == 'lifeboat':
             self.upd_lifeboat(dt)
+        elif self.state == 'batdef':
+            self.upd_batdef(dt)
         elif self.state == 'upgrade':
             self.upd_upgrade(dt)
         elif self.state == 'heli':
@@ -956,6 +964,8 @@ class CoreMixin:
             self.draw_tank(cv)
         elif self.state == 'lifeboat':
             self.draw_lifeboat(cv)
+        elif self.state == 'batdef':
+            self.draw_batdef(cv)
         elif self.state == 'upgrade':
             self.draw_upgrade(cv)
         elif self.state == 'heli':
