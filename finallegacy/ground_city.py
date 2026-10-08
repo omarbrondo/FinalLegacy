@@ -5,6 +5,7 @@ import random
 from collections import deque
 import pygame
 from .common import H, W, bearing, clamp, coast_r, vec
+from .sprites import png_top
 
 GC_R = 680                  # radio de la isla en la invasión de una ciudad
 PITCH, BLK, SWALK = 200, 140, 7
@@ -12,6 +13,7 @@ SOL_SCALE = 0.78            # los soldados se dibujan más chicos para que la ci
 ATT_R = 150                 # a esta distancia del ayuntamiento los invasores atacan la ciudad
 NAV = 16                    # tamaño de celda del campo de navegación
 RCS = 120                   # tamaño de celda de la grilla de colisiones
+_CARS = {}
 CAR_L, CAR_W = 54, 26         # los autos son más grandes que un soldado
 HALL = (-44, -34, 88, 68)   # ayuntamiento (u, v, ancho, alto), relativo al centro
 
@@ -261,6 +263,20 @@ class GroundCityMixin:
         col = (42, 40, 40) if burnt else rnd.choice(getattr(self, '_gc_cols', CAR_COLS))
         dark = tuple(max(0, c - 50) for c in col)
         w, d = (CAR_L, CAR_W) if horiz else (CAR_W, CAR_L)
+        strip = png_top('autos')
+        if strip is not None:                                    # arte dibujado: colores o quemados (10 cuadros, frente hacia arriba; horizontal = girado a la derecha)
+            idx = 7 + rnd.randrange(3) if burnt else rnd.randrange(7)
+            key = (idx, horiz)
+            spr = _CARS.get(key)
+            if spr is None:
+                fr = strip.subsurface((90 * idx, 0, 90, 170))
+                fr = fr.subsurface(fr.get_bounding_rect()).copy()
+                k_ = CAR_L / fr.get_height()
+                spr = pygame.transform.smoothscale(fr, (max(1, round(fr.get_width() * k_)), CAR_L))
+                spr = pygame.transform.rotate(spr, -90) if horiz else spr
+                _CARS[key] = spr
+            s.blit(spr, (x - spr.get_width() // 2, y - spr.get_height() // 2))
+            return
         r = pygame.Rect(x - w // 2, y - d // 2, w, d)
         pygame.draw.rect(s, dark, r, border_radius=5)
         pygame.draw.rect(s, col, r.inflate(-2, -2), border_radius=5)
