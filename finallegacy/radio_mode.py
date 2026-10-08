@@ -9,9 +9,9 @@ from .war import DECOR0
 RADAR_IDX = (1, 5, 8, 10, 13, 15)                      # islotes decorativos que tienen un radar (no se mudan de lugar)
 SCOPE = pygame.Rect(120, 170, 660, 300)
 F_MIN, F_MAX = 0.8, 6.0
-CHIP_NAMES = {'tune': 'SINTONÍA', 'drift': 'DERIVA', 'jam': 'INTERFERENCIA', 'dual': '2 CANALES', 'sweep': 'BARRIDO', 'simon': 'SECUENCIA', 'code': 'CLAVE', 'wire': 'CABLES'}
+CHIP_NAMES = {'tune': 'SINTONÍA', 'drift': 'DERIVA', 'jam': 'INTERFERENCIA', 'dual': '2 CANALES', 'sweep': 'BARRIDO', 'simon': 'SECUENCIA', 'code': 'CLAVE', 'wire': 'CABLES', 'rhythm': 'RITMO', 'lock': 'CERRADURA'}
 KIND_NAMES = {'tune': 'SINTONÍA', 'drift': 'SEÑAL A LA DERIVA', 'jam': 'INTERFERENCIA', 'dual': 'DOS CANALES', 'sweep': 'BARRIDO DE ESPECTRO',
-              'simon': 'SECUENCIA DE TECLAS', 'code': 'DESCIFRAR LA CLAVE', 'wire': 'CORTAR EL CABLE CORRECTO'}
+              'simon': 'SECUENCIA DE TECLAS', 'code': 'DESCIFRAR LA CLAVE', 'wire': 'CORTAR EL CABLE CORRECTO', 'rhythm': 'RITMO DE DATOS', 'lock': 'CERRADURA GIRATORIA'}
 KIND_HINT = {
     'tune': 'A/D frecuencia  |  W/S amplitud: calzá la onda amarilla con la celeste',
     'drift': 'A/D frecuencia  |  W/S amplitud  |  Q/E fase: la señal se mueve, seguila',
@@ -21,8 +21,11 @@ KIND_HINT = {
     'simon': 'Mirá la secuencia y repetila con las flechas o WASD  |  un error la repite y cuesta 3 s',
     'code': 'Teclas 1-6: armá la clave de 4 símbolos  |  RETROCESO borra  |  ENTER prueba  |  verde: en su lugar, amarillo: está pero en otro lugar',
     'wire': 'Teclas 1-6: cortá el cable que indican las reglas  |  un error cuesta 8 s y 2 de casco',
+    'rhythm': 'D F J K (o las flechas): pulsá cada nota justo cuando cruza la línea  |  acertá al menos el 70 %',
+    'lock': 'ESPACIO cuando el indicador esté dentro de la zona brillante  |  3 zonas en orden  |  un error cuesta 3 s',
 }
-PUZZLES = ('simon', 'code', 'wire')                    # minijuegos de lógica y reflejos (sin ondas)
+RH_KEYS = {pygame.K_d: 0, pygame.K_f: 1, pygame.K_j: 2, pygame.K_k: 3, pygame.K_LEFT: 0, pygame.K_DOWN: 1, pygame.K_UP: 2, pygame.K_RIGHT: 3}
+PUZZLES = ('simon', 'code', 'wire', 'rhythm', 'lock')                    # minijuegos de lógica y reflejos (sin ondas)
 SYMS = ((255, 90, 90), (90, 160, 255), (255, 215, 80), (100, 235, 140), (210, 120, 255), (255, 255, 255))   # colores de los 6 símbolos de la clave
 WIRE_COLS = {'ROJO': (235, 70, 60), 'AZUL': (70, 130, 255), 'AMARILLO': (255, 215, 70), 'VERDE': (90, 225, 130), 'BLANCO': (235, 235, 235)}
 WIRE_RULES = ('1) Si hay más de un cable ROJO: cortá el último rojo.',
@@ -130,7 +133,7 @@ class RadioMixin:
     def start_radio(self, radar):
         n = min(5, 3 + self.wave // 2)
         kinds = ['tune']
-        pool = ['jam', 'dual', 'sweep', 'simon', 'code', 'wire'] + (['drift'] if self.wave >= 2 else [])
+        pool = ['jam', 'dual', 'sweep', 'simon', 'code', 'wire', 'rhythm', 'lock'] + (['drift'] if self.wave >= 2 else [])
         while len(kinds) < n:
             k = random.choice(pool)
             if k != kinds[-1]:
@@ -154,7 +157,7 @@ class RadioMixin:
         kind = rd['kinds'][rd['stage']]
         tol = self.rd_tol()
         st = dict(kind=kind, lock=0.0, flash=0.0, jam_t=3.0, jam_fl=0.0, miss=0.0, tol=dict(f=0.22 * tol, a=0.09 * tol, p=0.42 * tol), ch=0)
-        total = {'tune': 32.0, 'drift': 38.0, 'jam': 36.0, 'dual': 42.0, 'sweep': 34.0, 'simon': 36.0, 'code': 70.0, 'wire': 45.0}[kind] - 1.5 * rd['fails']
+        total = {'tune': 32.0, 'drift': 38.0, 'jam': 36.0, 'dual': 42.0, 'sweep': 34.0, 'simon': 36.0, 'code': 70.0, 'wire': 45.0, 'rhythm': 50.0, 'lock': 36.0}[kind] - 1.5 * rd['fails']
         st['total'] = st['time'] = max(18.0, total)
         st['need'] = {'tune': 1.0, 'drift': 1.5, 'jam': 1.4, 'dual': 1.2}.get(kind, 1.0)
         if kind in PUZZLES:
@@ -579,6 +582,30 @@ class RadioMixin:
         elif kind == 'code':
             st.update(secret=random.sample(range(6), 4), guesses=[], cur=[], tries=7, shake=0.0)
             st['lab'] = 'INTENTOS 0/7'
+        elif kind == 'rhythm':
+            n = min(36, 18 + 2 * self.wave)
+            gap = max(0.36, 0.62 - 0.03 * self.wave)
+            notes, tt, last, run = [], 1.8, -1, 0
+            while len(notes) < n:
+                lane = random.randrange(4)
+                if lane == last and run >= 2:
+                    lane = (lane + random.randint(1, 3)) % 4
+                run = run + 1 if lane == last else 1
+                last = lane
+                notes.append(dict(t=tt, lane=lane, hit=None))
+                if self.wave >= 3 and random.random() < 0.18 and len(notes) < n:                 # nota doble
+                    notes.append(dict(t=tt, lane=(lane + random.randint(1, 3)) % 4, hit=None))
+                tt += gap * random.choice((1.0, 1.0, 1.0, 0.5, 1.5))
+            st.update(notes=notes, now=0.0, fall=1.5, hits=0, combo=0, best=0, judge='', judge_t=0.0, press=[0.0] * 4, end=tt + 0.8, need=int(0.7 * len(notes) + 0.999))
+            st['time'] = st['total'] = tt + 14.0
+            st['lab'] = 'ACIERTOS 0/%d' % st['need']
+        elif kind == 'lock':
+            zw = max(0.34, 0.62 - 0.03 * self.wave)
+            zones, a0 = [], random.uniform(0, 6.28)
+            for i in range(3):
+                zones.append((a0 + i * 2.1 + random.uniform(-0.35, 0.35)) % 6.28318)
+            st.update(zones=zones, zw=zw, cur=0, ang=random.uniform(0, 6.28), dir=1.0, speed=1.5 + 0.12 * self.wave, flash=0.0, done=[False] * 3)
+            st['lab'] = 'ZONAS 0/3'
         else:
             n = min(6, 4 + self.wave // 3)
             wires = [random.choice(tuple(WIRE_COLS)) for _ in range(n)]
@@ -619,6 +646,50 @@ class RadioMixin:
                 st['miss'] = 0.5
                 st['time'] = max(1.0, st['time'] - 3.0)
                 st['prog'], st['lab'] = 0.0, 'SECUENCIA 0/%d' % len(st['seq'])
+                self.audio.play('hit', .5)
+                self.shake = max(self.shake, 4)
+        elif kind == 'rhythm':
+            if key not in RH_KEYS:
+                return
+            lane = RH_KEYS[key]
+            st['press'][lane] = 0.18
+            best = None
+            for nt in st['notes']:
+                if nt['lane'] == lane and nt['hit'] is None:
+                    d = abs(nt['t'] - st['now'])
+                    if d <= 0.14 and (best is None or d < best[0]):
+                        best = (d, nt)
+            if best is None:
+                st['combo'] = 0
+                return
+            d, nt = best
+            nt['hit'] = 'perfect' if d <= 0.05 else 'good'
+            st['hits'] += 1
+            st['combo'] += 1
+            st['best'] = max(st['best'], st['combo'])
+            st['judge'], st['judge_t'] = ('¡PERFECTO!' if nt['hit'] == 'perfect' else 'BIEN'), 0.4
+            st['prog'] = min(1.0, st['hits'] / st['need'])
+            st['lab'] = 'ACIERTOS %d/%d' % (st['hits'], st['need'])
+            self.audio.play('blip' if nt['hit'] == 'good' else 'ping', .35)
+        elif kind == 'lock':
+            if key not in (pygame.K_SPACE, pygame.K_RETURN):
+                return
+            tgt = st['zones'][st['cur']]
+            d = abs((st['ang'] - tgt + math.pi) % (2 * math.pi) - math.pi)
+            if d <= st['zw'] / 2:
+                st['done'][st['cur']] = True
+                st['cur'] += 1
+                st['dir'] = -st['dir']
+                st['speed'] *= 1.12
+                st['flash'] = 0.35
+                st['prog'] = st['cur'] / 3.0
+                st['lab'] = 'ZONAS %d/3' % st['cur']
+                self.audio.play('pickup', .6)
+                if st['cur'] >= 3:
+                    self.rd_stage_ok()
+            else:
+                st['time'] = max(1.0, st['time'] - 3.0)
+                st['miss'] = 0.4
                 self.audio.play('hit', .5)
                 self.shake = max(self.shake, 4)
         elif kind == 'code':
@@ -663,6 +734,28 @@ class RadioMixin:
 
     def rd_puzzle_update(self, st, dt):
         st['press_t'] = max(0.0, st.get('press_t', 0.0) - dt)
+        if st['kind'] == 'rhythm':
+            st['now'] += dt
+            st['judge_t'] = max(0.0, st['judge_t'] - dt)
+            st['press'] = [max(0.0, v - dt) for v in st['press']]
+            for nt in st['notes']:
+                if nt['hit'] is None and st['now'] - nt['t'] > 0.14:
+                    nt['hit'] = 'miss'
+                    st['combo'] = 0
+                    st['judge'], st['judge_t'] = 'FALLO', 0.4
+                    st['time'] = max(1.0, st['time'] - 0.8)
+            if st['now'] >= st['end']:
+                if st['hits'] >= st['need']:
+                    self.rd_stage_ok()
+                else:
+                    st['time'] = 0.0                                   # no llegó al mínimo: se cuenta como fallo
+                    self.audio.play('hit', .5)
+            return
+        if st['kind'] == 'lock':
+            st['ang'] = (st['ang'] + st['dir'] * st['speed'] * dt) % (2 * math.pi)
+            st['flash'] = max(0.0, st['flash'] - dt)
+            st['miss'] = max(0.0, st.get('miss', 0.0) - dt)
+            return
         if st['kind'] == 'simon' and st['mode'] == 'show':
             st['mt'] -= dt
             if st['mt'] <= 0:
@@ -711,6 +804,57 @@ class RadioMixin:
                 pygame.draw.polygon(cv, col if lit else (60, 120, 145), [(x + dx * 22 + dy * 0, y + dy * 18 + dx * 0), (x - dx * 14 + dy * 22, y - dy * 14 + dx * 22), (x - dx * 14 - dy * 22, y - dy * 14 - dx * 22)])
             msg = 'MIRÁ LA SECUENCIA...' if st['mode'] == 'show' else 'REPETILA  (%d/%d)' % (len(st['inp']), len(st['seq']))
             self.text(cv, msg, self.f_m, (255, 225, 130) if st['mode'] == 'show' else (130, 255, 190), SCOPE.centerx, SCOPE.y + 14, 'c')
+            if st.get('miss', 0) > 0:
+                pygame.draw.rect(cv, (255, 70, 70), SCOPE, 4)
+        elif kind == 'rhythm':
+            lw = 110
+            lx0 = SCOPE.centerx - 2 * lw
+            line_y = SCOPE.bottom - 52
+            top_y = SCOPE.y + 6
+            for ln in range(4):
+                x = lx0 + ln * lw
+                pygame.draw.rect(cv, (8, 22, 30), (x + 3, SCOPE.y + 2, lw - 6, SCOPE.h - 4))
+                pygame.draw.rect(cv, (30, 80, 100), (x + 3, SCOPE.y + 2, lw - 6, SCOPE.h - 4), 1)
+                pr = st['press'][ln] > 0
+                pygame.draw.rect(cv, (255, 235, 130) if pr else (40, 100, 125), (x + 10, line_y - 14, lw - 20, 28), 0 if pr else 2, border_radius=8)
+                self.text(cv, 'DFJK'[ln], self.f_s, (10, 20, 30) if pr else (150, 200, 225), x + lw // 2, line_y - 9, 'c')
+            for nt in st['notes']:
+                y = line_y - (nt['t'] - st['now']) / st['fall'] * (line_y - top_y)
+                if y < SCOPE.y - 20 or y > SCOPE.bottom + 10:
+                    continue
+                x = lx0 + nt['lane'] * lw + lw // 2
+                if nt['hit'] in ('perfect', 'good'):
+                    continue
+                col = (255, 90, 90) if nt['hit'] == 'miss' else (110, 235, 255)
+                pygame.draw.rect(cv, col, (x - 38, y - 10, 76, 20), border_radius=6)
+                pygame.draw.rect(cv, (255, 255, 255), (x - 38, y - 10, 76, 20), 2, border_radius=6)
+            if st['judge_t'] > 0:
+                jc = (255, 230, 120) if st['judge'] == '¡PERFECTO!' else ((130, 255, 190) if st['judge'] == 'BIEN' else (255, 100, 100))
+                self.text(cv, st['judge'], self.f_l, jc, SCOPE.centerx, SCOPE.centery - 30, 'c', alpha=int(255 * min(1.0, st['judge_t'] / 0.25)))
+            if st['combo'] >= 3:
+                self.text(cv, 'RACHA %d' % st['combo'], self.f_m, (255, 225, 130), SCOPE.right - 10, SCOPE.y + 8, 'r')
+        elif kind == 'lock':
+            cx, cy, R = SCOPE.centerx, SCOPE.centery, 118
+            pygame.draw.circle(cv, (8, 22, 30), (cx, cy), R + 22)
+            pygame.draw.circle(cv, (40, 110, 130), (cx, cy), R + 22, 3)
+            pygame.draw.circle(cv, (24, 60, 76), (cx, cy), R, 2)
+            for i, zc in enumerate(st['zones']):
+                cur = i == st['cur']
+                done = st['done'][i]
+                col = (90, 255, 150) if done else ((255, 225, 90) if cur else (60, 110, 130))
+                pts = [(cx + math.cos(zc + (k / 12 - 0.5) * st['zw']) * (R + 16), cy + math.sin(zc + (k / 12 - 0.5) * st['zw']) * (R + 16)) for k in range(13)]
+                pts += [(cx + math.cos(zc + (k / 12 - 0.5) * st['zw']) * (R - 16), cy + math.sin(zc + (k / 12 - 0.5) * st['zw']) * (R - 16)) for k in range(12, -1, -1)]
+                pygame.draw.polygon(cv, col, pts)
+                if cur and not done:
+                    glow(cv, cx + math.cos(zc) * R, cy + math.sin(zc) * R, 46, col, 0.6)
+                self.text(cv, str(i + 1), self.f_m, (10, 20, 30) if (cur or done) else (170, 200, 220), cx + math.cos(zc) * (R - 36) - 6, cy + math.sin(zc) * (R - 36) - 12)
+            a = st['ang']
+            pygame.draw.line(cv, (255, 245, 170), (cx, cy), (cx + math.cos(a) * (R + 20), cy + math.sin(a) * (R + 20)), 5)
+            pygame.draw.circle(cv, (255, 245, 170), (cx, cy), 9)
+            glow(cv, cx + math.cos(a) * R, cy + math.sin(a) * R, 36, (255, 230, 120), 0.5)
+            self.text(cv, 'ZONA %d/3' % min(3, st['cur'] + 1), self.f_m, (255, 225, 130), cx, cy - 74, 'c')
+            if st['flash'] > 0:
+                pygame.draw.rect(cv, (90, 255, 150), SCOPE, 4)
             if st.get('miss', 0) > 0:
                 pygame.draw.rect(cv, (255, 70, 70), SCOPE, 4)
         elif kind == 'code':
