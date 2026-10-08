@@ -636,34 +636,102 @@ def build_pt_tank():
     return dict(hull=hulls, turret=turret, barrel=barrel, gx=gx, gy=gy, pivot=(gx + 80, gy - 111))
 
 
+def _vgrad_rect(s, rect, c0, c1, radius=0):
+    """Rectángulo con degradado vertical (arriba c0, abajo c1)."""
+    x, y, w, h = [int(v) for v in rect]
+    tmp = pygame.Surface((w, h), pygame.SRCALPHA)
+    for i in range(h):
+        k = i / max(1, h - 1)
+        pygame.draw.line(tmp, (int(c0[0] + (c1[0] - c0[0]) * k), int(c0[1] + (c1[1] - c0[1]) * k), int(c0[2] + (c1[2] - c0[2]) * k), 255), (0, i), (w, i))
+    if radius:
+        m = pygame.Surface((w, h), pygame.SRCALPHA)
+        pygame.draw.rect(m, (255, 255, 255, 255), (0, 0, w, h), border_radius=radius)
+        tmp.blit(m, (0, 0), special_flags=pygame.BLEND_RGBA_MIN)
+    s.blit(tmp, (x, y))
+
+
 def build_pt_bunker():
-    """Torreta de ametralladora tras sacos de arena; el cañón se rota aparte."""
-    K = 3
+    """Nido de ametralladora: sacos de arena, pedestal de hormigón con franjas de aviso y una cúpula blindada giratoria;
+    el cañón automático (con ventilación, freno de boca y cajón de munición) se rota aparte."""
+    K = 4
+    out = (24, 20, 18)
     s = pygame.Surface((110 * K, 70 * K), pygame.SRCALPHA)
-    out = (28, 22, 16)
-    pygame.draw.ellipse(s, (0, 0, 0, 90), (4 * K, 58 * K, 102 * K, 10 * K))
-    # base de hormigón
-    pygame.draw.rect(s, (110, 112, 112), (22 * K, 40 * K, 66 * K, 22 * K), border_radius=3 * K)
-    pygame.draw.rect(s, out, (22 * K, 40 * K, 66 * K, 22 * K), K, border_radius=3 * K)
-    # sacos de arena
+    pygame.draw.ellipse(s, (0, 0, 0, 100), (2 * K, 59 * K, 106 * K, 10 * K))
+    # pedestal de hormigón con paneles
+    ped = [(34 * K, 64 * K), (76 * K, 64 * K), (70 * K, 30 * K), (40 * K, 30 * K)]
+    pygame.draw.polygon(s, (104, 108, 110), ped)
+    _vgrad_rect(s, (40 * K, 30 * K, 30 * K, 34 * K), (132, 136, 138), (78, 82, 86))
+    pygame.draw.polygon(s, out, ped, K)
+    for yy in (40, 50):
+        pygame.draw.line(s, (62, 66, 70), (37 * K, yy * K), (73 * K, yy * K), K)
+    for xx in (46, 64):
+        pygame.draw.circle(s, (58, 62, 66), (xx * K, 35 * K), int(1.2 * K))
+    # franja de aviso amarilla y negra en la base
+    for i in range(0, 38, 8):
+        pygame.draw.polygon(s, (232, 192, 40), [((34 + i) * K, 64 * K), ((42 + i) * K, 64 * K), ((46 + i) * K, 58 * K), ((38 + i) * K, 58 * K)])
+    pygame.draw.rect(s, out, (34 * K, 58 * K, 42 * K, 6 * K), K)
+    # sacos de arena a ambos lados (con sombra inferior, brillo y costuras)
     rnd = random.Random(2)
-    for row in range(3):
-        for i in range(5 - row):
-            x = 8 * K + (i * 20 + row * 10) * K
-            y = (60 - row * 11) * K
-            col = rnd.choice(((186, 160, 108), (172, 146, 96), (196, 170, 118)))
-            pygame.draw.ellipse(s, col, (x, y - 10 * K, 22 * K, 12 * K))
-            pygame.draw.ellipse(s, out, (x, y - 10 * K, 22 * K, 12 * K), K)
-            pygame.draw.line(s, shade(col, -30), (x + 4 * K, y - 4 * K), (x + 18 * K, y - 4 * K), K)
+    for side in (-1, 1):
+        for row in range(3):
+            n = 4 - row
+            for i in range(n):
+                bx = (35 - 21 * (i + 1) - row * 7) if side < 0 else (75 + 21 * i + row * 7)
+                by = 62 - row * 10
+                base_c = rnd.choice(((190, 164, 112), (176, 150, 100), (200, 174, 122)))
+                r = (bx * K, (by - 12) * K, 22 * K, 13 * K)
+                pygame.draw.ellipse(s, shade(base_c, -46), (r[0], r[1] + K, r[2], r[3]))
+                pygame.draw.ellipse(s, base_c, r)
+                pygame.draw.ellipse(s, shade(base_c, 26), (r[0] + 3 * K, r[1] + K, 14 * K, 4 * K))
+                pygame.draw.ellipse(s, out, r, K)
+                pygame.draw.line(s, shade(base_c, -34), (r[0] + 6 * K, r[1] + 7 * K), (r[0] + 16 * K, r[1] + 7 * K), K)
+                for t in (8, 11, 14):
+                    pygame.draw.line(s, shade(base_c, -34), (r[0] + t * K, r[1] + 5 * K), (r[0] + t * K, r[1] + 9 * K), max(1, K // 2))
+    # faldón blindado y cúpula giratoria
+    _vgrad_rect(s, (36 * K, 20 * K, 38 * K, 14 * K), (96, 102, 100), (58, 62, 62), 3 * K)
+    pygame.draw.rect(s, out, (36 * K, 20 * K, 38 * K, 14 * K), K, border_radius=3 * K)
+    cx, cy, rr = 55 * K, 16 * K, 17 * K
+    pygame.draw.circle(s, (46, 50, 52), (cx, cy + K), rr)
+    dome = pygame.Surface((rr * 2, rr * 2), pygame.SRCALPHA)
+    for i in range(rr * 2):                                              # esfera con degradado vertical y brillo a la derecha
+        k = i / (rr * 2 - 1)
+        c = (int(150 - 90 * k), int(156 - 92 * k), int(156 - 90 * k))
+        pygame.draw.line(dome, (*c, 255), (0, i), (rr * 2, i))
+    mk = pygame.Surface((rr * 2, rr * 2), pygame.SRCALPHA)
+    pygame.draw.circle(mk, (255, 255, 255, 255), (rr, rr), rr)
+    dome.blit(mk, (0, 0), special_flags=pygame.BLEND_RGBA_MIN)
+    s.blit(dome, (cx - rr, cy - rr))
+    pygame.draw.circle(s, out, (cx, cy), rr, K)
+    pygame.draw.arc(s, (212, 218, 214), (cx - rr + 3 * K, cy - rr + 3 * K, rr * 2 - 6 * K, rr * 2 - 6 * K), 0.5, 1.9, K)
+    for ang in (0.9, 2.3, 3.7, 5.2):                                     # remaches
+        pygame.draw.circle(s, (40, 44, 46), (int(cx + math.cos(ang) * rr * 0.62), int(cy + math.sin(ang) * rr * 0.62)), int(1.2 * K))
+    pygame.draw.circle(s, (30, 34, 36), (cx, cy), 5 * K)                  # rótula del cañón
+    pygame.draw.circle(s, (86, 92, 92), (cx - K, cy - K), 2 * K)
+    # cajón de munición y cinta a un costado
+    pygame.draw.rect(s, (74, 86, 58), (82 * K, 40 * K, 14 * K, 10 * K), border_radius=K)
+    pygame.draw.rect(s, out, (82 * K, 40 * K, 14 * K, 10 * K), K, border_radius=K)
+    pygame.draw.line(s, (120, 134, 96), (84 * K, 42 * K), (94 * K, 42 * K), K)
+    for i in range(5):
+        pygame.draw.rect(s, (214, 170, 60), ((83 + i * 2) * K, 36 * K, int(1.4 * K), 4 * K))
     base = _smooth(s, K)
-    s = pygame.Surface((70 * K, 24 * K), pygame.SRCALPHA)
-    pygame.draw.rect(s, out, (0, 6 * K, 66 * K, 12 * K), border_radius=2 * K)
-    pygame.draw.rect(s, (64, 68, 64), (2 * K, 8 * K, 62 * K, 8 * K))
-    pygame.draw.rect(s, (112, 118, 110), (2 * K, 8 * K, 62 * K, 3 * K))
-    pygame.draw.rect(s, (26, 28, 26), (54 * K, 4 * K, 14 * K, 16 * K), border_radius=2 * K)
-    pygame.draw.rect(s, (84, 90, 82), (-1 * K + 1, 3 * K, 20 * K, 18 * K), border_radius=3 * K)
-    pygame.draw.rect(s, out, (0, 3 * K, 20 * K, 18 * K), K, border_radius=3 * K)
-    gun = _smooth(s, K)
+    # cañón automático: apunta a la derecha, eje de giro en (8, 12)
+    g = pygame.Surface((70 * K, 24 * K), pygame.SRCALPHA)
+    pygame.draw.rect(g, out, (2 * K, 7 * K, 58 * K, 10 * K), border_radius=K)               # camisa del cañón
+    _vgrad_rect(g, (3 * K, 8 * K, 56 * K, 8 * K), (118, 124, 122), (50, 54, 54))
+    for i in range(6):                                                                      # ranuras de ventilación
+        pygame.draw.rect(g, (20, 22, 22), ((16 + i * 6) * K, 9 * K, int(2.4 * K), 6 * K), border_radius=K // 2)
+    pygame.draw.rect(g, (28, 30, 30), (56 * K, 8 * K, 10 * K, 8 * K), border_radius=K)       # freno de boca
+    pygame.draw.rect(g, out, (56 * K, 8 * K, 10 * K, 8 * K), K, border_radius=K)
+    pygame.draw.line(g, (6, 6, 6), (64 * K, 9 * K), (64 * K, 15 * K), K)
+    pygame.draw.rect(g, (20, 20, 22), (66 * K, 10 * K, 4 * K, 4 * K))
+    _vgrad_rect(g, (0, 4 * K, 24 * K, 16 * K), (104, 110, 106), (56, 60, 60), 3 * K)         # recámara
+    pygame.draw.rect(g, out, (0, 4 * K, 24 * K, 16 * K), K, border_radius=3 * K)
+    pygame.draw.rect(g, (190, 196, 190), (3 * K, 5 * K, 14 * K, int(1.6 * K)))
+    pygame.draw.rect(g, (24, 26, 26), (19 * K, 9 * K, 3 * K, 6 * K))
+    pygame.draw.rect(g, (74, 86, 58), (7 * K, 19 * K, 12 * K, 5 * K), border_radius=K)       # cajón de alimentación
+    pygame.draw.rect(g, out, (7 * K, 19 * K, 12 * K, 5 * K), K, border_radius=K)
+    pygame.draw.circle(g, (206, 60, 50), (21 * K, 6 * K), int(1.3 * K))                        # piloto rojo de "armado"
+    gun = _smooth(g, K)
     return dict(base=base, gun=gun)
 
 
