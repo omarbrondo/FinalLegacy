@@ -1014,8 +1014,13 @@ class GroundMixin:
         pygame.draw.lines(c, (*col, 90), False, [pts[1], pts[0], pts[-1]], 1)
         cv.blit(c, (x - mid + box.x, y - mid + box.y), box)
 
-    def blit_soldier(self, dst, key, x, y, ang, frame, hit=0.0, dead=False):
+    def blit_soldier(self, dst, key, x, y, ang, frame, hit=0.0, dead=False, age=None):
         sc = self.g.get('sscale', 1.0) if getattr(self, 'g', None) else 1.0
+        if dead and key in getattr(self, 'sol_dead', {}):          # cuerpo caído dibujado: cae (0,25 s), queda tendido y luego con charco
+            fr_ = self.sol_dead[key][2 if age is None else (0 if age < 0.25 else 1 if age < 0.7 else 2)]
+            r_ = pygame.transform.rotozoom(fr_, -ang, sc)
+            dst.blit(r_, (int(x) - r_.get_width() // 2, int(y) - r_.get_height() // 2))
+            return
         draw_circ(dst, x + 4 * sc, y + 5 * sc, 14 * sc, (0, 0, 0), 70)
         spr = self.sol[key][frame % 4]
         r = pygame.transform.rotate(spr, -ang) if sc == 1.0 else pygame.transform.rotozoom(spr, -ang, sc)
@@ -1110,7 +1115,7 @@ class GroundMixin:
             self.draw_boat(cv, x - cx_, y - cy_, a)
         for c in g['corpses']:
             if c['age'] < 14:
-                self.blit_soldier(cv, ('ef_' if c.get('fem') else 'e_') + c['kind'], c['x'] - cx_, c['y'] - cy_, c['h'], 0, dead=True)
+                self.blit_soldier(cv, ('ef_' if c.get('fem') else 'e_') + c['kind'], c['x'] - cx_, c['y'] - cy_, c['h'], 0, dead=True, age=c['age'])
         for q in g['crates']:
             qx, qy = q['x'] - cx_, q['y'] - cy_
             glow(cv, qx, qy, 28, (120, 255, 150) if q['kind'] in ('med', 'mask') else (255, 210, 70), 0.6)

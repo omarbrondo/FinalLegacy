@@ -174,6 +174,12 @@ class CoreMixin:
             art_['ef_mg'] = art_['e_mg']
         for k_, fr_ in art_.items():
             self.sol[k_] = fr_
+        self.sol_dead = {}
+        for k_, d_ in (('p', 'p'), ('pf', 'pf'), ('a', 'a'), ('af', 'a'), ('e_rifle', 'e_rifle'), ('ef_rifle', 'e_rifle'), ('e_gren', 'e_gren'), ('ef_gren', 'e_gren'),
+                       ('e_sniper', 'e_sniper'), ('ef_sniper', 'e_sniper'), ('e_mg', 'e_mg'), ('ef_mg', 'e_mg')):
+            strip_ = _lp('muerte_' + d_, width=120 * 3, flip=False, folder='soldados')
+            if strip_:
+                self.sol_dead[k_] = [strip_.subsurface((120 * i_, 0, 120, 120)).copy() for i_ in range(3)]
         for k_ in ('e_sniper', 'ef_sniper'):
             if k_ in art_:
                 continue
