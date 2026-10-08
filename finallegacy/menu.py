@@ -25,7 +25,7 @@ HELP_LINES = [
 CHEAT_LINES = [
     ('F2', 'Combate de tanque'), ('F3', 'Combate aéreo'), ('F4', 'Invasión anfibia'), ('F5', 'Rescate de náufragos'),
     ('F6', 'Convoy'), ('F7', 'Puerto enemigo'), ('F8', 'Defensa contra misiles'), ('F9', 'Subir de oleada'),
-    ('F10', '+3000 puntos'), ('F12', 'Reabastecer todo'), ('N', 'Ir a un radar enemigo'), ('B', 'Defender batería aliada'),
+    ('F10', '+3000 puntos'), ('F12', 'Reabastecer todo'), ('N', 'Ir a un radar enemigo'), ('Y', 'Defender batería aliada'), ('U', 'Combate de cazas F-16'),
 ]
 
 

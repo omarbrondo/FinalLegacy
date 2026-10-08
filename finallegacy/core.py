@@ -575,7 +575,7 @@ class CoreMixin:
         self.fade = 1.0
         if state == 'title':
             self.menu_reset()
-        pygame.mouse.set_visible(state in ('upgrade',) or state not in ('defense', 'combat', 'aerial', 'ground', 'tank', 'port', 'heli', 'radio', 'lifeboat', 'batdef'))
+        pygame.mouse.set_visible(state in ('upgrade',) or state not in ('defense', 'combat', 'aerial', 'ground', 'tank', 'port', 'heli', 'radio', 'lifeboat', 'batdef', 'jets'))
         calm = state in ('title', 'map', 'upgrade', 'helisel')
         ctx = {'helisel': 'upgrade', 'gameover': None, 'lifeboat': 'defense'}.get(state, state)
         if state == 'combat' and (getattr(self, 'c', None) or {}).get('is_boss'):
@@ -616,7 +616,9 @@ class CoreMixin:
                 self.warned = False
                 self.attack = None
                 self.start_defense(self.strike_city)
-        elif key == pygame.K_b:
+        elif key == pygame.K_u:
+            self.start_jets()
+        elif key == pygame.K_y:
             al = [n for n in self.nests if n['alive'] and n.get('ally')]
             if al:
                 self.start_batdef(al[0])
@@ -678,7 +680,7 @@ class CoreMixin:
             elif e.key in (pygame.K_MINUS, pygame.K_KP_MINUS, pygame.K_EQUALS, pygame.K_PLUS, pygame.K_KP_PLUS) and self.state != 'title':
                 pct = self.vol_step('music', -1 if e.key in (pygame.K_MINUS, pygame.K_KP_MINUS) else 1)
                 self.toast('MÚSICA: %d%%' % pct, (160, 220, 255))
-            elif e.key in (pygame.K_F8, pygame.K_F9, pygame.K_F10, pygame.K_F12, pygame.K_n, pygame.K_b) and self.state == 'map' and not self.paused:
+            elif e.key in (pygame.K_F8, pygame.K_F9, pygame.K_F10, pygame.K_F12, pygame.K_n, pygame.K_y, pygame.K_u) and self.state == 'map' and not self.paused:
                 self.debug_key(e.key)
             elif e.key == pygame.K_F7 and self.state == 'map' and not self.paused:
                 self.port_tries = min(self.port_tries, 1)
@@ -696,7 +698,7 @@ class CoreMixin:
                     self.warned = False
                     self.attack = None
                     {pygame.K_F2: self.start_tank, pygame.K_F3: self.start_aerial, pygame.K_F4: self.start_ground}[e.key](self.strike_city)
-            elif e.key in (pygame.K_p, pygame.K_ESCAPE) and self.state in ('map', 'defense', 'combat', 'ground', 'aerial', 'hack', 'radio', 'tank', 'port', 'heli', 'lifeboat', 'batdef'):
+            elif e.key in (pygame.K_p, pygame.K_ESCAPE) and self.state in ('map', 'defense', 'combat', 'ground', 'aerial', 'hack', 'radio', 'tank', 'port', 'heli', 'lifeboat', 'batdef', 'jets'):
                 self.pause_set(not self.paused)
             elif self.state == 'saves':
                 self.saves_key(e.key)
@@ -759,6 +761,8 @@ class CoreMixin:
                 self.heli_call()
             elif self.state == 'map' and e.key == pygame.K_b and not self.paused:
                 self.heli_launch()
+            elif self.state == 'map' and e.key == pygame.K_j and not self.paused:
+                self.jet_launch()
             elif self.state == 'heli' and e.key == pygame.K_SPACE and not self.paused:
                 self.heli_rocket()
             elif self.state == 'tank' and e.key == pygame.K_SPACE and not self.paused:
@@ -879,6 +883,8 @@ class CoreMixin:
             self.upd_lifeboat(dt)
         elif self.state == 'batdef':
             self.upd_batdef(dt)
+        elif self.state == 'jets':
+            self.upd_jets(dt)
         elif self.state == 'upgrade':
             self.upd_upgrade(dt)
         elif self.state == 'heli':
@@ -966,6 +972,8 @@ class CoreMixin:
             self.draw_lifeboat(cv)
         elif self.state == 'batdef':
             self.draw_batdef(cv)
+        elif self.state == 'jets':
+            self.draw_jets(cv)
         elif self.state == 'upgrade':
             self.draw_upgrade(cv)
         elif self.state == 'heli':

@@ -14,6 +14,7 @@ TURN = 260.0
 class HeliMixin:
     # ------------------------------------------------------------ MAPA: helipuerto y llamadas
     def heli_init(self):
+        self.jet_init()
         self.heli_sorties = 0
         self.heli_earned = 0
         self.heli_next = HELI_SORTIE_PTS
