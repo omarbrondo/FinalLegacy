@@ -164,7 +164,19 @@ class CoreMixin:
             self.sol['e_' + kd] = make_soldier_frames(kd, 'e')
             if kd != 'dog':
                 self.sol['ef_' + kd] = make_soldier_frames(kd, 'e', True, (40, 28, 24))
+        from .air_art import load_png_sprite as _lp
+        art_ = {}
+        for key_ in ('p', 'pf', 'a', 'af', 'e_rifle', 'ef_rifle', 'e_gren', 'ef_gren', 'e_sniper', 'ef_sniper', 'e_mg'):
+            strip_ = _lp('top_' + key_, width=84 * 4, flip=False, folder='soldados')
+            if strip_:
+                art_[key_] = [strip_.subsurface((84 * i_, 0, 84, 84)).copy() for i_ in range(4)]
+        if 'e_mg' in art_:
+            art_['ef_mg'] = art_['e_mg']
+        for k_, fr_ in art_.items():
+            self.sol[k_] = fr_
         for k_ in ('e_sniper', 'ef_sniper'):
+            if k_ in art_:
+                continue
             for f_ in self.sol[k_]:
                 f_.fill((140, 170, 120, 255), special_flags=pygame.BLEND_RGBA_MULT)
         hurt = pygame.Surface((W, H), pygame.SRCALPHA)
