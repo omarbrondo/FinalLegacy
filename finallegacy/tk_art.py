@@ -206,6 +206,33 @@ def tex_bike():
     return s
 
 
+def _tk_png(name):
+    """Textura dibujada soldados/tk_<name>.png (misma medida que la de código) o None."""
+    import os
+    path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'soldados', 'tk_%s.png' % name)
+    try:
+        return pygame.image.load(path).convert() if os.path.isfile(path) else None
+    except pygame.error:
+        return None
+
+
+def _with_art(fn, names):
+    """Envuelve una función tex_*: si existe el PNG de esa variante se usa en lugar del dibujo por código."""
+    def wrapper(*a):
+        key = a[0] if a else 0
+        art = _tk_png(names[key]) if (isinstance(names, dict) and key in names) else (_tk_png(names) if isinstance(names, str) else None)
+        return art if art is not None else fn(*a)
+    return wrapper
+
+
+tex_brick = _with_art(tex_brick, {1: 'ladrillo_1', 2: 'ladrillo_2'})
+tex_concrete = _with_art(tex_concrete, {3: 'hormigon_1', 4: 'hormigon_2'})
+tex_glass = _with_art(tex_glass, {5: 'vidrio'})
+tex_sand = _with_art(tex_sand, {6: 'arena'})
+tex_hall = _with_art(tex_hall, {7: 'ayuntamiento'})
+tex_missile = _with_art(tex_missile, 'misil')
+
+
 def tk_entry(tile, reps):
     tw, th = tile.get_size()
     tall = pygame.Surface((tw, th * reps))
