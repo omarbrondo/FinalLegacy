@@ -9,15 +9,32 @@ from .war import DECOR0
 RADAR_IDX = (1, 5, 8, 10, 13, 15)                      # islotes decorativos que tienen un radar (no se mudan de lugar)
 SCOPE = pygame.Rect(120, 170, 660, 300)
 F_MIN, F_MAX = 0.8, 6.0
-CHIP_NAMES = {'tune': 'SINTONÍA', 'drift': 'DERIVA', 'jam': 'INTERFERENCIA', 'dual': '2 CANALES', 'sweep': 'BARRIDO'}
-KIND_NAMES = {'tune': 'SINTONÍA', 'drift': 'SEÑAL A LA DERIVA', 'jam': 'INTERFERENCIA', 'dual': 'DOS CANALES', 'sweep': 'BARRIDO DE ESPECTRO'}
+CHIP_NAMES = {'tune': 'SINTONÍA', 'drift': 'DERIVA', 'jam': 'INTERFERENCIA', 'dual': '2 CANALES', 'sweep': 'BARRIDO', 'simon': 'SECUENCIA', 'code': 'CLAVE', 'wire': 'CABLES', 'rhythm': 'RITMO', 'lock': 'CERRADURA'}
+KIND_NAMES = {'tune': 'SINTONÍA', 'drift': 'SEÑAL A LA DERIVA', 'jam': 'INTERFERENCIA', 'dual': 'DOS CANALES', 'sweep': 'BARRIDO DE ESPECTRO',
+              'simon': 'SECUENCIA DE TECLAS', 'code': 'DESCIFRAR LA CLAVE', 'wire': 'CORTAR EL CABLE CORRECTO', 'rhythm': 'RITMO DE DATOS', 'lock': 'CERRADURA GIRATORIA'}
 KIND_HINT = {
     'tune': 'A/D frecuencia  |  W/S amplitud: calzá la onda amarilla con la celeste',
     'drift': 'A/D frecuencia  |  W/S amplitud  |  Q/E fase: la señal se mueve, seguila',
     'jam': 'A/D frecuencia  |  W/S amplitud: el enemigo interfiere y te desajusta',
     'dual': 'A/D frecuencia  |  W/S amplitud  |  ESPACIO: cambiar de canal  |  calzá los dos',
     'sweep': 'ESPACIO cuando el cursor esté sobre la banda verde  |  4 aciertos: la banda se achica y el cursor acelera',
+    'simon': 'Mirá la secuencia y repetila con las flechas o WASD  |  un error la repite y cuesta 3 s',
+    'code': 'Teclas 1-6: armá la clave de 4 símbolos  |  RETROCESO borra  |  ENTER prueba  |  verde: en su lugar, amarillo: está pero en otro lugar',
+    'wire': 'Teclas 1-6: cortá el cable que indican las reglas  |  un error cuesta 8 s y 2 de casco',
+    'rhythm': 'D F J K (o las flechas): pulsá cada nota justo cuando cruza la línea  |  acertá al menos el 70 %',
+    'lock': 'ESPACIO cuando el indicador esté dentro de la zona brillante  |  3 zonas en orden  |  un error cuesta 3 s',
 }
+RH_KEYS = {pygame.K_d: 0, pygame.K_f: 1, pygame.K_j: 2, pygame.K_k: 3, pygame.K_LEFT: 0, pygame.K_DOWN: 1, pygame.K_UP: 2, pygame.K_RIGHT: 3}
+PUZZLES = ('simon', 'code', 'wire', 'rhythm', 'lock')                    # minijuegos de lógica y reflejos (sin ondas)
+SYMS = ((255, 90, 90), (90, 160, 255), (255, 215, 80), (100, 235, 140), (210, 120, 255), (255, 255, 255))   # colores de los 6 símbolos de la clave
+WIRE_COLS = {'ROJO': (235, 70, 60), 'AZUL': (70, 130, 255), 'AMARILLO': (255, 215, 70), 'VERDE': (90, 225, 130), 'BLANCO': (235, 235, 235)}
+WIRE_RULES = ('1) Si hay más de un cable ROJO: cortá el último rojo.',
+              '2) Si no, y el serie termina en PAR y hay un AZUL: cortá el primer azul.',
+              '3) Si no, y no hay cables AMARILLOS: cortá el segundo cable.',
+              '4) Si no: cortá el primer cable.')
+NUM_KEYS = {pygame.K_1: 0, pygame.K_2: 1, pygame.K_3: 2, pygame.K_4: 3, pygame.K_5: 4, pygame.K_6: 5,
+            pygame.K_KP1: 0, pygame.K_KP2: 1, pygame.K_KP3: 2, pygame.K_KP4: 3, pygame.K_KP5: 4, pygame.K_KP6: 5}
+ARROWS = {pygame.K_UP: 'U', pygame.K_w: 'U', pygame.K_DOWN: 'D', pygame.K_s: 'D', pygame.K_LEFT: 'L', pygame.K_a: 'L', pygame.K_RIGHT: 'R', pygame.K_d: 'R'}
 PHRASES = ('FLOTA NORTE ATACA CIUDAD AMANECER', 'MISILES LISTOS ORDEN ESPERAR SEÑAL', 'REFUERZOS LLEGAN PUERTO MEDIANOCHE SILENCIO',
            'SUBMARINOS BAJO HIELO SEGUIR OBJETIVO', 'ANTENA ENEMIGA CAMBIAR CLAVE URGENTE', 'CONVOY SIN ESCOLTA RUTA SUR',
            'JEFE MARCHA ESCUDO ACTIVO FORTALEZA', 'BATERIAS COSTERAS APUNTAN BAHIA AZUL')
@@ -116,7 +133,7 @@ class RadioMixin:
     def start_radio(self, radar):
         n = min(5, 3 + self.wave // 2)
         kinds = ['tune']
-        pool = ['jam', 'dual', 'sweep'] + (['drift'] if self.wave >= 2 else [])
+        pool = ['jam', 'dual', 'sweep', 'simon', 'code', 'wire', 'rhythm', 'lock'] + (['drift'] if self.wave >= 2 else [])
         while len(kinds) < n:
             k = random.choice(pool)
             if k != kinds[-1]:
@@ -140,10 +157,12 @@ class RadioMixin:
         kind = rd['kinds'][rd['stage']]
         tol = self.rd_tol()
         st = dict(kind=kind, lock=0.0, flash=0.0, jam_t=3.0, jam_fl=0.0, miss=0.0, tol=dict(f=0.22 * tol, a=0.09 * tol, p=0.42 * tol), ch=0)
-        total = {'tune': 32.0, 'drift': 38.0, 'jam': 36.0, 'dual': 42.0, 'sweep': 34.0}[kind] - 1.5 * rd['fails']
+        total = {'tune': 32.0, 'drift': 38.0, 'jam': 36.0, 'dual': 42.0, 'sweep': 34.0, 'simon': 36.0, 'code': 70.0, 'wire': 45.0, 'rhythm': 50.0, 'lock': 36.0}[kind] - 1.5 * rd['fails']
         st['total'] = st['time'] = max(18.0, total)
         st['need'] = {'tune': 1.0, 'drift': 1.5, 'jam': 1.4, 'dual': 1.2}.get(kind, 1.0)
-        if kind == 'sweep':
+        if kind in PUZZLES:
+            self.rd_puzzle_init(st, kind)
+        elif kind == 'sweep':
             st.update(pos=0.0, dir=1.0, speed=0.55 + 0.035 * self.wave, bw=max(0.15, 0.24 - 0.012 * self.wave), bc=random.uniform(0.2, 0.8), hits=0, bars=[random.random() for _ in range(44)])
         elif kind == 'dual':
             st['tgt'] = [self.rd_rand_par(), self.rd_rand_par()]
@@ -173,6 +192,8 @@ class RadioMixin:
             return
         if key == pygame.K_TAB:
             return self.end_radio('abort')
+        if st['kind'] in PUZZLES:
+            return self.rd_puzzle_key(st, key)
         if key in (pygame.K_SPACE, pygame.K_RETURN):
             if st['kind'] == 'dual':
                 st['ch'] ^= 1
@@ -268,7 +289,11 @@ class RadioMixin:
         keys = pygame.key.get_pressed()
         kind = st['kind']
         st['time'] -= dt
-        if kind == 'sweep':
+        if kind in PUZZLES:
+            self.rd_puzzle_update(st, dt)
+            if rd['phase'] != 'play':
+                return
+        elif kind == 'sweep':
             st['pos'] += st['dir'] * st['speed'] * dt                                      # velocidad constante, aunque pase por la banda
             if st['pos'] > 1:
                 st['pos'], st['dir'] = 1.0, -1.0
@@ -448,7 +473,9 @@ class RadioMixin:
             pygame.draw.line(cv, (14, 44, 56) if j != 3 else (24, 80, 96), (SCOPE.x, y), (SCOPE.right, y))
         matched = bool(st.get('matched')) and rd['phase'] == 'play'
         ok_col = (90, 255, 150)
-        if kind == 'sweep':
+        if kind in PUZZLES:
+            self.draw_puzzle(cv, st)
+        elif kind == 'sweep':
             self.draw_sweep(cv, st)
         else:
             if kind == 'dual':
@@ -487,7 +514,9 @@ class RadioMixin:
                     self.rd_led(cv, x0 + 22 + ci * 70, yy + 36, cl[key])
                     self.text(cv, lab, self.f_s, (150, 180, 210), x0 + 22 + ci * 70, yy + 48, 'c')
         # barra de bloqueo
-        if kind == 'sweep':
+        if kind in PUZZLES:
+            frac, lab = st['prog'], st['lab']
+        elif kind == 'sweep':
             frac = st['hits'] / 4.0
             lab = 'ACIERTOS %d/4' % st['hits']
         else:
@@ -541,6 +570,365 @@ class RadioMixin:
             full = '"%s"' % ' '.join(rd['words'])
             self.text(cv, full, self.fit_font(full, W - 100, self.f_l, self.f_m, self.f_s), (255, 240, 170), W // 2, 395, 'c')
             self.text(cv, 'Descifrando recompensa...', self.f_m, (170, 210, 240), W // 2, 450, 'c')
+
+
+    # ------------------------------------------------------------------ minijuegos de lógica: secuencia, clave y cables
+    def rd_puzzle_init(self, st, kind):
+        st['prog'], st['lab'] = 0.0, ''
+        if kind == 'simon':
+            n = min(8, 4 + self.wave // 2)
+            st.update(seq=[random.choice('UDLR') for _ in range(n)], mode='show', mt=0.8, idx=0, inp=[], lit=None, press=None, press_t=0.0, lab_='')
+            st['lab'] = 'SECUENCIA 0/%d' % n
+        elif kind == 'code':
+            st.update(secret=random.sample(range(6), 4), guesses=[], cur=[], tries=7, shake=0.0)
+            st['lab'] = 'INTENTOS 0/7'
+        elif kind == 'rhythm':
+            n = min(36, 18 + 2 * self.wave)
+            gap = max(0.36, 0.62 - 0.03 * self.wave)
+            notes, tt, last, run = [], 1.8, -1, 0
+            while len(notes) < n:
+                lane = random.randrange(4)
+                if lane == last and run >= 2:
+                    lane = (lane + random.randint(1, 3)) % 4
+                run = run + 1 if lane == last else 1
+                last = lane
+                notes.append(dict(t=tt, lane=lane, hit=None))
+                if self.wave >= 3 and random.random() < 0.18 and len(notes) < n:                 # nota doble
+                    notes.append(dict(t=tt, lane=(lane + random.randint(1, 3)) % 4, hit=None))
+                tt += gap * random.choice((1.0, 1.0, 1.0, 0.5, 1.5))
+            st.update(notes=notes, now=0.0, fall=1.5, hits=0, combo=0, best=0, judge='', judge_t=0.0, press=[0.0] * 4, end=tt + 0.8, need=int(0.7 * len(notes) + 0.999))
+            st['time'] = st['total'] = tt + 14.0
+            st['lab'] = 'ACIERTOS 0/%d' % st['need']
+        elif kind == 'lock':
+            zw = max(0.34, 0.62 - 0.03 * self.wave)
+            zones, a0 = [], random.uniform(0, 6.28)
+            for i in range(3):
+                zones.append((a0 + i * 2.1 + random.uniform(-0.35, 0.35)) % 6.28318)
+            st.update(zones=zones, zw=zw, cur=0, ang=random.uniform(0, 6.28), dir=1.0, speed=1.5 + 0.12 * self.wave, flash=0.0, done=[False] * 3)
+            st['lab'] = 'ZONAS 0/3'
+        else:
+            n = min(6, 4 + self.wave // 3)
+            wires = [random.choice(tuple(WIRE_COLS)) for _ in range(n)]
+            serial = ''.join(random.choice('0123456789') for _ in range(5))
+            st.update(wires=wires, serial=serial, cut=[False] * n, ans=self.rd_wire_answer(wires, serial), done=False)
+            st['lab'] = 'CABLES'
+
+    @staticmethod
+    def rd_wire_answer(wires, serial):
+        """Índice del cable a cortar según WIRE_RULES."""
+        if wires.count('ROJO') > 1:
+            return max(i for i, w in enumerate(wires) if w == 'ROJO')
+        if int(serial[-1]) % 2 == 0 and 'AZUL' in wires:
+            return wires.index('AZUL')
+        if 'AMARILLO' not in wires:
+            return 1
+        return 0
+
+    def rd_puzzle_key(self, st, key):
+        rd = self.rd
+        kind = st['kind']
+        if kind == 'simon':
+            if st['mode'] != 'input' or key not in ARROWS:
+                return
+            sym = ARROWS[key]
+            st['press'], st['press_t'] = sym, 0.25
+            i = len(st['inp'])
+            if sym == st['seq'][i]:
+                st['inp'].append(sym)
+                self.audio.play('blip', .6)
+                st['prog'] = len(st['inp']) / len(st['seq'])
+                st['lab'] = 'SECUENCIA %d/%d' % (len(st['inp']), len(st['seq']))
+                if len(st['inp']) == len(st['seq']):
+                    self.rd_stage_ok()
+            else:
+                st['inp'] = []
+                st['mode'], st['mt'], st['idx'] = 'show', 1.0, 0
+                st['miss'] = 0.5
+                st['time'] = max(1.0, st['time'] - 3.0)
+                st['prog'], st['lab'] = 0.0, 'SECUENCIA 0/%d' % len(st['seq'])
+                self.audio.play('hit', .5)
+                self.shake = max(self.shake, 4)
+        elif kind == 'rhythm':
+            if key not in RH_KEYS:
+                return
+            lane = RH_KEYS[key]
+            st['press'][lane] = 0.18
+            best = None
+            for nt in st['notes']:
+                if nt['lane'] == lane and nt['hit'] is None:
+                    d = abs(nt['t'] - st['now'])
+                    if d <= 0.14 and (best is None or d < best[0]):
+                        best = (d, nt)
+            if best is None:
+                st['combo'] = 0
+                return
+            d, nt = best
+            nt['hit'] = 'perfect' if d <= 0.05 else 'good'
+            st['hits'] += 1
+            st['combo'] += 1
+            st['best'] = max(st['best'], st['combo'])
+            st['judge'], st['judge_t'] = ('¡PERFECTO!' if nt['hit'] == 'perfect' else 'BIEN'), 0.4
+            st['prog'] = min(1.0, st['hits'] / st['need'])
+            st['lab'] = 'ACIERTOS %d/%d' % (st['hits'], st['need'])
+            self.audio.play('blip' if nt['hit'] == 'good' else 'ping', .35)
+        elif kind == 'lock':
+            if key not in (pygame.K_SPACE, pygame.K_RETURN):
+                return
+            tgt = st['zones'][st['cur']]
+            d = abs((st['ang'] - tgt + math.pi) % (2 * math.pi) - math.pi)
+            if d <= st['zw'] / 2:
+                st['done'][st['cur']] = True
+                st['cur'] += 1
+                st['dir'] = -st['dir']
+                st['speed'] *= 1.12
+                st['flash'] = 0.35
+                st['prog'] = st['cur'] / 3.0
+                st['lab'] = 'ZONAS %d/3' % st['cur']
+                self.audio.play('pickup', .6)
+                if st['cur'] >= 3:
+                    self.rd_stage_ok()
+            else:
+                st['time'] = max(1.0, st['time'] - 3.0)
+                st['miss'] = 0.4
+                self.audio.play('hit', .5)
+                self.shake = max(self.shake, 4)
+        elif kind == 'code':
+            if key in NUM_KEYS:
+                if len(st['cur']) < 4:
+                    st['cur'].append(NUM_KEYS[key])
+                    self.audio.play('blip', .4)
+            elif key == pygame.K_BACKSPACE:
+                if st['cur']:
+                    st['cur'].pop()
+            elif key in (pygame.K_RETURN, pygame.K_KP_ENTER, pygame.K_SPACE) and len(st['cur']) == 4:
+                g = list(st['cur'])
+                exact = sum(1 for a, b in zip(g, st['secret']) if a == b)
+                common = sum(min(g.count(c), st['secret'].count(c)) for c in range(6))
+                st['guesses'].append((g, exact, common - exact))
+                st['cur'] = []
+                st['prog'] = exact / 4.0
+                st['lab'] = 'INTENTOS %d/%d' % (len(st['guesses']), st['tries'])
+                if exact == 4:
+                    self.rd_stage_ok()
+                elif len(st['guesses']) >= st['tries']:
+                    st['time'] = 0.0                                  # sin intentos: se cuenta como fallo
+                else:
+                    self.audio.play('ping' if exact else 'blip', .4)
+        else:
+            if st['done'] or key not in NUM_KEYS or NUM_KEYS[key] >= len(st['wires']):
+                return
+            i = NUM_KEYS[key]
+            if st['cut'][i]:
+                return
+            st['cut'][i] = True
+            if i == st['ans']:
+                st['done'] = True
+                st['prog'] = 1.0
+                self.rd_stage_ok()
+            else:
+                st['time'] = max(1.0, st['time'] - 8.0)
+                self.hull = max(1.0, self.hull - 2)
+                st['miss'] = 0.5
+                self.audio.play('hit', .6)
+                self.shake = max(self.shake, 6)
+
+    def rd_puzzle_update(self, st, dt):
+        st['press_t'] = max(0.0, st.get('press_t', 0.0) - dt)
+        if st['kind'] == 'rhythm':
+            st['now'] += dt
+            st['judge_t'] = max(0.0, st['judge_t'] - dt)
+            st['press'] = [max(0.0, v - dt) for v in st['press']]
+            for nt in st['notes']:
+                if nt['hit'] is None and st['now'] - nt['t'] > 0.14:
+                    nt['hit'] = 'miss'
+                    st['combo'] = 0
+                    st['judge'], st['judge_t'] = 'FALLO', 0.4
+                    st['time'] = max(1.0, st['time'] - 0.8)
+            if st['now'] >= st['end']:
+                if st['hits'] >= st['need']:
+                    self.rd_stage_ok()
+                else:
+                    st['time'] = 0.0                                   # no llegó al mínimo: se cuenta como fallo
+                    self.audio.play('hit', .5)
+            return
+        if st['kind'] == 'lock':
+            st['ang'] = (st['ang'] + st['dir'] * st['speed'] * dt) % (2 * math.pi)
+            st['flash'] = max(0.0, st['flash'] - dt)
+            st['miss'] = max(0.0, st.get('miss', 0.0) - dt)
+            return
+        if st['kind'] == 'simon' and st['mode'] == 'show':
+            st['mt'] -= dt
+            if st['mt'] <= 0:
+                if st['lit'] is None:                              # enciende el siguiente símbolo
+                    if st['idx'] >= len(st['seq']):
+                        st['mode'], st['lit'] = 'input', None
+                        return
+                    st['lit'] = st['seq'][st['idx']]
+                    st['mt'] = max(0.3, 0.55 - 0.02 * self.wave)
+                    self.audio.play('ping', .3)
+                else:                                              # lo apaga y deja un respiro
+                    st['lit'] = None
+                    st['idx'] += 1
+                    st['mt'] = 0.2
+
+    def rd_draw_sym(self, cv, kind, cx, cy, r, col):
+        if kind == 0:
+            pygame.draw.circle(cv, col, (cx, cy), r)
+        elif kind == 1:
+            pygame.draw.rect(cv, col, (cx - r, cy - r, 2 * r, 2 * r))
+        elif kind == 2:
+            pygame.draw.polygon(cv, col, [(cx, cy - r), (cx + r, cy + r), (cx - r, cy + r)])
+        elif kind == 3:
+            pygame.draw.polygon(cv, col, [(cx, cy - r), (cx + r, cy), (cx, cy + r), (cx - r, cy)])
+        elif kind == 4:
+            pygame.draw.polygon(cv, col, [(cx + math.cos(math.radians(60 * i)) * r, cy + math.sin(math.radians(60 * i)) * r) for i in range(6)])
+        else:
+            pygame.draw.rect(cv, col, (cx - r, cy - r // 3, 2 * r, 2 * r // 3))
+            pygame.draw.rect(cv, col, (cx - r // 3, cy - r, 2 * r // 3, 2 * r))
+
+    def draw_puzzle(self, cv, st):
+        kind = st['kind']
+        t = self.t
+        if kind == 'simon':
+            cx, cy = SCOPE.centerx, SCOPE.centery
+            pads = {'U': (0, -78, (0, -1)), 'D': (0, 78, (0, 1)), 'L': (-110, 0, (-1, 0)), 'R': (110, 0, (1, 0))}
+            on = st['lit'] if st['mode'] == 'show' else (st['press'] if st['press_t'] > 0 else None)
+            for sym, (ox, oy, (dx, dy)) in pads.items():
+                x, y = cx + ox, cy + oy
+                lit = on == sym
+                col = (90, 255, 150) if lit and st['mode'] != 'show' else ((255, 220, 90) if lit else (30, 70, 90))
+                pygame.draw.rect(cv, (8, 22, 30), (x - 44, y - 34, 88, 68), border_radius=10)
+                pygame.draw.rect(cv, col, (x - 44, y - 34, 88, 68), 4 if lit else 2, border_radius=10)
+                if lit:
+                    glow(cv, x, y, 70, col, 0.6)
+                pygame.draw.polygon(cv, col if lit else (60, 120, 145), [(x + dx * 22 + dy * 0, y + dy * 18 + dx * 0), (x - dx * 14 + dy * 22, y - dy * 14 + dx * 22), (x - dx * 14 - dy * 22, y - dy * 14 - dx * 22)])
+            msg = 'MIRÁ LA SECUENCIA...' if st['mode'] == 'show' else 'REPETILA  (%d/%d)' % (len(st['inp']), len(st['seq']))
+            self.text(cv, msg, self.f_m, (255, 225, 130) if st['mode'] == 'show' else (130, 255, 190), SCOPE.centerx, SCOPE.y + 14, 'c')
+            if st.get('miss', 0) > 0:
+                pygame.draw.rect(cv, (255, 70, 70), SCOPE, 4)
+        elif kind == 'rhythm':
+            lw = 110
+            lx0 = SCOPE.centerx - 2 * lw
+            line_y = SCOPE.bottom - 52
+            top_y = SCOPE.y + 6
+            for ln in range(4):
+                x = lx0 + ln * lw
+                pygame.draw.rect(cv, (8, 22, 30), (x + 3, SCOPE.y + 2, lw - 6, SCOPE.h - 4))
+                pygame.draw.rect(cv, (30, 80, 100), (x + 3, SCOPE.y + 2, lw - 6, SCOPE.h - 4), 1)
+                pr = st['press'][ln] > 0
+                pygame.draw.rect(cv, (255, 235, 130) if pr else (40, 100, 125), (x + 10, line_y - 14, lw - 20, 28), 0 if pr else 2, border_radius=8)
+                self.text(cv, 'DFJK'[ln], self.f_s, (10, 20, 30) if pr else (150, 200, 225), x + lw // 2, line_y - 9, 'c')
+            for nt in st['notes']:
+                y = line_y - (nt['t'] - st['now']) / st['fall'] * (line_y - top_y)
+                if y < SCOPE.y - 20 or y > SCOPE.bottom + 10:
+                    continue
+                x = lx0 + nt['lane'] * lw + lw // 2
+                if nt['hit'] in ('perfect', 'good'):
+                    continue
+                col = (255, 90, 90) if nt['hit'] == 'miss' else (110, 235, 255)
+                pygame.draw.rect(cv, col, (x - 38, y - 10, 76, 20), border_radius=6)
+                pygame.draw.rect(cv, (255, 255, 255), (x - 38, y - 10, 76, 20), 2, border_radius=6)
+            if st['judge_t'] > 0:
+                jc = (255, 230, 120) if st['judge'] == '¡PERFECTO!' else ((130, 255, 190) if st['judge'] == 'BIEN' else (255, 100, 100))
+                self.text(cv, st['judge'], self.f_l, jc, SCOPE.centerx, SCOPE.centery - 30, 'c', alpha=int(255 * min(1.0, st['judge_t'] / 0.25)))
+            if st['combo'] >= 3:
+                self.text(cv, 'RACHA %d' % st['combo'], self.f_m, (255, 225, 130), SCOPE.right - 10, SCOPE.y + 8, 'r')
+        elif kind == 'lock':
+            cx, cy, R = SCOPE.centerx, SCOPE.centery, 118
+            pygame.draw.circle(cv, (8, 22, 30), (cx, cy), R + 22)
+            pygame.draw.circle(cv, (40, 110, 130), (cx, cy), R + 22, 3)
+            pygame.draw.circle(cv, (24, 60, 76), (cx, cy), R, 2)
+            for i, zc in enumerate(st['zones']):
+                cur = i == st['cur']
+                done = st['done'][i]
+                col = (90, 255, 150) if done else ((255, 225, 90) if cur else (60, 110, 130))
+                pts = [(cx + math.cos(zc + (k / 12 - 0.5) * st['zw']) * (R + 16), cy + math.sin(zc + (k / 12 - 0.5) * st['zw']) * (R + 16)) for k in range(13)]
+                pts += [(cx + math.cos(zc + (k / 12 - 0.5) * st['zw']) * (R - 16), cy + math.sin(zc + (k / 12 - 0.5) * st['zw']) * (R - 16)) for k in range(12, -1, -1)]
+                pygame.draw.polygon(cv, col, pts)
+                if cur and not done:
+                    glow(cv, cx + math.cos(zc) * R, cy + math.sin(zc) * R, 46, col, 0.6)
+                self.text(cv, str(i + 1), self.f_m, (10, 20, 30) if (cur or done) else (170, 200, 220), cx + math.cos(zc) * (R - 36) - 6, cy + math.sin(zc) * (R - 36) - 12)
+            a = st['ang']
+            pygame.draw.line(cv, (255, 245, 170), (cx, cy), (cx + math.cos(a) * (R + 20), cy + math.sin(a) * (R + 20)), 5)
+            pygame.draw.circle(cv, (255, 245, 170), (cx, cy), 9)
+            glow(cv, cx + math.cos(a) * R, cy + math.sin(a) * R, 36, (255, 230, 120), 0.5)
+            self.text(cv, 'ZONA %d/3' % min(3, st['cur'] + 1), self.f_m, (255, 225, 130), cx, cy - 74, 'c')
+            if st['flash'] > 0:
+                pygame.draw.rect(cv, (90, 255, 150), SCOPE, 4)
+            if st.get('miss', 0) > 0:
+                pygame.draw.rect(cv, (255, 70, 70), SCOPE, 4)
+        elif kind == 'code':
+            x0, y0 = SCOPE.x + 20, SCOPE.y + 8
+            self.text(cv, 'CLAVE DE 4 SÍMBOLOS (sin repetir)', self.f_s, (150, 190, 220), x0, y0)
+            rows = st['guesses'] + [None]
+            for ri in range(st['tries']):
+                y = y0 + 26 + ri * 37
+                cur = ri == len(st['guesses'])
+                pygame.draw.rect(cv, (10, 34, 46) if cur else (8, 22, 30), (x0, y - 2, 330, 34), border_radius=6)
+                if cur:
+                    pygame.draw.rect(cv, (255, 220, 100), (x0, y - 2, 330, 34), 2, border_radius=6)
+                row = st['guesses'][ri] if ri < len(st['guesses']) else None
+                glyphs = row[0] if row else (st['cur'] if cur else [])
+                for k in range(4):
+                    sx = x0 + 28 + k * 50
+                    pygame.draw.rect(cv, (24, 52, 66), (sx - 16, y + 1, 32, 28), 1)
+                    if k < len(glyphs):
+                        self.rd_draw_sym(cv, glyphs[k], sx, y + 15, 11, SYMS[glyphs[k]])
+                if row:
+                    for k in range(4):
+                        col = (90, 255, 150) if k < row[1] else ((255, 210, 80) if k < row[1] + row[2] else (50, 70, 84))
+                        pygame.draw.circle(cv, col, (x0 + 245 + k * 22, y + 15), 7)
+            # paleta de símbolos
+            px, py = SCOPE.x + 400, SCOPE.y + 40
+            self.text(cv, 'SÍMBOLOS', self.f_s, (150, 190, 220), px, py - 28)
+            for i in range(6):
+                sx, sy = px + (i % 3) * 82 + 30, py + (i // 3) * 80 + 30
+                pygame.draw.rect(cv, (8, 22, 30), (sx - 32, sy - 32, 64, 64), border_radius=8)
+                pygame.draw.rect(cv, (50, 100, 125), (sx - 32, sy - 32, 64, 64), 2, border_radius=8)
+                self.rd_draw_sym(cv, i, sx, sy - 4, 15, SYMS[i])
+                self.text(cv, str(i + 1), self.f_s, (200, 225, 250), sx, sy + 12, 'c')
+            self.text(cv, 'verde: en su lugar', self.f_s, (90, 255, 150), px, py + 150)
+            self.text(cv, 'amarillo: otro lugar', self.f_s, (255, 210, 80), px, py + 168)
+        else:
+            x0, y0 = SCOPE.x + 20, SCOPE.y + 14
+            n = len(st['wires'])
+            gap = min(42, (SCOPE.h - 40) // n)
+            L = 165                                                      # largo de cada cable
+            for i, w in enumerate(st['wires']):
+                y = y0 + 12 + i * gap
+                col = WIRE_COLS[w]
+                self.text(cv, str(i + 1), self.f_m, (200, 225, 250), x0, y - 12)
+                pygame.draw.circle(cv, (40, 60, 70), (x0 + 40, y), 8)
+                pygame.draw.circle(cv, (40, 60, 70), (x0 + 40 + L, y), 8)
+                if st['cut'][i]:
+                    ok = i == st['ans']
+                    pygame.draw.line(cv, col, (x0 + 40, y), (x0 + 40 + L // 2 - 22, y + (4 if ok else 9)), 6)
+                    pygame.draw.line(cv, col, (x0 + 40 + L, y), (x0 + 40 + L // 2 + 22, y + (5 if ok else -9)), 6)
+                    if ok:
+                        glow(cv, x0 + 40 + L // 2, y, 40, (120, 255, 170), 0.7)
+                else:
+                    pygame.draw.line(cv, tuple(int(c * 0.4) for c in col), (x0 + 40, y), (x0 + 40 + L, y), 11)
+                    pygame.draw.line(cv, col, (x0 + 40, y - 1), (x0 + 40 + L, y - 1), 6)
+                self.text(cv, w, self.f_s, tuple(int(c * 0.85) for c in col), x0 + 40 + L + 18, y - 9)
+            rx = SCOPE.x + 372
+            self.text(cv, 'SERIE:', self.f_s, (150, 190, 220), rx, y0 - 4)
+            self.text(cv, st['serial'], self.f_l, (255, 225, 130), rx + 110, y0 - 12)
+            self.text(cv, 'REGLAS (en este orden)', self.f_s, (150, 190, 220), rx, y0 + 34)
+            yy = y0 + 58
+            for rule in WIRE_RULES:
+                line = ''
+                for word in rule.split():
+                    probe = (line + ' ' + word).strip()
+                    if self.f_s.size(probe)[0] > SCOPE.right - rx - 20:
+                        self.text(cv, line, self.f_s, (200, 225, 250), rx, yy)
+                        yy += 20
+                        line = word
+                    else:
+                        line = probe
+                self.text(cv, line, self.f_s, (200, 225, 250), rx, yy)
+                yy += 30
+            if st.get('miss', 0) > 0:
+                pygame.draw.rect(cv, (255, 70, 70), SCOPE, 4)
 
     def draw_sweep(self, cv, st):
         n = len(st['bars'])
