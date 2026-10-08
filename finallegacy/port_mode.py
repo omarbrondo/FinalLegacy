@@ -11,6 +11,7 @@ from .pt_art import (
 from .comms import PORT_LINES
 
 PT_AIM_MAX = 52         # el jugador no puede disparar casi vertical: tope de inclinación del arma (grados) hacia arriba y hacia abajo
+PT_AIM_DOWN = 38        # hacia abajo se limita más: al inclinar el torso hacia adelante se nota el corte de la cintura
 HIP_UP = 44            # altura de la cadera sobre los pies en el soldado dibujado a mano
 
 
@@ -848,13 +849,13 @@ class PortMixin:
             dx, dy = tx - mx, ty - my
             right = face > 0
             th = math.atan2(dy, dx if right else -dx)
-            th = clamp(th, -math.radians(PT_AIM_MAX), math.radians(PT_AIM_MAX))
+            th = clamp(th, -math.radians(PT_AIM_MAX), math.radians(PT_AIM_DOWN))
             return mx, my, (math.cos(th) if right else -math.cos(th)), math.sin(th)
         dx, dy = tx - px, ty - py
         right = face > 0
         th = math.atan2(dy, dx if right else -dx)
         lim = PT_AIM_MAX if kind == 'player' else 80
-        th = clamp(th, -math.radians(lim), math.radians(lim))
+        th = clamp(th, -math.radians(lim), math.radians(PT_AIM_DOWN if kind == 'player' else 80))
         dirx, diry = (math.cos(th) if right else -math.cos(th)), math.sin(th)
         ln = self.PT_MUZ.get(kind, 74)
         return px + dirx * ln, py + diry * ln, dirx, diry
@@ -960,7 +961,7 @@ class PortMixin:
                 pose = arm
             elif aim is not None and pose in ('run', 'idle', 'crouch', 'jump', 'fall'):
                 th_ = math.degrees(math.atan2(aim[1], aim[0] if face > 0 else -aim[0]))
-                gun_ang = round(clamp(th_, -PT_AIM_MAX, PT_AIM_MAX) / 2) * 2.0         # el torso (con los brazos y el arma) gira hacia donde apunta el mouse
+                gun_ang = round(clamp(th_, -PT_AIM_MAX, PT_AIM_DOWN) / 2) * 2.0         # el torso (con los brazos y el arma) gira hacia donde apunta el mouse
         frames = art['body'][kind][pose]
         fi %= len(frames)
         spr, shx, shy = frames[fi]
@@ -1081,12 +1082,18 @@ class PortMixin:
         nx, ny = cx + dx * c_ + dy * s_, cy - dx * s_ + dy * c_
         out = pygame.Surface((w, h), pygame.SRCALPHA)
         out.blit(spr, (0, int(hip)), (0, int(hip), w, h - int(hip)))
-        h0 = int(hip)                                        # relleno de la cintura: se estiran hacia arriba los píxeles de la pelvis (solo el ancho del cuerpo, sin brazos ni arma)
+        h0 = int(hip)                                        # relleno de la cintura: se estiran hacia arriba los píxeles de la pelvis (sin brazos ni arma)
+        n_up = 5 + int(abs(ang) * 0.22)
+        last = None
         for xx in range(int(ax) - 9, int(ax) + 10):
-            if 0 <= xx < w and 0 <= h0 + 1 < h:
-                col = spr.get_at((xx, h0 + 1))
-                if col.a > 200:
-                    pygame.draw.line(out, col, (xx, h0 - 18), (xx, h0), 1)
+            col = spr.get_at((xx, h0 - 5)) if 0 <= xx < w and 0 <= h0 - 5 < h else None
+            if col is not None and col.a > 200:
+                last = col
+            elif last is not None:
+                col = last
+            else:
+                continue
+            pygame.draw.line(out, col, (xx, h0 - n_up), (xx, h0), 1)
         out.blit(rot, (int(round(px - (rot.get_width() / 2 + (nx - cx)))), int(round(py - (rot.get_height() / 2 + (ny - cy))))))
         return out
 
