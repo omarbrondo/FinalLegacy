@@ -14,6 +14,7 @@ ATT_R = 150                 # a esta distancia del ayuntamiento los invasores at
 NAV = 16                    # tamaño de celda del campo de navegación
 RCS = 120                   # tamaño de celda de la grilla de colisiones
 _CARS = {}
+_BUILD = {}
 CAR_L, CAR_W = 54, 26         # los autos son más grandes que un soldado
 HALL = (-44, -34, 88, 68)   # ayuntamiento (u, v, ancho, alto), relativo al centro
 
@@ -323,6 +324,21 @@ class GroundCityMixin:
         rnd = random.Random(sd)
         X, Y = X0 + x, Y0 + y
         rh = d - hh
+        art = png_top('edif_hall' if pal == 'hall' else 'edif_%d' % PALS.index(pal))
+        if art is not None:                       # arte dibujado: el ayuntamiento entero; los demás en techo y fachada que se estiran por separado
+            key = (id(art), w, d, hh)
+            spr = _BUILD.get(key)
+            if spr is None:
+                if pal == 'hall':
+                    spr = pygame.transform.smoothscale(art, (w, d))
+                else:
+                    cut = int(art.get_height() * 0.69)
+                    spr = pygame.Surface((w, d), pygame.SRCALPHA)
+                    spr.blit(pygame.transform.smoothscale(art.subsurface((0, 0, art.get_width(), cut)), (w, rh)), (0, 0))
+                    spr.blit(pygame.transform.smoothscale(art.subsurface((0, cut, art.get_width(), art.get_height() - cut)), (w, hh)), (0, rh))
+                _BUILD[key] = spr
+            s.blit(spr, (X, Y))
+            return
         if pal == 'hall':
             wall, roof, hi, lo = (228, 226, 216), (110, 150, 134), (170, 206, 188), (72, 108, 94)
         else:
