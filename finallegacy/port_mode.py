@@ -10,6 +10,10 @@ from .pt_art import (
 
 from .comms import PORT_LINES
 
+PT_AIM_MAX = 52         # el jugador no puede disparar casi vertical: tope de inclinación del arma (grados) hacia arriba y hacia abajo
+PT_AIM_DOWN = 32        # hacia abajo se limita más: al inclinar el torso hacia adelante se nota el corte de la cintura
+HIP_UP = 44            # altura de la cadera sobre los pies en el soldado dibujado a mano
+
 
 class PortMixin:
     # ---------------------------------------------------------- ASALTO AL PUERTO ENEMIGO (vista lateral, estilo Metal Slug)
@@ -840,10 +844,18 @@ class PortMixin:
         """Boca del arma: parte del hombro (pivote del brazo dibujado) y sigue la inclinación real del arma (±80°).
         Devuelve (x, y, dirx, diry) en coordenadas de mundo."""
         px, py = pv
+        if kind == 'player' and self.pt['p'].get('mz') and self.pt_art.get('baked', {}).get('player' if not self.pt.get('pfem') else 'player_f'):
+            mx, my = self.pt['p']['mz']                                    # soldado dibujado a mano: las balas salen de la boca del arma
+            dx, dy = tx - mx, ty - my
+            right = face > 0
+            th = math.atan2(dy, dx if right else -dx)
+            th = clamp(th, -math.radians(PT_AIM_MAX), math.radians(PT_AIM_DOWN))
+            return mx, my, (math.cos(th) if right else -math.cos(th)), math.sin(th)
         dx, dy = tx - px, ty - py
         right = face > 0
         th = math.atan2(dy, dx if right else -dx)
-        th = clamp(th, -math.radians(80), math.radians(80))
+        lim = PT_AIM_MAX if kind == 'player' else 80
+        th = clamp(th, -math.radians(lim), math.radians(PT_AIM_DOWN if kind == 'player' else 80))
         dirx, diry = (math.cos(th) if right else -math.cos(th)), math.sin(th)
         ln = self.PT_MUZ.get(kind, 74)
         return px + dirx * ln, py + diry * ln, dirx, diry
@@ -942,9 +954,19 @@ class PortMixin:
         if (kind == 'player' and self.pt.get('pfem')) or fem:
             if kind + '_f' in art['body']:
                 kind = kind + '_f'
+        baked = art.get('baked', {}).get(kind)
+        if baked:                                            # soldado dibujado a mano: cuadros con el arma incluida
+            gun_ang = 0.0
+            if arm in ('wind', 'rel'):
+                pose = arm
+            elif aim is not None and pose in ('run', 'idle', 'crouch', 'jump', 'fall'):
+                th_ = math.degrees(math.atan2(aim[1], aim[0] if face > 0 else -aim[0]))
+                th_ = clamp(th_, -PT_AIM_MAX, PT_AIM_DOWN)
+                gun_ang = round(th_ * (0.66 if th_ > 0 else 0.86) / 2) * 2.0        # hacia abajo el torso se inclina menos (se encorva)         # el torso (con los brazos y el arma) gira hacia donde apunta el mouse
         frames = art['body'][kind][pose]
         fi %= len(frames)
         spr, shx, shy = frames[fi]
+        ax_, ay_ = baked['anchor'] if baked else (PT_AX, PT_AY)
         if shadow:
             fl_ = self.pt_floor(sx + self.pt['cam'], fy)
             if fl_ - fy < 200:
@@ -954,13 +976,16 @@ class PortMixin:
                     sh_ = pygame.transform.smoothscale(sh_, (int(56 * k_), int(14 * k_)))
                 cv.blit(sh_, (sx - sh_.get_width() // 2, fl_ - 8 * sh_.get_height() // 14))
         right = face > 0
-        key = (kind, pose, fi, right)
+        key = (kind, pose, fi, right, gun_ang if baked else 0.0)
         img = self.pt_cache.get(key)
         if img is None:
+            if baked and gun_ang:
+                spr = self.pt_tilt(spr, baked, pose, gun_ang)
             img = spr if right else pygame.transform.flip(spr, True, False)
-            img = img.copy()
-            img.fill((12, 12, 14, 0), special_flags=pygame.BLEND_RGB_ADD)             # levanta un poco las sombras para que se lean sobre el fondo oscuro
-            img = rim_light(img, a_top=130, a_front=90)
+            if not baked:
+                img = img.copy()
+                img.fill((12, 12, 14, 0), special_flags=pygame.BLEND_RGB_ADD)         # levanta un poco las sombras para que se lean sobre el fondo oscuro
+                img = rim_light(img, a_top=130, a_front=90)
             self.pt_cache[key] = img
         if hit > 0 or alpha < 255:
             img = img.copy()
@@ -983,16 +1008,37 @@ class PortMixin:
                 sc = pygame.transform.smoothscale(img, (max(1, int(img.get_width() * sxs)), max(1, int(img.get_height() * sys_))))
                 if hit <= 0 and alpha >= 255:
                     self.pt_cache[qk] = sc
-            cv.blit(sc, (sx - PT_AX * sxs, fy - PT_AY * sys_))
+            cv.blit(sc, (sx - ax_ * sxs, fy - ay_ * sys_))
         else:
-            cv.blit(img, (sx - PT_AX, fy - PT_AY))
+            cv.blit(img, (sx - ax_, fy - ay_))
+        if baked:
+            mzl = baked['mz'].get(pose)
+            if not mzl or pose in ('die', 'wind', 'rel'):
+                return None
+            mxr, myr = mzl[fi % len(mzl)]
+            if gun_ang:
+                hx_, hy_ = 0.0, -HIP_UP
+                c_, s_ = math.cos(math.radians(gun_ang)), math.sin(math.radians(gun_ang))
+                dxm, dym = mxr - hx_, myr - hy_
+                mxr, myr = hx_ + dxm * c_ - dym * s_, hy_ + dxm * s_ + dym * c_
+            ln = self.PT_MUZ.get(base, 74)
+            tha = math.radians(gun_ang)
+            mx = sx + (mxr if right else -mxr) * sxs
+            my = fy + myr * sys_
+            px = mx - (math.cos(tha) if right else -math.cos(tha)) * ln
+            py = my - math.sin(tha) * ln
+            if base == 'player':
+                self.pt['p']['mz'] = (mx + self.pt['cam'], my)            # boca real del arma (para que las balas salgan de ahí)
+            if flash:
+                self.pt_flash(cv, mx, my, -gun_ang if right else gun_ang, right)
+            return px, py
         if not arm or arm not in art['arm'][kind] or pose == 'die':
             return None
         layer = art['arm'][kind][arm]
         if aim is not None and arm in ('gun', 'knife'):
             dx, dy = aim
             rot = -math.degrees(math.atan2(dy, dx)) if right else math.degrees(math.atan2(dy, -dx))
-            rot = clamp(rot, -80, 80)
+            rot = clamp(rot, -PT_AIM_MAX, PT_AIM_MAX) if base == 'player' else clamp(rot, -80, 80)
         else:
             rot = 0.0
         rk = (kind, arm, right, int(rot / 3))
@@ -1019,6 +1065,45 @@ class PortMixin:
             my = py + math.sin(th) * ln
             self.pt_flash(cv, mx, my, -rot if right else rot, right)
         return px, py
+
+    def pt_tilt(self, spr, baked, pose, ang):
+        """Inclina el torso del soldado dibujado a mano (con brazos y arma) 'ang' grados hacia abajo, girando sobre la cadera; las piernas quedan fijas."""
+        ax, ay = baked['anchor']
+        hip = ay - HIP_UP
+        if pose == 'crouch':
+            hip = ay - HIP_UP * 0.62
+        w, h = spr.get_size()
+        up = pygame.Surface((w, h), pygame.SRCALPHA)
+        up.blit(spr, (0, 0), (0, 0, w, int(hip)))
+        rot = pygame.transform.rotate(up, -ang)
+        cx, cy = w / 2, h / 2
+        px, py = ax, hip
+        c_, s_ = math.cos(math.radians(-ang)), math.sin(math.radians(-ang))
+        dx, dy = px - cx, py - cy
+        nx, ny = cx + dx * c_ + dy * s_, cy - dx * s_ + dy * c_
+        out = pygame.Surface((w, h), pygame.SRCALPHA)
+        out.blit(spr, (0, int(hip)), (0, int(hip), w, h - int(hip)))
+        h0 = int(hip)                                        # relleno de la cintura: se estiran hacia arriba los píxeles de la pelvis (sin brazos ni arma)
+        n_up = 4 + int(abs(ang) * 0.2)
+        sm, cnt = [0, 0, 0], 0                                # color promedio del uniforme (solo píxeles verdes de la zona de la cintura)
+        for xx in range(int(ax) - 8, int(ax) + 9):
+            for yy in range(h0 - 12, h0 + 3):
+                if 0 <= xx < w and 0 <= yy < h:
+                    c = spr.get_at((xx, yy))
+                    if c.a > 200 and c.g >= c.r and c.g >= c.b and c.g > 45 and (c.r + c.g + c.b) > 150:
+                        sm[0] += c.r; sm[1] += c.g; sm[2] += c.b; cnt += 1
+        fill = (sm[0] // cnt, sm[1] // cnt, sm[2] // cnt, 255) if cnt else (62, 80, 52, 255)
+        for xx in range(int(ax) - 7, int(ax) + 8):                # cada columna toma el color verde de la tela justo bajo el corte (así conserva el camuflaje, sin bloques planos)
+            cs = []
+            for yy in range(h0 - 4, h0 + 8):
+                if 0 <= xx < w and 0 <= yy < h:
+                    c = spr.get_at((xx, yy))
+                    if c.a > 200 and c.g >= c.r and c.g >= c.b and c.g > 45 and (c.r + c.g + c.b) > 150:
+                        cs.append(c)
+            colx = (sum(c.r for c in cs) // len(cs), sum(c.g for c in cs) // len(cs), sum(c.b for c in cs) // len(cs), 255) if cs else fill
+            pygame.draw.line(out, colx, (xx, h0 - n_up), (xx, h0), 1)
+        out.blit(rot, (int(round(px - (rot.get_width() / 2 + (nx - cx)))), int(round(py - (rot.get_height() / 2 + (ny - cy))))))
+        return out
 
     def pt_flash(self, cv, x, y, ang, right):
         a = math.radians(ang)

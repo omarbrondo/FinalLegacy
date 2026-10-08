@@ -483,6 +483,35 @@ def _arm_layer(kind, mode):
     return rig.finish()
 
 
+POSE_MAP = {'run': 'correr', 'idle': 'reposo', 'crouch': 'agachado', 'jump': 'salto', 'fall': 'caida', 'die': 'muerte',
+            'wind': 'granada_preparar', 'rel': 'granada_lanzar', 'up': 'arriba', 'down': 'abajo'}
+BAKED_FILES = {'player': 'soldado', 'player_f': 'soldada'}
+
+
+def load_baked_soldier(art, kind):
+    """Soldado dibujado a mano (soldados/<nombre>.png + .json): cuadros ya con el arma incluida. Si falta, se usa el dibujo por código."""
+    import json
+    import os
+    base = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'soldados', BAKED_FILES[kind])
+    try:
+        meta = json.load(open(base + '.json'))
+        atlas = pygame.image.load(base + '.png').convert_alpha()
+    except (OSError, ValueError, pygame.error):
+        return
+    cw, ch, ax, ay = meta['_canvas']
+    frames, mz = {}, {}
+    for pose, key in POSE_MAP.items():
+        m = meta.get(key)
+        if not m:
+            continue
+        frames[pose] = [(atlas.subsurface(pygame.Rect(i * cw, m['row'] * ch, cw, ch)).copy(), 0, 0) for i in range(m['n'])]
+        mz[pose] = m['muzzle']
+    if not all(p in frames for p in ('run', 'idle', 'crouch', 'jump', 'fall', 'die')):
+        return
+    art['body'][kind] = frames
+    art.setdefault('baked', {})[kind] = dict(mz=mz, anchor=(ax, ay))
+
+
 def build_pt_art():
     """Pre-renderiza todos los cuadros de los soldados (lado derecho; el izquierdo se espeja)."""
     art = {'body': {}, 'arm': {}, 'rot': {}}
@@ -503,6 +532,8 @@ def build_pt_art():
             art['arm'][kind]['rel'] = _arm_layer(kind, 'rel')
     for fk in ('player_f', 'rifle_f', 'knife_f', 'sniper_f'):
         art['arm'][fk] = art['arm'][fk[:-2]]
+    for kd in BAKED_FILES:
+        load_baked_soldier(art, kd)
     return art
 
 

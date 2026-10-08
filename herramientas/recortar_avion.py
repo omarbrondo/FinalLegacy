@@ -13,7 +13,9 @@ lum=a.mean(axis=2)
 tol=int(sys.argv[3]) if len(sys.argv)>3 else 6
 red=int(sys.argv[5]) if len(sys.argv)>5 else 0
 neutral=(np.abs(a[:,:,1]-a[:,:,2])<=tol)&((a[:,:,0]-a[:,:,1])<=max(tol,red))&((a[:,:,1]-a[:,:,0])<=tol)
-edge=np.concatenate([lum[:30].ravel(),lum[-30:].ravel(),lum[:,:30].ravel(),lum[:,-30:].ravel()])
+import os
+ST=int(os.environ.get('FRANJA_BORDE','30'))                                # ancho (px) de la franja de borde donde se mide el color del tablero
+edge=np.concatenate([lum[:ST].ravel(),lum[-ST:].ravel(),lum[:,:ST].ravel(),lum[:,-ST:].ravel()])
 lo,hi=np.percentile(edge,1)-8,np.percentile(edge,99)+8                    # rango de grises del tablero (oscuro o claro), medido en los bordes
 passable=neutral&(lum>=lo)&(lum<=hi)
 leak=int(sys.argv[7]) if len(sys.argv) > 7 else 0                       # si el fondo se 'cuela' por un hueco del contorno, se separa erosionando antes de etiquetar
