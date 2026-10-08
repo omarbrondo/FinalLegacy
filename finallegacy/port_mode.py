@@ -842,6 +842,13 @@ class PortMixin:
         """Boca del arma: parte del hombro (pivote del brazo dibujado) y sigue la inclinación real del arma (±80°).
         Devuelve (x, y, dirx, diry) en coordenadas de mundo."""
         px, py = pv
+        if kind == 'player' and self.pt['p'].get('mz') and self.pt_art.get('baked', {}).get('player' if not self.pt.get('pfem') else 'player_f'):
+            mx, my = self.pt['p']['mz']                                    # soldado dibujado a mano: las balas salen de la boca del arma
+            dx, dy = tx - mx, ty - my
+            right = face > 0
+            th = math.atan2(dy, dx if right else -dx)
+            th = clamp(th, -math.radians(80), math.radians(80))
+            return mx, my, (math.cos(th) if right else -math.cos(th)), math.sin(th)
         dx, dy = tx - px, ty - py
         right = face > 0
         th = math.atan2(dy, dx if right else -dx)
@@ -1016,6 +1023,8 @@ class PortMixin:
             my = fy + myr * sys_
             px = mx - (math.cos(tha) if right else -math.cos(tha)) * ln
             py = my - math.sin(tha) * ln
+            if base == 'player':
+                self.pt['p']['mz'] = (mx + self.pt['cam'], my)            # boca real del arma (para que las balas salgan de ahí)
             if flash:
                 self.pt_flash(cv, mx, my, -gun_ang if right else gun_ang, right)
             return px, py
@@ -1069,7 +1078,8 @@ class PortMixin:
         dx, dy = px - cx, py - cy
         nx, ny = cx + dx * c_ + dy * s_, cy - dx * s_ + dy * c_
         out = pygame.Surface((w, h), pygame.SRCALPHA)
-        out.blit(spr, (0, int(hip)), (0, int(hip), w, h - int(hip)))
+        ov = 16                                              # la pelvis queda debajo del torso que gira: rellena el hueco de la cintura
+        out.blit(spr, (0, int(hip) - ov), (0, int(hip) - ov, w, h - int(hip) + ov))
         out.blit(rot, (int(round(px - (rot.get_width() / 2 + (nx - cx)))), int(round(py - (rot.get_height() / 2 + (ny - cy))))))
         return out
 
