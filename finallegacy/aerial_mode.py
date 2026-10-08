@@ -9,6 +9,9 @@ from .sprites import make_shadow
 from .comms import AIR_LINES
 
 
+from .air_art import load_png_sprite
+
+
 class AerialMixin:
     # ---------------------------------------------------------- BATALLA AÉREA (estilo Twinbee)
     AIR_SCROLL = 80.0
@@ -511,6 +514,12 @@ class AerialMixin:
         for f in a['foes']:
             if f['kind'] == 'mine':
                 mx_, my_ = int(f['x']), int(f['y'])
+                if 'mine' not in A:
+                    A['mine'] = load_png_sprite('mina', width=54, flip=False) or False
+                if A['mine']:
+                    ms = pygame.transform.rotate(A['mine'], -t * 28)
+                    cv.blit(ms, (mx_ - ms.get_width() // 2, my_ - ms.get_height() // 2))
+                    continue
                 for ang_ in range(8):
                     a2 = ang_ * 0.785 + t * 0.5
                     pygame.draw.line(cv, (24, 26, 30), (mx_, my_), (mx_ + math.cos(a2) * 24, my_ + math.sin(a2) * 24), 4)
@@ -519,12 +528,14 @@ class AerialMixin:
                 pygame.draw.circle(cv, (255, 70, 60) if int(t * 4 + f['x']) % 2 == 0 else (110, 30, 30), (mx_, my_), 5)
                 continue
             if f['kind'] == 'kami' and 'kami' not in A:
-                kv = A['viper'].copy()
-                kv.fill((255, 90, 70, 0), special_flags=pygame.BLEND_RGB_ADD)
+                kv = load_png_sprite('avion_kamikaze', width=48)
+                if kv is None:
+                    kv = A['viper'].copy()
+                    kv.fill((255, 90, 70, 0), special_flags=pygame.BLEND_RGB_ADD)
                 A['kami'] = kv
             if f['kind'] == 'gunship' and 'gunship' not in A:
                 gb_ = A['bomber']
-                A['gunship'] = pygame.transform.smoothscale(gb_, (int(gb_.get_width() * 0.62), int(gb_.get_height() * 0.62)))
+                A['gunship'] = load_png_sprite('avion_artillera_pequena', width=110) or pygame.transform.smoothscale(gb_, (int(gb_.get_width() * 0.62), int(gb_.get_height() * 0.62)))
             spr = A[{'viper': 'viper', 'stealth': 'stealth', 'bomber': 'bomber', 'kami': 'kami', 'gunship': 'gunship'}[f['kind']]]
             if f['kind'] == 'kami':
                 spr = pygame.transform.rotate(spr, -(f['a'] - 180))

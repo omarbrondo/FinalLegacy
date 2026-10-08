@@ -508,8 +508,24 @@ def _titan():
     return c.done([], 5)
 
 
+def _pod_from_png():
+    """Torreta de aviones/torreta_titan.png (cañones hacia arriba): lienzo cuadrado con el eje de giro en el centro."""
+    spr = load_png_sprite('torreta_titan', width=67, flip=False)
+    if spr is None:
+        return None
+    w, h = spr.get_size()
+    px, py = w / 2, h * 0.647                           # centro de la corona dentada
+    r = int(max(py, h - py, px)) + 2
+    out = pygame.Surface((2 * r, 2 * r), pygame.SRCALPHA)
+    out.blit(spr, (r - px, r - py))
+    return out
+
+
 def make_pod_turret():
     """Torreta doble del Titán Aéreo, con los cañones hacia arriba (se rota hacia el jugador al dibujarla)."""
+    png = _pod_from_png()
+    if png is not None:
+        return png
     S = 3
     W = H = 100
     s = pygame.Surface((W * S, H * S), pygame.SRCALPHA)
