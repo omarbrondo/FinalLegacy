@@ -1093,7 +1093,15 @@ class PortMixin:
                     if c.a > 200 and c.g >= c.r and c.g >= c.b and c.g > 45 and (c.r + c.g + c.b) > 150:
                         sm[0] += c.r; sm[1] += c.g; sm[2] += c.b; cnt += 1
         fill = (sm[0] // cnt, sm[1] // cnt, sm[2] // cnt, 255) if cnt else (62, 80, 52, 255)
-        pygame.draw.rect(out, fill, (int(ax) - 7, h0 - n_up, 15, n_up + 1))
+        for xx in range(int(ax) - 7, int(ax) + 8):                # cada columna toma el color verde de la tela justo bajo el corte (así conserva el camuflaje, sin bloques planos)
+            cs = []
+            for yy in range(h0 - 4, h0 + 8):
+                if 0 <= xx < w and 0 <= yy < h:
+                    c = spr.get_at((xx, yy))
+                    if c.a > 200 and c.g >= c.r and c.g >= c.b and c.g > 45 and (c.r + c.g + c.b) > 150:
+                        cs.append(c)
+            colx = (sum(c.r for c in cs) // len(cs), sum(c.g for c in cs) // len(cs), sum(c.b for c in cs) // len(cs), 255) if cs else fill
+            pygame.draw.line(out, colx, (xx, h0 - n_up), (xx, h0), 1)
         out.blit(rot, (int(round(px - (rot.get_width() / 2 + (nx - cx)))), int(round(py - (rot.get_height() / 2 + (ny - cy))))))
         return out
 
