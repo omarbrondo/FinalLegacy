@@ -126,6 +126,7 @@ pip install pyinstaller
 python -m PyInstaller --noconsole --onedir --name RetroLegacy --collect-all imageio_ffmpeg --add-data "videos;videos" --add-data "fonts;fonts" --add-data "portraits;portraits" --add-data "icono;icono" --icon icono/retro_legacy.ico retro_legacy.py
 ```
 
+- **Atajo**: ejecutá `compilar.bat` (doble clic o desde la consola): instala PyInstaller, limpia `build/` y `dist/`, compila con todas las opciones (incluido el ícono) y refresca la caché de íconos de Windows.
 - Se llama con `python -m PyInstaller` (y no `pyinstaller` a secas) porque `pip` instala el programa en una carpeta de usuario que muchas veces no está en el PATH ("command not found"); así funciona igual.
 - En una consola MSYS2/Git Bash, que traduce los argumentos con `;` como si fueran rutas de Linux, anteponé `MSYS2_ARG_CONV_EXCL="*"` al comando, o ejecutalo desde PowerShell o el CMD de Windows.
 
