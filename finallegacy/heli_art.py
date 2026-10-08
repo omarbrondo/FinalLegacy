@@ -3,12 +3,14 @@ y reducidos con suavizado (solo pygame, sin numpy)."""
 import math
 import random
 import pygame
+from .sprites import png_top
 
+_ROTOR_CACHE = {}
 BH_W, BH_H = 130, 152
 BH_HUB = (65, 76)                 # centro del rotor dentro del sprite
 BH_ROTOR_R = 61.0                 # radio del rotor principal (px del sprite)
 BH_TAIL = (65, 76 + 76)           # extremo de la cola
-BH_TAIL_ROTOR = (65, 76 + 70)     # centro del rotor de cola
+BH_TAIL_ROTOR = (65, 76 + 63)     # centro del rotor de cola
 
 
 def _lerp(a, b, k):
@@ -111,6 +113,9 @@ def _mirror(pts):
 # ------------------------------------------------------------------ Blackhawk
 def make_blackhawk():
     """UH-60 Blackhawk visto desde arriba, mirando al norte, con el centro del rotor en el centro del sprite (el rotor se dibuja aparte)."""
+    art = png_top('bh_fuselaje')
+    if art is not None:
+        return art
     a = _Art(BH_W, BH_H, 4, 0, 30)
     dark, mid, edge = (22, 26, 24), (44, 50, 46), (8, 10, 9)
     # ruedas del tren principal y de cola
@@ -171,6 +176,19 @@ def make_blackhawk():
 
 def blackhawk_rotor_overlay(scale, rot, tail_rot):
     """Superficie con el disco de los rotores (aspas giratorias con estela difusa). Devuelve (superficie, centro_principal, centro_cola)."""
+    R = BH_ROTOR_R * scale
+    art = png_top('bh_rotor')
+    if art is not None:                                   # aspas dibujadas: se giran 'rot' radianes y se escalan al disco del rotor
+        sz = int(2 * BH_ROTOR_R * scale) + 8
+        base = _ROTOR_CACHE.get(sz)
+        if base is None:
+            base = _ROTOR_CACHE[sz] = pygame.transform.smoothscale(art, (sz, sz))
+        deg = -math.degrees(rot) % 90.0                   # 4 aspas: cada 90° se repite
+        r_ = pygame.transform.rotate(base, deg)
+        s_ = pygame.Surface((sz, sz), pygame.SRCALPHA)
+        pygame.draw.circle(s_, (205, 210, 205, 22), (sz // 2, sz // 2), sz // 2 - 4)          # disco difuso del giro
+        s_.blit(r_, (sz // 2 - r_.get_width() // 2, sz // 2 - r_.get_height() // 2))
+        return s_, (sz / 2, sz / 2)
     R = BH_ROTOR_R * scale
     pad = 4
     size = int(2 * R) + 2 * pad
@@ -380,4 +398,39 @@ def make_heli_targets():
         if top is not None:
             full.blit(top, (0, 0))
         out[k] = dict(base=base, top=top, wreck=_wreck(full, base.get_size(), seed))
+    _targets_from_art(out)
     return out
+
+
+_TOP_PIVOT = {'aa': 0.78, 'bunker': 0.72, 'sam': 0.86, 'radar': 0.66}      # altura del eje de giro dentro de la parte que gira (0 = arriba)
+
+
+def _targets_from_art(out):
+    """Cambia el dibujo por código de cada objetivo por el arte de soldados/heli_<tipo>_<parte>.png, ajustado al tamaño y al eje de giro de las originales
+    (la parte que gira se rota sobre el centro del lienzo)."""
+    for k, v in out.items():
+        base0 = v['base']
+        cw, ch = base0.get_size()
+        ab = png_top('heli_%s_base' % k)
+        if ab is None:
+            continue
+        rb = base0.get_bounding_rect()
+        kb = min(rb.w / ab.get_width(), rb.h / ab.get_height())
+        def fit(img, k_, cx, cy):
+            sp = pygame.transform.smoothscale(img, (max(1, round(img.get_width() * k_)), max(1, round(img.get_height() * k_))))
+            c = pygame.Surface((cw, ch), pygame.SRCALPHA)
+            c.blit(sp, (round(cx - sp.get_width() / 2), round(cy - sp.get_height() / 2)))
+            return c
+        v['base'] = fit(ab, kb, rb.centerx, rb.centery)
+        aw = png_top('heli_%s_wreck' % k)
+        if aw is not None:
+            rw = v['wreck'].get_bounding_rect()
+            v['wreck'] = fit(aw, min(rw.w / aw.get_width(), rw.h / aw.get_height()), rw.centerx, rw.centery)
+        at = png_top('heli_%s_top' % k)
+        if at is not None and v['top'] is not None:
+            rt = v['top'].get_bounding_rect()
+            kt = min(rt.w / at.get_width(), rt.h / at.get_height())
+            sp = pygame.transform.smoothscale(at, (max(1, round(at.get_width() * kt)), max(1, round(at.get_height() * kt))))
+            c = pygame.Surface((cw, ch), pygame.SRCALPHA)
+            c.blit(sp, (round(cw / 2 - sp.get_width() / 2), round(ch / 2 - sp.get_height() * _TOP_PIVOT.get(k, 0.7))))
+            v['top'] = c
