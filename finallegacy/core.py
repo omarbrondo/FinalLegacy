@@ -20,6 +20,7 @@ from .sprites import (
 from .car_art import make_bike_sprites, make_car_sprites
 from .tk_art import make_tank_sprites, make_tk_textures
 from .boss_art import BOSS_TYPES, make_boss_sprite
+from .air_art import polish
 
 
 class CoreMixin:
@@ -172,11 +173,11 @@ class CoreMixin:
         gb = pygame.Surface((80, 80), pygame.SRCALPHA)
         draw_cover(gb, dict(x=40, y=40, r=24, kind='sandbag', seed=3))
         self.air = dict(
-            f16=make_f16((170, 182, 196), (108, 120, 138), (60, 100, 200), 0.9),
-            viper=flip(make_f16((172, 100, 90), (112, 58, 54), (30, 30, 30), 0.72)),
-            stealth=flip(make_f117((220, 70, 56), 0.62)),
-            bomber=flip(make_f117((255, 150, 40), 1.7)),
-            boss=flip(make_f117((255, 90, 60), 3.0)),
+            f16=polish(make_f16((170, 182, 196), (108, 120, 138), (60, 100, 200), 0.9)),
+            viper=polish(flip(make_f16((172, 100, 90), (112, 58, 54), (30, 30, 30), 0.72))),
+            stealth=polish(flip(make_f117((220, 70, 56), 0.62))),
+            bomber=polish(flip(make_f117((255, 150, 40), 1.7))),
+            boss=polish(flip(make_f117((255, 90, 60), 3.0))),
             shadows={}, isl=isl, isl_r=isl_r, gbase=gb.convert_alpha(),
             clouds=[make_cloud(s_) for s_ in (1, 2, 3, 4)])
         self.antenna_gfx = self.make_antenna()

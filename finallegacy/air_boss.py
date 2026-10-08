@@ -3,7 +3,7 @@ import math
 import pygame
 import random
 from .common import H, W, angle_diff, bearing, clamp, dist, draw_circ, glow, vec
-from .air_art import make_air_boss
+from .air_art import ENG, make_air_boss, make_pod_turret
 
 # nombre, aviso, multiplicador de vida, radio de impacto
 AIR_BOSSES = [
@@ -255,21 +255,28 @@ class AirBossMixin:
         if b['k'] == 0:
             for sx in (-1, 1):
                 glow(cv, b['x'] + sx * 36, b['y'] - 54, 28 + 4 * math.sin(t * 20), (255, 120, 60), 0.8)
-        elif b['k'] == 1:
-            for x in (54, 104, 196, 246):
-                glow(cv, b['x'] - 150 + x, b['y'] - 70, 24 + 3 * math.sin(t * 22), (255, 170, 80), 0.7)
-        elif b['k'] == 4:
-            for sd in (-1, 1):
-                glow(cv, b['x'] + sd * 118, b['y'] - 50, 26 + 5 * math.sin(t * 14), (100, 230, 255), 0.9)
+        elif b['k'] in ENG:
+            hot = {1: (255, 170, 90), 2: (255, 150, 70), 3: (255, 170, 90), 4: (255, 160, 70)}.get(b['k'], (255, 160, 80))
+            rr = {1: 15, 2: 12, 3: 11, 4: 17}.get(b['k'], 14)
+            for ex, ey in ENG[b['k']]:
+                glow(cv, b['x'] + ex, b['y'] + ey, rr + 2 * math.sin(t * 22 + ex), hot, 0.6)
         if b['k'] == 5:
+            if self.air.get('pod') is None:
+                self.air['pod'] = make_pod_turret()
             for pod in b['pods']:
-                if pod['hp'] <= 0:
-                    continue
                 px, py = b['x'] + pod['ox'], b['y'] + pod['oy']
-                pygame.draw.circle(cv, (20, 14, 18), (int(px), int(py)), 40)
-                pygame.draw.circle(cv, (200, 60, 70) if pod['hit'] <= 0 else (255, 255, 255), (int(px), int(py)), 34)
-                pygame.draw.circle(cv, (255, 150, 90), (int(px), int(py)), 16)
-                pygame.draw.circle(cv, (255, 240, 220), (int(px), int(py)), 6)
+                if pod['hp'] <= 0:                                           # torreta destruida: cráter humeante
+                    pygame.draw.circle(cv, (14, 12, 12), (int(px), int(py)), 24)
+                    pygame.draw.circle(cv, (44, 30, 26), (int(px), int(py)), 17)
+                    glow(cv, px, py, 22 + 4 * math.sin(t * 9 + px), (255, 110, 50), 0.35)
+                    continue
+                pl = a['p']
+                ang = -math.degrees(math.atan2(pl['x'] - px, -(pl['y'] - py))) if not pl.get('dead') else 0.0
+                img = pygame.transform.rotate(self.air['pod'], ang)
+                if pod['hit'] > 0:
+                    img = img.copy()
+                    img.fill((120, 120, 120, 0), special_flags=pygame.BLEND_RGB_ADD)
+                cv.blit(img, (px - img.get_width() // 2, py - img.get_height() // 2))
                 pygame.draw.rect(cv, (8, 12, 24), (px - 34, py - 54, 68, 6))
                 pygame.draw.rect(cv, (240, 80, 70), (px - 33, py - 53, int(66 * pod['hp'] / pod['max']), 4))
             if self.air_boss_invulnerable(b):
