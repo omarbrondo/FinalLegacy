@@ -100,7 +100,7 @@ class HeliMixin:
         isl.sort(key=lambda c: dist(c['x'], c['y'], *ref))
         ships = sorted([dict(kind='ship', tg=en, x=en['x'], y=en['y'], name='Buque enemigo') for en in self.enemies if not en.get('is_boss')],
                        key=lambda c: dist(c['x'], c['y'], *ref))
-        nests = sorted([dict(kind='nest', tg=n, x=n['x'], y=n['y'], name='Batería costera') for n in self.nests if n['alive']],
+        nests = sorted([dict(kind='nest', tg=n, x=n['x'], y=n['y'], name='Batería costera') for n in self.nests if n['alive'] and not n.get('ally')],
                        key=lambda c: dist(c['x'], c['y'], *ref))
         return (isl[:2] + ships[:1] + nests[:1] + isl[2:] + ships[1:] + nests[1:])[:4]
 

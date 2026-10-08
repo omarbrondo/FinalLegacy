@@ -2,10 +2,11 @@
 import math
 import pygame
 import random
-from .radio_mode import LAND_RADARS, PORT_RADARS
+from .radio_mode import LAND_RADARS, PORT_RADARS, RADAR_IDX
+from .war import DECOR0
 from .wave_world import ROLE_TXT
 from .common import (
-    ANTENNA_ISLANDS, BOSS_NAMES, ENEMY_PORT,
+    ANTENNA_ISLANDS, BOSS_NAMES, DECOR_ISLANDS, ENEMY_PORT,
     EXTRA_ISLANDS, H, HELIPAD, MAX_LANDING_ATTEMPTS, SHIELD_DPS_CORE, SHIELD_DPS_EDGE, SHIELD_R,
     SKY_W, VMAX, W, WIN_WAVE,
     WORLD_H, WORLD_W, angle_diff, bearing,
@@ -34,12 +35,53 @@ class MapMixin:
                 return [x, y]
         return [WORLD_W / 2, WORLD_H / 2]
 
-    def spawn_nests(self):
-        """Baterías costeras enemigas sobre algunos islotes pequeños (se renuevan cada oleada)."""
+    def nest_sites(self):
+        """Islotes decorativos libres (sin batería ni ruinas) y lejos del jugador: (índice, x, y, r, semilla)."""
+        used = {n.get('isl') for n in getattr(self, 'nests', ())}
+        out = []
+        for k in range(len(DECOR_ISLANDS)):
+            if DECOR_ISLANDS[k] == HELIPAD or k in RADAR_IDX or (DECOR0 + k) in used:
+                continue
+            x, y, r, sd = self.islands[DECOR0 + k]
+            if dist(x, y, self.sx, self.sy) > 800:
+                out.append((DECOR0 + k, x, y, r, sd))
+        return out
+
+    def new_nest(self, site, ally):
+        isl, x, y, r, sd = site
         hp = 14 + 4 * self.wave
-        cand = [i for i in self.decor_now() if dist(i[0], i[1], self.sx, self.sy) > 800]
-        self.nests = [dict(x=x, y=y, r=r, hp=float(hp), max=float(hp), cool=0.0, ang=180.0, nest=True, alive=True, seen=False)
-                      for (x, y, r, _s) in random.sample(cand, min(len(cand), 10 + self.wprof()['nests']))]
+        return dict(x=x, y=y, r=r, s=sd, isl=isl, hp=float(hp), max=float(hp), cool=0.0, ang=180.0, nest=True, alive=True, seen=ally, ally=ally, atk=None, vet=0)
+
+    def spawn_nests(self):
+        """Baterías costeras al empezar la partida: algunas enemigas y otras aliadas. Ya no se regeneran: las destruidas dejan ruinas."""
+        self.nests = []
+        sites = self.nest_sites()
+        random.shuffle(sites)
+        k_en, k_al = 4, 3
+        for i, site in enumerate(sites[:k_en + k_al]):
+            self.nests.append(self.new_nest(site, i >= k_en))
+        self.bat_atk_t = 70.0
+
+    def add_nests(self, k):
+        """Baterías enemigas nuevas en islotes libres (nunca sobre ruinas)."""
+        sites = self.nest_sites()
+        random.shuffle(sites)
+        for site in sites[:k]:
+            self.nests.append(self.new_nest(site, False))
+
+    def nests_new_wave(self):
+        """Al pasar de oleada: las baterías enemigas vivas se refuerzan, las aliadas se reparan y llegan algunas enemigas nuevas."""
+        hp = 14 + 4 * self.wave
+        for n in self.nests:
+            if not n['alive']:
+                continue
+            if n.get('ally'):
+                n['hp'] = n['max'] = max(n['max'], float(hp))
+            else:
+                n['max'] = float(max(n['max'], hp))
+                n['hp'] = n['max']
+        self.add_nests(1 + self.wprof()['nests'] // 3)
+        self.bat_atk_t = min(getattr(self, 'bat_atk_t', 70.0), 45.0)
 
     def spawn_wave(self):
         n = min(3 + self.wave, 9) + self.wprof()['enemies']
@@ -235,6 +277,9 @@ class MapMixin:
         for nst in self.nests:
             if not nst['alive']:
                 continue
+            if nst.get('ally'):
+                self.ally_nest_tick(nst, dt)
+                continue
             nst['cool'] = max(0.0, nst['cool'] - dt)
             d = dist(self.sx, self.sy, nst['x'], nst['y'])
             if d < 700:
@@ -248,6 +293,7 @@ class MapMixin:
                 if ship is not None:
                     return self.start_combat(ship, nst)
                 return self.start_combat(nst)
+        self.bat_tick(dt)
         # cajas
         self.crate_t -= dt
         if self.crate_t <= 0 and len(self.crates) < 5:
@@ -331,7 +377,7 @@ class MapMixin:
 
     def begin_rescue(self):
         """Náufragos: a veces bajo el alcance de una batería costera."""
-        live = [n for n in self.nests if n['alive']]
+        live = [n for n in self.nests if n['alive'] and not n.get('ally')]
         for _ in range(60):
             if live and random.random() < 0.6:
                 n = random.choice(live)
@@ -586,7 +632,7 @@ class MapMixin:
                 self.city_refill(c, 40)
         self.radars_reset()                           # los radares enemigos vuelven a operar
         self.war_advance()
-        self.spawn_nests()
+        self.nests_new_wave()
         self.convoy_t = min(self.convoy_t, 35.0)       # cada oleada nueva trae un convoy pronto
         self.port_tries = 0
         self.port_done = False
@@ -734,18 +780,23 @@ class MapMixin:
                           self.f_s, (255, 230, 140) if left > 0 else (200, 120, 110), sx, sy + ir * 0.95, 'c')
         self.fxm.draw(cv, cx, cy)
         for nst in self.nests:
-            if not nst['alive']:
-                continue
             nx_, ny_ = nst['x'] - cx, nst['y'] - cy
-            if -80 < nx_ < W + 80 and -80 < ny_ < H + 80:
-                pygame.draw.circle(cv, (150, 130, 96), (int(nx_), int(ny_)), 17)
-                pygame.draw.circle(cv, (90, 94, 100), (int(nx_), int(ny_)), 11)
-                ex_, ey_ = vec(nst['ang'], 18)
-                pygame.draw.line(cv, (60, 62, 68), (nx_, ny_), (nx_ + ex_, ny_ + ey_), 4)
-                if nst['seen'] or self.radar_t > 0:
-                    pul = 0.5 + 0.5 * math.sin(self.t * 4 + nst['x'])
-                    draw_circ(cv, nx_, ny_, 330, (255, 80, 70), 22 + 24 * pul, 2)
-                    self.text(cv, 'BATERÍA', self.f_s, (255, 150, 130), nx_, ny_ + 24, 'c')
+            if not (-120 < nx_ < W + 120 and -120 < ny_ < H + 120):
+                continue
+            if not nst['alive']:
+                self.draw_nest_ruin(cv, nst, nx_, ny_)
+                continue
+            if nst.get('ally'):
+                self.draw_ally_nest(cv, nst, nx_, ny_)
+                continue
+            pygame.draw.circle(cv, (150, 130, 96), (int(nx_), int(ny_)), 17)
+            pygame.draw.circle(cv, (90, 94, 100), (int(nx_), int(ny_)), 11)
+            ex_, ey_ = vec(nst['ang'], 18)
+            pygame.draw.line(cv, (60, 62, 68), (nx_, ny_), (nx_ + ex_, ny_ + ey_), 4)
+            if nst['seen'] or self.radar_t > 0:
+                pul = 0.5 + 0.5 * math.sin(self.t * 4 + nst['x'])
+                draw_circ(cv, nx_, ny_, 330, (255, 80, 70), 22 + 24 * pul, 2)
+                self.text(cv, 'BATERÍA', self.f_s, (255, 150, 130), nx_, ny_ + 24, 'c')
         for en in self.enemies:
             if en.get('sub'):
                 if dist(en['x'], en['y'], self.sx, self.sy) < 420 or self.radar_t > 0:
@@ -875,7 +926,12 @@ class MapMixin:
         pygame.draw.rect(cv, (130, 255, 190), (int(x0 + HELIPAD[0] * sc) - 3, int(y0 + HELIPAD[1] * sc) - 3, 6, 6), 1)
         pygame.draw.rect(cv, (140, 140, 150) if self.port_done else (255, 90, 70), (int(x0 + ENEMY_PORT[0] * sc) - 4, int(y0 + ENEMY_PORT[1] * sc) - 4, 8, 8), 2)
         for nst in self.nests:
-            if nst['alive'] and (nst['seen'] or self.radar_t > 0):
+            if not nst['alive']:
+                continue
+            if nst.get('ally'):
+                col = (255, 80, 70) if nst.get('atk') and int(self.t * 4) % 2 == 0 else (110, 255, 160)
+                pygame.draw.rect(cv, col, (int(x0 + nst['x'] * sc) - 3, int(y0 + nst['y'] * sc) - 3, 6, 6), 0 if nst.get('atk') else 1)
+            elif nst['seen'] or self.radar_t > 0:
                 pygame.draw.rect(cv, (255, 90, 70), (int(x0 + nst['x'] * sc) - 2, int(y0 + nst['y'] * sc) - 2, 5, 5))
         if self.attack is not None and self.attack['kind'] == 'antenna' and int(self.t * 4) % 2 == 0:
             ac = self.attack['city']

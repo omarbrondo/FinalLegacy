@@ -15,7 +15,7 @@ class NavalComboMixin:
         """Batería viva y lista cerca del jugador (para sumarla al combate contra un barco)."""
         best = None
         for n in self.nests:
-            if n['alive'] and n['cool'] <= 0:
+            if n['alive'] and not n.get('ally') and n['cool'] <= 0:
                 d = dist(self.sx, self.sy, n['x'], n['y'])
                 if d < COMBO_NEST_R and (best is None or d < best[0]):
                     best = (d, n)
