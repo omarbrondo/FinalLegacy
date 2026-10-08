@@ -126,6 +126,13 @@ class LandingOpsMixin:
         g = self.g
         lz = g['lz']
         lz['sup_cd'] = max(0.0, lz['sup_cd'] - dt)
+        if lz['intro'] <= 0 and lz['stage'] < 3 and g['phase'] == 'play':           # el capitán avisa cuándo hay apoyo naval y con qué tecla se pide
+            if not lz.get('sup_said'):
+                lz['sup_said'] = True
+                self.lz_say('BUQUE', 'Apoyo naval disponible: presioná T para pedir artillería sobre el punto apuntado (TAB cambia a cortina de humo).', (170, 220, 255))
+            elif lz.get('sup_prev', 0.0) > 0 and lz['sup_cd'] <= 0:
+                self.lz_say('BUQUE', 'Apoyo naval listo. Presioná T para pedir fuego (TAB: artillería o humo).', (170, 220, 255))
+        lz['sup_prev'] = lz['sup_cd']
         br = lz['barrage']
         if br is not None:
             br['t'] += dt

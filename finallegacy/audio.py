@@ -199,8 +199,11 @@ class Audio:
             'blip': S(tone(880, 880, 0.05, 'square', 0.2, 2), 0.6),
             'dock': S(tone(440, 700, 0.09, 'tri', 0.3, 3), 0.7),
             'empty': S(tone(120, 90, 0.12, 'square', 0.25, 4), 0.7),
-            'win': S(seq(*[tone(f, f, 0.14, 'square', 0.25, 2) for f in (523, 659, 784, 1047, 784, 1047, 1319)]), 0.9),
-            'lose': S(seq(*[tone(f, f * 0.9, 0.3, 'saw', 0.25, 1.5) for f in (392, 349, 311, 262)]), 0.9),
+            'win': S(seq(tone(392, 392, 0.10, 'tri', 0.22, 3.0), tone(587, 587, 0.34, 'sine', 0.24, 4.5)), 0.55),            # éxito: dos notas suaves y cortas (se oye muchas veces)
+            'fanfare': S(seq(tone(392, 392, 0.14, 'tri', 0.22, 2.5), tone(494, 494, 0.14, 'tri', 0.22, 2.5), tone(587, 587, 0.14, 'tri', 0.22, 2.5),
+                             mix(tone(784, 784, 0.7, 'sine', 0.22, 3.0), tone(392, 392, 0.7, 'sine', 0.16, 3.0))), 0.7),             # hito grande: oleada superada o victoria
+            'lose': S(mix(tone(98, 62, 1.5, 'tri', 0.34, 2.0), tone(147, 98, 1.3, 'sine', 0.22, 2.4),
+                          noise_burst(0.55, 0.24, 6.0, 0.28, 0.02)), 0.85),                                                      # fallo: grave y seco, como un golpe sordo
         }
         eng = [0.0] * SR
         nz = noise_burst(1.0, 0.25, 0.0, 0.05, 0.05)

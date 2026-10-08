@@ -297,18 +297,22 @@ class MapMixin:
             self.wave_clear()
 
     def next_strike_kind(self):
-        """Baraja de ataques: sale cada tipo con frecuencia pareja, nunca repite el anterior y hay un solo ataque aéreo por oleada."""
+        """Baraja de ataques: una carta de cada tipo (misiles, aéreo, tanques y desembarco) y recién se vuelve a barajar cuando se acaban,
+        así salen todos los tipos con la misma frecuencia y ninguno se repite seguido. Hay un solo ataque aéreo por oleada."""
         def ok(k):
             return k != self.strike_kind and not (k == 'aerial' and getattr(self, 'aerial_wave', 0) == self.wave)
         kind = None
         if self.strike_n <= 1:
-            kind = 'missile'
-        elif self.strike_n == 2 and self.wave == 1:      # el segundo ataque de la oleada 1 es aéreo, para conocerlo temprano
-            kind = 'aerial'
+            kind = 'missile'                                     # el primero siempre es de misiles (para aprender)
+        elif self.strike_n == 2 and getattr(self, 'aerial_wave', 0) != self.wave:
+            kind = 'aerial'                                      # el segundo es aéreo, para conocerlo temprano
+            if 'aerial' in self.strike_deck:
+                self.strike_deck.remove('aerial')
         else:
             if not any(ok(k) for k in self.strike_deck):
-                self.strike_deck = ['missile', 'aerial', 'tank', 'aerial', 'ground', 'missile']
-                random.shuffle(self.strike_deck)
+                nuevo = ['missile', 'aerial', 'tank', 'ground']
+                random.shuffle(nuevo)
+                self.strike_deck = nuevo
             for i, k in enumerate(self.strike_deck):
                 if ok(k):
                     kind = self.strike_deck.pop(i)
@@ -580,7 +584,7 @@ class MapMixin:
         self.convoy_t = min(self.convoy_t, 35.0)       # cada oleada nueva trae un convoy pronto
         self.port_tries = 0
         self.port_done = False
-        self.audio.play('win', .7)
+        self.audio.play('fanfare', .7)
         self.autosave(True)                           # autoguardado al terminar la oleada
         self.say('secretaria', 'Oleada superada. Bonificación de %d puntos; ciudades reparadas, +12 munición y +40 casco.' % bonus, 'ok', 'right', 640)
         self.start_upgrade()

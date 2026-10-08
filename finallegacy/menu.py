@@ -7,6 +7,7 @@ from .common import H, W, WIN_WAVE
 from .title_art import draw_logo, make_logo
 
 MAIN_ITEMS = ('NUEVO JUEGO', 'CARGAR PARTIDA', 'OPCIONES', 'SALIR')
+PAUSE_ITEMS = ('CONTINUAR', 'GUARDAR PARTIDA', 'CARGAR PARTIDA', 'OPCIONES', 'SALIR DEL JUEGO')
 OPT_ITEMS = ('MÚSICA', 'EFECTOS', 'PANTALLA COMPLETA', 'MODO CRT', 'INSTRUCCIONES', 'CHEATS', 'VOLVER')
 HELP_LINES = [
     ('MAPA', 'W/S acelerar y frenar | A/D girar | R en puerto reabastece | L desembarca | H hackea | F disparo antiaéreo'),
@@ -35,13 +36,15 @@ class MenuMixin:
 
     def menu_items(self):
         p = self.tm['page']
-        return MAIN_ITEMS if p == 'main' else (OPT_ITEMS if p == 'opts' else (('MODO INMORTAL', 'VOLVER') if p == 'cheats' else ('VOLVER',)))
+        return MAIN_ITEMS if p == 'main' else (PAUSE_ITEMS if p == 'pause' else (OPT_ITEMS if p == 'opts' else (('MODO INMORTAL', 'VOLVER') if p == 'cheats' else ('VOLVER',))))
 
     def menu_rects(self):
         p = self.tm['page']
         items = self.menu_items()
         if p == 'main':
             x0, w, y0, h, gap = W // 2 - 240, 480, 360, 60, 12
+        elif p == 'pause':
+            x0, w, y0, h, gap = W // 2 - 240, 480, 220, 62, 14
         elif p == 'opts':
             x0, w, y0, h, gap = W // 2 - 300, 600, 200, 58, 12
         elif p == 'cheats':
@@ -79,13 +82,17 @@ class MenuMixin:
             self.start_game()
         elif name == 'CARGAR PARTIDA':
             self.open_saves('load')
+        elif name == 'GUARDAR PARTIDA':
+            self.open_saves('save')
+        elif name == 'CONTINUAR':
+            self.pause_set(False)
         elif name == 'OPCIONES':
             self.menu_go('opts')
-        elif name == 'SALIR':
+        elif name in ('SALIR', 'SALIR DEL JUEGO'):
             pygame.quit()
             sys.exit()
         elif name == 'VOLVER':
-            self.menu_go('main' if tm['page'] == 'opts' else 'opts')
+            self.menu_go(('pause' if self.paused else 'main') if tm['page'] == 'opts' else 'opts')
         elif name == 'INSTRUCCIONES':
             self.menu_go('help')
         elif name == 'CHEATS':
@@ -110,13 +117,15 @@ class MenuMixin:
     def menu_back(self):
         p = self.tm['page']
         if p == 'opts':
-            self.menu_go('main')
+            self.menu_go('pause' if self.paused else 'main')
         elif p in ('help', 'cheats'):
             self.menu_go('opts')
+        elif p == 'pause':
+            self.pause_set(False)
 
     # ------------------------------------------------------------------ eventos (devuelve True si los consume)
     def menu_event(self, e):
-        if self.state != 'title' or not hasattr(self, 'tm'):
+        if (self.state != 'title' and not self.paused) or not hasattr(self, 'tm'):
             return False
         tm = self.tm
         n = len(self.menu_items())
@@ -195,6 +204,9 @@ class MenuMixin:
         else:
             title = {'opts': 'OPCIONES', 'help': 'INSTRUCCIONES', 'cheats': 'CHEATS'}[tm['page']]
             self.text(cv, title, self.f_ttl, (255, 220, 110), W // 2, 50, 'c')
+        self.menu_draw_body(cv, tm)
+
+    def menu_draw_body(self, cv, tm):
         rects = self.menu_rects()
         items = self.menu_items()
         if tm['page'] == 'help':
@@ -219,5 +231,29 @@ class MenuMixin:
         if tm['page'] == 'main':
             self.text(cv, 'Récord: %d' % self.hiscore, self.f_m, (255, 230, 120), W // 2, H - 52, 'c')
             self.text(cv, 'Flechas o mouse | ENTER elegir', self.f_s, (150, 180, 215), W // 2, H - 24, 'c')
+        elif tm['page'] == 'pause':
+            self.text(cv, 'Flechas o mouse | ENTER elegir | P o ESC: continuar', self.f_s, (150, 180, 215), W // 2, H - 24, 'c')
         else:
             self.text(cv, 'ESC o clic derecho: volver', self.f_s, (150, 180, 215), W // 2, H - 24, 'c')
+
+    def pause_set(self, on):
+        """Abre o cierra el menú de pausa (mismas opciones que el menú de inicio)."""
+        self.paused = bool(on)
+        if self.paused:
+            self.tm = dict(page='pause', sel=0)
+            pygame.mouse.set_visible(True)
+        else:
+            st = self.state
+            pygame.mouse.set_visible(st in ('upgrade',) or st not in ('defense', 'combat', 'aerial', 'ground', 'tank', 'port', 'heli', 'radio', 'lifeboat'))
+
+    def draw_pause(self, cv):
+        tm = getattr(self, 'tm', None) or dict(page='pause', sel=0)
+        if tm['page'] not in ('pause', 'opts', 'help', 'cheats'):
+            tm = self.tm = dict(page='pause', sel=0)
+        self.dim(cv, 150)
+        if tm['page'] == 'pause':
+            self.text(cv, 'PAUSA', self.f_xl, (255, 255, 255), W // 2, 110, 'c')
+        else:
+            title = {'opts': 'OPCIONES', 'help': 'INSTRUCCIONES', 'cheats': 'CHEATS'}[tm['page']]
+            self.text(cv, title, self.f_ttl, (255, 220, 110), W // 2, 50, 'c')
+        self.menu_draw_body(cv, tm)

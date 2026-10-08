@@ -163,10 +163,6 @@ class DefenseMixin:
         d['cool'] = 0.16 * self.up_reload()
         gx, gy = d['shipx'] + 82, d['shipy'] - 6
         d['inter'].append(dict(x=float(gx), y=float(gy), tx=self.aim[0], ty=min(self.aim[1], HZ + 20), trail=[]))
-        if d['dbl'] > 0:
-            for off in (-70, 70):
-                d['inter'].append(dict(x=float(gx), y=float(gy), tx=clamp(self.aim[0] + off, 0, W),
-                                       ty=min(self.aim[1], HZ + 20), trail=[]))
         self.audio.play('launch', .8)
         self.fx.add('glow', gx, gy, life=.18, r0=18, r1=40, col=(255, 230, 160))
 
@@ -289,9 +285,6 @@ class DefenseMixin:
                             self.shake = max(self.shake, 16)
                             self.audio.play('boom_l')
                             self.banner('¡OJIVA NEUTRALIZADA!', '+1000 puntos', (120, 255, 190), 3.0)
-                        if d['combo'] and d['combo'] % 6 == 0:
-                            d['dbl'] = 9.0
-                            self.toast('RÁFAGA DOBLE', (120, 255, 190))
         for f in d['fires']:
             f[2] -= dt
             if random.random() < dt * 10:
@@ -500,6 +493,4 @@ class DefenseMixin:
             self.text(cv, 'OLA %d/3' % d['round'], self.f_m, (255, 200, 120) if not d['final'] else (255, 100, 80), W - 20, 64, 'r')
         if d['planes'] or d['plan']:
             self.text(cv, 'AVIONES: %d' % (len(d['planes']) + len(d['plan'])), self.f_m, (255, 210, 120), W - 20, 116, 'r')
-        if d['dbl'] > 0:
-            self.text(cv, 'RÁFAGA DOBLE %.0fs' % d['dbl'], self.f_s, (120, 255, 190), 20, 90, 'l')
         self.text(cv, 'Clic / ESPACIO: lanzar interceptor', self.f_s, (200, 220, 255), W // 2, H - 30, 'c')

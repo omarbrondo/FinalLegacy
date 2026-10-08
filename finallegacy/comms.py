@@ -172,6 +172,8 @@ class CommsMixin:
 
     def comms_update(self, dt):
         cm = self.cm
+        if self.paused:                                                            # en pausa los globos se congelan (y no se dibujan)
+            return
         if self.state != cm['st']:                                                 # al volver al mapa termina la misión: se sortean otros pilotos y hackers
             cm['st'] = self.state
             if self.state in ('map', 'title'):
@@ -193,7 +195,7 @@ class CommsMixin:
 
     def comms_draw(self, cv):
         c = self.cm['cur']
-        if c is None:
+        if c is None or self.paused:
             return
         t = c['t']
         r = ROLES[c['who']]

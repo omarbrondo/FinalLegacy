@@ -570,7 +570,7 @@ class CoreMixin:
             self.say('secretaria', 'Operación finalizada. Puntaje final: %d. Recomiendo reintentar cuando esté listo.' % self.score, 'warn')
         if record:
             self.say('secretaria', 'Nuevo récord registrado: %d puntos. Felicitaciones.' % self.score, 'ok')
-        self.audio.play('win' if victory else 'lose')
+        self.audio.play('fanfare' if victory else 'lose')
         self.go('gameover')
 
     def debug_key(self, key):
@@ -655,7 +655,7 @@ class CoreMixin:
                     self.attack = None
                     {pygame.K_F2: self.start_tank, pygame.K_F3: self.start_aerial, pygame.K_F4: self.start_ground}[e.key](self.strike_city)
             elif e.key in (pygame.K_p, pygame.K_ESCAPE) and self.state in ('map', 'defense', 'combat', 'ground', 'aerial', 'hack', 'radio', 'tank', 'port', 'heli', 'lifeboat'):
-                self.paused = not self.paused
+                self.pause_set(not self.paused)
             elif self.state == 'saves':
                 self.saves_key(e.key)
             elif self.paused and e.key == pygame.K_s:
@@ -966,12 +966,7 @@ class CoreMixin:
             self.text(cv, '¡INTERFERENCIA DEL ESCUDO!', self.f_m, (255, 140, 235), W // 2, H // 2 - 130, 'c')
         self.draw_god_tag(cv)
         if self.paused:
-            self.dim(cv, 130)
-            self.text(cv, 'PAUSA', self.f_xl, (255, 255, 255), W // 2, 260, 'c')
-            self.text(cv, 'P / ESC: continuar   |   M: sonido   |   F1: efecto CRT   |   Q: salir', self.f_m, (190, 210, 240),
-                      W // 2, 380, 'c')
-            self.text(cv, 'S: guardar partida   |   C: cargar partida   |   I: modo inmortal [%s]' % ('SÍ' if self.god else 'NO'), self.f_m,
-                      (255, 230, 140), W // 2, 430, 'c')
+            self.draw_pause(cv)
         if self.fade > 0:
             self.fade_surf.set_alpha(int(255 * self.fade))
             cv.blit(self.fade_surf, (0, 0))
