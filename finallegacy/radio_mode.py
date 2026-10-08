@@ -43,6 +43,58 @@ PORT_RADARS = 2                                       # ... y el asalto al puert
 LOOT = ('SUMINISTROS', 'REPARACIONES', 'INTELIGENCIA', 'BOTÍN')
 
 
+
+# frases del hacker por minijuego (tono mezcla de militar e irónico); se sortea una de cada lista
+SAY_INTRO = {
+    'tune': ('Interceptando la transmisión enemiga. Calzá la onda amarilla con la celeste.', 'Radar a la vista, soldado. Frecuencia y amplitud hasta que calcen.',
+             'Sintonía fina: como encontrar una radio buena en una ruta desierta. Calzá las ondas.'),
+    'drift': ('La señal se mueve: el enemigo no quiere que lo escuchemos. Seguila.', 'Objetivo en movimiento. Frecuencia, amplitud y fase a la vez. Fácil, ¿no?'),
+    'jam': ('Nos están interfiriendo. Mantené la señal aunque te la muevan.', 'Interferencia enemiga. Si se corre, la volvés a poner. Así de simple... y de molesto.'),
+    'dual': ('Dos canales a la vez. Espacio cambia de uno al otro. Dos canales, un solo cerebro.', 'Doble canal. Calzá los dos, uno por vez. Sin pánico.'),
+    'sweep': ('Barrido de espectro. Frená el cursor sobre la banda verde, con calma y sin parpadear.', 'Banda verde: ahí. Pulsá cuando el cursor pase. Cuatro veces y la banda se achica.'),
+    'simon': ('Secuencia de acceso. Memorizá el orden y repetilo. La memoria de pez no sirve.', 'Atento a las luces: lo que ves es lo que repetís. Sin trampa.',
+              'Prueba de memoria. El enemigo confía en que no seas capaz. Demostrale lo contrario.'),
+    'code': ('Clave de cuatro símbolos, sin repetir. Verde: en su lugar. Amarillo: está pero mal ubicado. Deducí.',
+             'Descifrar clave: siete intentos y cuatro símbolos. Dicen que la lógica es un arma. Usala.',
+             'Una contraseña. Alguien la eligió en cinco segundos. Rompámosla en seis.'),
+    'wire': ('Hay una carga con cables. Leé las reglas en orden y cortá el correcto. Sin apuro, pero con apuro.',
+             'Desactivá el mecanismo: el cable equivocado sale caro. Leé bien las reglas antes de cortar.',
+             'Cables de colores y un manual. Parece un cumpleaños, pero con explosivos.'),
+    'rhythm': ('Flujo de datos enemigo. Pulsá cada nota justo en la línea. Acertá el setenta por ciento.',
+               'Ritmo de datos. Si bailás tan bien como disparás, esto es un paseo.'),
+    'lock': ('Cerradura giratoria. Tres zonas, en orden. Pulsá espacio cuando el indicador entre.', 'Cerradura de combinación: pulso firme, paciencia y un poco de suerte.'),
+}
+SAY_OK = {
+    'tune': ('¡Señal bloqueada!', 'Frecuencia calzada. Buen trabajo, soldado.'),
+    'drift': ('La seguiste hasta el final. ¡Señal bloqueada!', 'Se movía, pero no se escapó.'),
+    'jam': ('Interferencia superada. El enemigo está desconcertado.', '¡Señal bloqueada! Que sigan interfiriendo.'),
+    'dual': ('Los dos canales calzados. ¡Señal bloqueada!', 'Doble sintonía lograda. Impecable.'),
+    'sweep': ('Cuatro de cuatro. Pulso de cirujano.', '¡Señal bloqueada! Ni un temblor.'),
+    'simon': ('Secuencia correcta. Acceso concedido.', 'Esa memoria sirve. Siguiente.'),
+    'code': ('Clave descifrada. Lógica pura.', 'Código roto. El enemigo cambiará la contraseña... tarde.'),
+    'wire': ('Cable cortado. Mecanismo desactivado.', 'Ni un segundo de sobra. Bien cortado.'),
+    'rhythm': ('Datos sincronizados. Buen pulso.', 'Ritmo cumplido. Solo te falta el micrófono.'),
+    'lock': ('Cerradura abierta. Trabajo limpio.', 'Tres de tres. Abierto.'),
+}
+SAY_LAST = ('¡Comunicaciones interceptadas! Ya tenemos todo.', 'Transmisión completa. Les arruinamos el día.', 'Todo interceptado. Que se pregunten qué pasó.')
+SAY_TIME = {
+    'simon': ('Se acabó el tiempo. Repetimos, y esta vez sin distraerte.',), 'code': ('Sin intentos y sin tiempo. Cambiaron la clave: otra vez.',),
+    'wire': ('Se agotó el tiempo con los cables. Respirá y otra vez.',), 'rhythm': ('No llegamos al ritmo mínimo. Otra pasada, y con el pie.',),
+    'lock': ('Cerradura trabada. Otra vez, con pulso firme.',),
+}
+SAY_TIME_GENERIC = ('Se cortó la señal. Nueva frecuencia, ¡otra vez!', 'Tiempo agotado. Reajustamos y probamos de nuevo.', 'Perdimos el enlace. Concentrate, soldado.')
+SAY_LOST = ('Perdimos la señal... ¡nos detectaron, contraataque!', 'Intrusión detectada. Prepárate: viene el contrahackeo.', 'Demasiados fallos. Nos descubrieron, ¡a pelear!')
+SAY_MISS = {
+    'simon': ('Esa no era. Atención a las luces.', 'Error de secuencia. Respirá y repetí.'),
+    'wire': ('¡Cable equivocado! Casi nos descubren.', 'Ese no era. Leé las reglas, soldado.', 'Boom... no, todavía no. Ojo con el siguiente.'),
+    'lock': ('Te pasaste de la zona. Con calma.', 'Fuera de la zona. El pulso, soldado.'),
+    'sweep': ('Fuera de la banda. Más paciencia.', 'Ese no cuenta. Esperá el momento.'),
+    'code': ('Ni un símbolo en su lugar. Eso también es información.', 'Nada acertó. Descartamos esos y seguimos.'),
+}
+SAY_LOW = ('Quedan diez segundos. ¡Apurate!', 'Diez segundos, soldado. El reloj no negocia.')
+SAY_COMBO = ('Racha de diez. Buen pulso.', 'Diez seguidas. Mantenelo.')
+
+
 class RadioMixin:
     # ------------------------------------------------------------------ radares en el mapa
     def radar_pos(self, k):
@@ -142,9 +194,21 @@ class RadioMixin:
         self.rd = dict(radar=radar, kinds=kinds, stage=0, fails=0, phase='play', pt=0.0, words=words, t=0.0, time_left=0.0,
                        calls=[], bonus=0, loot='', hold={}, blip=0.0, beep=0.0)
         self.rd_stage_init(first=True)
-        self.say('hacker', 'Interceptando la transmisión enemiga. Calzá las ondas.', 'info', 'right', 470)
+        self.rd_say(SAY_INTRO, kinds[0], 'info')
         self.aim = [W / 2, H / 2]
         self.go('radio')
+
+    def rd_say(self, table, kind, mood, cooldown=0.0):
+        """El hacker dice una frase de 'table' (dict por minijuego o tupla). Con 'cooldown' evita hablar demasiado seguido."""
+        rd = self.rd
+        if cooldown and rd.get('say_cd', 0.0) > rd['t']:
+            return
+        opts = table.get(kind) if isinstance(table, dict) else table
+        if not opts:
+            return
+        self.say('hacker', random.choice(opts), mood, 'right', 470)
+        if cooldown:
+            rd['say_cd'] = rd['t'] + cooldown
 
     def rd_tol(self):
         return max(0.62, 1.0 - 0.05 * self.wave)
@@ -176,6 +240,7 @@ class RadioMixin:
         rd['time_left'] = st['time']
         if not first:
             self.audio.play('ping', .6)
+            self.rd_say(SAY_INTRO, kind, 'info')
 
     def rd_far(self, tgt):
         """Parámetros de arranque lejos del objetivo."""
@@ -224,6 +289,7 @@ class RadioMixin:
             st['miss'] = 0.4
             st['time'] = max(1.0, st['time'] - 2.0)
             self.audio.play('hit', .5)
+            self.rd_say(SAY_MISS, 'sweep', 'warn', 6.0)
             self.shake = max(self.shake, 4)
 
     # ------------------------------------------------------------------ actualización
@@ -255,7 +321,10 @@ class RadioMixin:
         rd['phase'], rd['pt'] = 'ok', 0.0
         rd['st']['flash'] = 1.0
         self.audio.play('win', .6)
-        self.say('hacker', '¡Señal bloqueada!' if self.rd['stage'] + 1 < len(self.rd['kinds']) else '¡Comunicaciones interceptadas! Ya tenemos todo.', 'ok', 'right', 470)
+        if self.rd['stage'] + 1 < len(self.rd['kinds']):
+            self.rd_say(SAY_OK, self.rd['st']['kind'], 'ok')
+        else:
+            self.say('hacker', random.choice(SAY_LAST), 'ok', 'right', 470)
         self.add_score(150 + 40 * self.wave)
 
     def upd_radio(self, dt):
@@ -289,6 +358,9 @@ class RadioMixin:
         keys = pygame.key.get_pressed()
         kind = st['kind']
         st['time'] -= dt
+        if st['time'] < 10 and not st.get('low_said') and st['total'] > 20:
+            st['low_said'] = True
+            self.say('hacker', random.choice(SAY_LOW), 'warn', 'right', 470)
         if kind in PUZZLES:
             self.rd_puzzle_update(st, dt)
             if rd['phase'] != 'play':
@@ -350,10 +422,10 @@ class RadioMixin:
             self.audio.play('lose', .6)
             if rd['fails'] >= 3:
                 rd['phase'], rd['pt'] = 'lost', 0.0
-                self.say('hacker', 'Perdimos la señal... ¡nos detectaron, contraataque!', 'bad', 'right', 470)
+                self.say('hacker', random.choice(SAY_LOST), 'bad', 'right', 470)
             else:
                 rd['phase'], rd['pt'] = 'retry', 0.0
-                self.say('hacker', 'Se cortó la señal. Nueva frecuencia, ¡otra vez!', 'warn', 'right', 470)
+                self.say('hacker', random.choice(SAY_TIME.get(kind, SAY_TIME_GENERIC)), 'warn', 'right', 470)
 
     # ------------------------------------------------------------------ cierre y recompensa
     def start_penalty_combat(self, left=2, total=2):
@@ -648,6 +720,7 @@ class RadioMixin:
                 st['prog'], st['lab'] = 0.0, 'SECUENCIA 0/%d' % len(st['seq'])
                 self.audio.play('hit', .5)
                 self.shake = max(self.shake, 4)
+                self.rd_say(SAY_MISS, 'simon', 'warn', 5.0)
         elif kind == 'rhythm':
             if key not in RH_KEYS:
                 return
@@ -667,6 +740,8 @@ class RadioMixin:
             st['hits'] += 1
             st['combo'] += 1
             st['best'] = max(st['best'], st['combo'])
+            if st['combo'] in (10, 20):
+                self.say('hacker', random.choice(SAY_COMBO), 'ok', 'right', 470)
             st['judge'], st['judge_t'] = ('¡PERFECTO!' if nt['hit'] == 'perfect' else 'BIEN'), 0.4
             st['prog'] = min(1.0, st['hits'] / st['need'])
             st['lab'] = 'ACIERTOS %d/%d' % (st['hits'], st['need'])
@@ -692,6 +767,7 @@ class RadioMixin:
                 st['miss'] = 0.4
                 self.audio.play('hit', .5)
                 self.shake = max(self.shake, 4)
+                self.rd_say(SAY_MISS, 'lock', 'warn', 5.0)
         elif kind == 'code':
             if key in NUM_KEYS:
                 if len(st['cur']) < 4:
@@ -714,6 +790,8 @@ class RadioMixin:
                     st['time'] = 0.0                                  # sin intentos: se cuenta como fallo
                 else:
                     self.audio.play('ping' if exact else 'blip', .4)
+                    if exact == 0 and common == 0:
+                        self.rd_say(SAY_MISS, 'code', 'info', 8.0)
         else:
             if st['done'] or key not in NUM_KEYS or NUM_KEYS[key] >= len(st['wires']):
                 return
@@ -731,6 +809,7 @@ class RadioMixin:
                 st['miss'] = 0.5
                 self.audio.play('hit', .6)
                 self.shake = max(self.shake, 6)
+                self.rd_say(SAY_MISS, 'wire', 'warn', 4.0)
 
     def rd_puzzle_update(self, st, dt):
         st['press_t'] = max(0.0, st.get('press_t', 0.0) - dt)
