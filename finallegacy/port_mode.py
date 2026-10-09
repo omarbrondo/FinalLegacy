@@ -366,7 +366,13 @@ class PortMixin:
                         T = clamp(ad / 380.0, 0.8, 1.5)
                         vx = dx / T
                         vy = (py - (e['y'] - 56) - 0.5 * 900 * T * T) / T
-                        pt['nades'].append(dict(x=e['x'], y=e['y'] - 56, vx=vx, vy=vy, t=0.0, own='e'))
+                        gx_, gy_ = e['x'], e['y'] - 56
+                        mzl_ = (self.pt_art.get('baked', {}).get('gren') or {}).get('mz', {}).get('apuntar_2')
+                        if mzl_:                                   # la granada sale de la boca del lanzagranadas
+                            gx_, gy_ = e['x'] + e['face'] * mzl_[0][0], e['y'] + mzl_[0][1]
+                            vy = (py - gy_ - 0.5 * 900 * T * T) / T
+                        pt['nades'].append(dict(x=gx_, y=gy_, vx=vx, vy=vy, t=0.0, own='e'))
+                        self.audio.play('launch', .35)
                 elif e['burst'] > 0:
                     e['bcd'] -= dt
                     if e['bcd'] <= 0:
@@ -961,7 +967,7 @@ class PortMixin:
         if baked:                                            # soldado dibujado a mano: cuadros con el arma incluida
             gun_ang = 0.0
             if arm in ('wind', 'rel'):
-                pose = arm
+                pose = 'apuntar_2' if (base == 'gren' and 'apuntar_2' in art['body'][kind]) else arm        # el granadero dispara el lanzagranadas, no lanza con la mano
             elif base == 'knife':                            # cuchillero: al atacar (brazo en alto) usa el cuadro de la cuchillada
                 if aim is not None and abs(aim[1] - 0.1) > 0.02 and aim[1] < 0.1 and 'attack' in art['body'][kind]:
                     pose = 'attack'
@@ -1388,7 +1394,7 @@ class PortMixin:
                 arm = 'gun'
                 aim = tgt_aim
             fi = int(e['ph']) if pose == 'run' else int(t * 3 + e['ph0'])
-            r_ = self.pt_char(cv, k, int(sx), fy, e['face'], pose, fi, aim, arm, e['hit'], 255, True, e['flash'] > 0 and k != 'flame', 0.0, e.get('fem', False))
+            r_ = self.pt_char(cv, k, int(sx), fy, e['face'], pose, fi, aim, arm, e['hit'], 255, True, (e['flash'] > 0 and k != 'flame') or (k == 'gren' and 0 < e['thr'] <= 0.14), 0.0, e.get('fem', False))
             if r_:
                 e['pv'] = (r_[0] + cam, r_[1])
             if k == 'sniper' and e['tele'] > 0:
