@@ -10,6 +10,7 @@ from .comms import AIR_LINES
 
 
 from .air_art import load_png_sprite
+from .chatter import AIR_APPEAR_X, AIR_DEFEAT_X
 
 
 class AerialMixin:
@@ -353,7 +354,7 @@ class AerialMixin:
                 from .air_boss import AIR_BOSSES
                 spec = AIR_BOSSES[a['boss']['k']]
                 self.banner('¡ALERTA! %s' % spec['name'], '', (255, 90, 70), 2.6)
-                self.say('jefe_avion', AIR_LINES[a['boss']['k'] % 6][0], 'bad', pose='', v=a['boss']['k'] % 6 + 1, name=spec['name'])
+                self.say('jefe_avion', self.var('boss_a_a', AIR_LINES[a['boss']['k'] % 6][0], AIR_APPEAR_X), 'bad', pose='', v=a['boss']['k'] % 6 + 1, name=spec['name'])
                 self.say('piloto', '¡Jefe a la vista! ' + spec['hint'], 'bad')
         # enemigos
         for f in a['foes'][:]:
@@ -503,7 +504,7 @@ class AerialMixin:
         if b and not a['boss_dead'] and b['hp'] <= 0:
             a['boss_dead'] = True
             from .air_boss import AIR_BOSSES
-            self.say('jefe_avion', AIR_LINES[b['k'] % 6][1], 'warn', pose='bad', urgent=True, v=b['k'] % 6 + 1, name=AIR_BOSSES[b['k']]['name'])
+            self.say('jefe_avion', self.var('boss_a_d', AIR_LINES[b['k'] % 6][1], AIR_DEFEAT_X), 'warn', pose='bad', urgent=True, v=b['k'] % 6 + 1, name=AIR_BOSSES[b['k']]['name'])
             self.add_score(4000)
             for _ in range(10):
                 self.air_boom(b['x'] + random.uniform(-90, 90), b['y'] + random.uniform(-60, 60), 1.6, True, 'boom_l')
@@ -543,6 +544,7 @@ class AerialMixin:
             self.toast('Los cazas bombardearon %s: -25%%' % city['name'], (255, 140, 90))
             if city['hp'] <= 0:
                 city['dead'] = True
+                self.chat_city_lost(city)
         self.warned = False
         self.strike_t = max(32.0, random.uniform(48, 62) - self.wave * 2)
         if all(c['dead'] for c in self.cities):

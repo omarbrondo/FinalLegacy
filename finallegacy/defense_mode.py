@@ -381,6 +381,7 @@ class DefenseMixin:
             self.pop('-%d%% CIUDAD' % (11 * dmg), m['x'], m['y'] - 20, (255, 110, 100))
             if c['hp'] <= 0 and not c['dead']:
                 c['dead'] = True
+                self.chat_city_lost(c)
                 d['destroyed'] = True
                 for b in c['sky']:
                     b['h'] = random.randint(6, 16)

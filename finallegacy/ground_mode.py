@@ -847,6 +847,7 @@ class GroundMixin:
                 self.banner('¡SOLDADO CAÍDO!', 'La misión fracasó', (255, 80, 70), 3.0)
         if g['mode'] == 'invasion' and city['hp'] <= 0 and not city['dead']:
             city['dead'] = True
+            self.chat_city_lost(city)
             for _ in range(8):
                 self.fx.explode_art(W / 2 + random.uniform(-80, 80), H / 2 + random.uniform(-60, 60), 1.3, True)
             self.audio.play('boom_l')
@@ -988,6 +989,7 @@ class GroundMixin:
                 city['hp'] = max(0.0, city['hp'] - 30)
                 if city['hp'] <= 0:
                     city['dead'] = True
+                    self.chat_city_lost(city)
             self.warned = False
             self.strike_t = max(32.0, random.uniform(48, 62) - self.wave * 2)
             if all(c['dead'] for c in self.cities):

@@ -63,6 +63,7 @@ class UpgradeMixin:
         self.go('map')
         self.banner('OLEADA %d' % self.wave, UPGRADES[k][0] + ' instalado', UPGRADES[k][2], 3.2)
         self.spawn_wave()
+        self.chat_wave_start()
 
     def upd_upgrade(self, dt):
         self.up_t += dt
