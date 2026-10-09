@@ -4,6 +4,7 @@ Cada pieza combina batería, bajo, acordes, arpegio y melodía; cambia el tempo,
 densidad según la oleada, y la melodía se genera con una semilla propia de (modo, oleada).
 """
 import random
+import time
 
 try:
     import numpy as np
@@ -172,6 +173,7 @@ def compose(ctx, wave, sr):
         return notes
     motifs = [motif(0), motif(100), motif(200)]
     for b in range(bars):
+        time.sleep(0.004)                              # cede la CPU al hilo principal para que el juego no se trabe al componer
         sec = b // 8                                   # 0 = A, 1 = B, 2 = A', 3 = C
         prog = prog_a if sec in (0, 2) else prog_b
         d = prog[b % 4]

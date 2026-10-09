@@ -2,6 +2,7 @@
 import array
 import os
 import math
+import sys
 import pygame
 import random
 import threading
@@ -164,12 +165,13 @@ class Audio:
         try:
             info = pygame.mixer.get_init()
             if not info:
-                pygame.mixer.init(22050, -16, 2, 512)
+                pygame.mixer.init(22050, -16, 2, 1024)
                 info = pygame.mixer.get_init()
             SR, _, self.ch = info
             pygame.mixer.set_num_channels(32)
             pygame.mixer.set_reserved(2)
             self.ok = True
+            sys.setswitchinterval(0.001)               # el hilo principal recupera el GIL rápido mientras se compone la música
         except Exception:
             self.ok = False
             return
