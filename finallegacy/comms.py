@@ -9,6 +9,7 @@ from .common import H, W, clamp
 
 PW, PH = 112, 137                     # tamaño máximo de la viñeta del personaje (el ancho se ajusta a la imagen)
 _PW0, _PH0 = 150, 176                 # tamaño con el que se dibujan las siluetas provisorias (después se reducen)
+CROP_TOP = {'secretaria': 0.08}      # fracción del alto de la imagen que se omite arriba al mostrar el busto (por personaje)
 BW = 340                              # ancho máximo del globo
 ENTER, HOLD_MIN, EXIT, GAP = 0.5, 1.8, 0.45, 0.12
 TYPE_CPS = 42.0                       # caracteres por segundo del texto
@@ -152,7 +153,9 @@ class CommsMixin:
                             box = bb[0].unionall(bb[1:]) if len(bb) > 1 else bb[0]
                             raw = raw.subsurface(box).copy()
                         if raw.get_height() > 1.22 * raw.get_width():                                # imágenes muy altas: se muestra el busto (parte de arriba) para que llenen el recuadro sin bandas
-                            raw = raw.subsurface((0, 0, raw.get_width(), int(1.22 * raw.get_width()))).copy()
+                            y0 = int(CROP_TOP.get(who, 0.0) * raw.get_height())                    # algunos retratos tienen la cabeza más abajo: se salta parte del borde de arriba
+                            hh = int(1.22 * raw.get_width())
+                            raw = raw.subsurface((0, min(y0, raw.get_height() - hh), raw.get_width(), hh)).copy()
                         k = min(PW / raw.get_width(), PH / raw.get_height())
                         img = pygame.transform.smoothscale(raw, (max(1, int(raw.get_width() * k)), max(1, int(raw.get_height() * k))))
                         break
