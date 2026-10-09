@@ -485,7 +485,8 @@ def _arm_layer(kind, mode):
 
 POSE_MAP = {'run': 'correr', 'idle': 'reposo', 'crouch': 'agachado', 'jump': 'salto', 'fall': 'caida', 'die': 'muerte',
             'wind': 'granada_preparar', 'rel': 'granada_lanzar', 'up': 'arriba', 'down': 'abajo', 'attack': 'ataque'}
-BAKED_FILES = {'player': 'soldado', 'player_f': 'soldada', 'knife': 'cuchillero', 'knife_f': 'cuchillera'}
+BAKED_FILES = {'player': 'soldado', 'player_f': 'soldada', 'knife': 'cuchillero', 'knife_f': 'cuchillera', 'sniper': 'francotirador', 'sniper_f': 'francotiradora',
+               'gren': 'granadero'}
 
 
 def load_baked_soldier(art, kind):
@@ -506,6 +507,10 @@ def load_baked_soldier(art, kind):
             continue
         frames[pose] = [(atlas.subsurface(pygame.Rect(i * cw, m['row'] * ch, cw, ch)).copy(), 0, 0) for i in range(m['n'])]
         mz[pose] = m['muzzle']
+    for key, m in meta.items():                              # cuadros extra (apuntar_0..4: arma a 30° abajo, horizontal y 20°, 35° y 55° arriba)
+        if key.startswith(('apuntar_', 'correr_a_')):
+            frames[key] = [(atlas.subsurface(pygame.Rect(i * cw, m['row'] * ch, cw, ch)).copy(), 0, 0) for i in range(m['n'])]
+            mz[key] = m['muzzle']
     if not all(p in frames for p in ('run', 'idle', 'crouch', 'jump', 'fall', 'die')):
         return
     art['body'][kind] = frames

@@ -7,8 +7,9 @@ import re
 import pygame
 from .common import H, W, clamp
 
-PW, PH = 150, 176                     # tamaño de la viñeta del personaje
-BW = 350                              # ancho máximo del globo
+PW, PH = 112, 132                     # tamaño máximo de la viñeta del personaje (el ancho se ajusta a la imagen)
+_PW0, _PH0 = 150, 176                 # tamaño con el que se dibujan las siluetas provisorias (después se reducen)
+BW = 340                              # ancho máximo del globo
 ENTER, HOLD_MIN, EXIT, GAP = 0.5, 1.8, 0.45, 0.12
 TYPE_CPS = 42.0                       # caracteres por segundo del texto
 MOOD_COL = {'info': (90, 160, 240), 'ok': (70, 200, 130), 'warn': (240, 180, 60), 'bad': (230, 80, 70)}
@@ -58,11 +59,11 @@ def _placeholder(role, v=1):
     r = dict(ROLES[role])
     r['skin'] = [r['skin'], tuple(int(c * 0.82) for c in r['skin']), tuple(min(255, int(c * 1.08)) for c in r['skin'])][(v - 1) % 3]
     r['hat'] = tuple(max(0, min(255, int(c * f))) for c, f in zip(r['hat'], ((1, 1, 1), (0.78, 0.78, 0.78), (1.22, 1.22, 1.22))[(v - 1) % 3]))
-    s = pygame.Surface((PW, PH), pygame.SRCALPHA)
-    cx = PW // 2
-    pygame.draw.polygon(s, r['body'], [(cx - 62, PH), (cx - 54, PH - 54), (cx - 20, PH - 66), (cx + 20, PH - 66), (cx + 54, PH - 54), (cx + 62, PH)])
-    pygame.draw.polygon(s, tuple(min(255, c + 30) for c in r['body']), [(cx - 20, PH - 66), (cx, PH - 44), (cx + 20, PH - 66)])
-    pygame.draw.rect(s, r['skin'], (cx - 9, PH - 80, 18, 18), border_radius=4)
+    s = pygame.Surface((_PW0, _PH0), pygame.SRCALPHA)
+    cx = _PW0 // 2
+    pygame.draw.polygon(s, r['body'], [(cx - 62, _PH0), (cx - 54, _PH0 - 54), (cx - 20, _PH0 - 66), (cx + 20, _PH0 - 66), (cx + 54, _PH0 - 54), (cx + 62, _PH0)])
+    pygame.draw.polygon(s, tuple(min(255, c + 30) for c in r['body']), [(cx - 20, _PH0 - 66), (cx, _PH0 - 44), (cx + 20, _PH0 - 66)])
+    pygame.draw.rect(s, r['skin'], (cx - 9, _PH0 - 80, 18, 18), border_radius=4)
     pygame.draw.ellipse(s, r['skin'], (cx - 27, 40, 54, 70))
     kind = r['kind']
     if kind == 'hood':
@@ -91,7 +92,7 @@ def _placeholder(role, v=1):
         pygame.draw.line(s, (20, 20, 26), (cx - 3, 80), (cx + 3, 80), 2)
     elif v % 3 == 0:                                                         # bigote
         pygame.draw.rect(s, (50, 36, 30), (cx - 10, 90, 20, 4), border_radius=2)
-    return s
+    return pygame.transform.smoothscale(s, (PW, PH))
 
 
 class CommsMixin:
@@ -193,7 +194,7 @@ class CommsMixin:
         if c is None:
             if cm['queue']:
                 q = cm['queue'].pop(0)
-                font = self.f_m
+                font = self.cm_font()
                 lines = _wrap(font, q['text'], BW - 36)
                 total = sum(len(l) for l in lines)
                 q.update(t=0.0, lines=lines, total=total, hold=max(HOLD_MIN, total / TYPE_CPS + 1.5))
@@ -203,6 +204,18 @@ class CommsMixin:
         c['t'] += dt
         if c['t'] > ENTER + c['hold'] + EXIT + GAP:
             cm['cur'] = None
+
+    def cm_font(self):
+        """Fuente monoespañada de los globos (estilo terminal); si falta el archivo se usa la del juego."""
+        f = getattr(self, '_cm_font', None)
+        if f is None:
+            path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), 'fonts', 'DejaVuSansMono-Bold.ttf')
+            try:
+                f = pygame.font.Font(path, 17)
+            except Exception:
+                f = self.f_m
+            self._cm_font = f
+        return f
 
     def comms_draw(self, cv):
         c = self.cm['cur']
@@ -220,38 +233,39 @@ class CommsMixin:
         else:
             k = clamp((t - ENTER - c['hold']) / EXIT, 0, 1)
             off = k * k
-        x = 14 - off * (PW + 40) if left else W - 14 - PW + off * (PW + 40)
+        img = self.comms_image(c['who'], c['v'], c['pose'])
+        pw = max(88, img.get_width())                                      # el recuadro se ajusta al ancho de la imagen: sin bandas de relleno a los costados
+        x = 14 - off * (pw + 40) if left else W - 14 - pw + off * (pw + 40)
         y = int(c['y'] - PH / 2)
         col = MOOD_COL.get(c['mood'], MOOD_COL['info'])
         # viñeta del personaje
-        panel = pygame.Surface((PW, PH), pygame.SRCALPHA)
+        panel = pygame.Surface((pw, PH), pygame.SRCALPHA)
         for yy in range(PH):
             kk = yy / PH
-            pygame.draw.line(panel, (int(r['col'][0] * (0.22 + 0.2 * kk)), int(r['col'][1] * (0.22 + 0.2 * kk)), int(r['col'][2] * (0.3 + 0.2 * kk)), 255), (0, yy), (PW, yy))
+            pygame.draw.line(panel, (int(r['col'][0] * (0.22 + 0.2 * kk)), int(r['col'][1] * (0.22 + 0.2 * kk)), int(r['col'][2] * (0.3 + 0.2 * kk)), 255), (0, yy), (pw, yy))
         for i in range(0, PH, 7):                                          # trama de semitono estilo cómic
-            pygame.draw.line(panel, (255, 255, 255, 14), (0, i), (PW, i - 14), 1)
-        img = self.comms_image(c['who'], c['v'], c['pose'])
+            pygame.draw.line(panel, (255, 255, 255, 14), (0, i), (pw, i - 14), 1)
         bob = math.sin(self.t * 3.0) * 1.5
-        panel.blit(img, ((PW - img.get_width()) // 2, int(PH - img.get_height() + bob)))
-        out = pygame.Surface((PW, PH), pygame.SRCALPHA)
-        pygame.draw.rect(out, (255, 255, 255, 255), (0, 0, PW, PH), border_radius=10)
+        panel.blit(img, ((pw - img.get_width()) // 2, int(PH - img.get_height() + bob)))
+        out = pygame.Surface((pw, PH), pygame.SRCALPHA)
+        pygame.draw.rect(out, (255, 255, 255, 255), (0, 0, pw, PH), border_radius=10)
         panel.blit(out, (0, 0), special_flags=pygame.BLEND_RGBA_MIN)
-        shadow = pygame.Surface((PW + 10, PH + 10), pygame.SRCALPHA)
-        pygame.draw.rect(shadow, (0, 0, 0, 90), (0, 0, PW + 10, PH + 10), border_radius=12)
+        shadow = pygame.Surface((pw + 10, PH + 10), pygame.SRCALPHA)
+        pygame.draw.rect(shadow, (0, 0, 0, 90), (0, 0, pw + 10, PH + 10), border_radius=12)
         cv.blit(shadow, (x + 4, y + 6))
         cv.blit(panel, (x, y))
-        pygame.draw.rect(cv, (12, 14, 22), (x - 2, y - 2, PW + 4, PH + 4), 4, border_radius=11)
-        pygame.draw.rect(cv, col, (x, y, PW, PH), 2, border_radius=10)
-        tag = pygame.Surface((PW, 22), pygame.SRCALPHA)
-        pygame.draw.rect(tag, (10, 12, 20, 210), (0, 0, PW, 22), border_bottom_left_radius=10, border_bottom_right_radius=10)
+        pygame.draw.rect(cv, (12, 14, 22), (x - 2, y - 2, pw + 4, PH + 4), 4, border_radius=11)
+        pygame.draw.rect(cv, col, (x, y, pw, PH), 2, border_radius=10)
+        tag = pygame.Surface((pw, 22), pygame.SRCALPHA)
+        pygame.draw.rect(tag, (10, 12, 20, 210), (0, 0, pw, 22), border_bottom_left_radius=10, border_bottom_right_radius=10)
         cv.blit(tag, (x, y + PH - 22))
         nm = c.get('name') or r['name']
-        if self.f_s.size(nm)[0] <= PW - 10:
-            self.text(cv, nm, self.f_s, col, x + PW // 2, y + PH - 20, 'c', shadow=False)
+        if self.f_s.size(nm)[0] <= pw - 10:
+            self.text(cv, nm, self.f_s, col, x + pw // 2, y + PH - 20, 'c', shadow=False)
         else:                                                              # nombres largos (COMANDANTE STEALTH): se achican para entrar en la etiqueta
             ts = self.f_s.render(nm, True, col)
-            k = (PW - 10) / ts.get_width()
-            ts = pygame.transform.smoothscale(ts, (PW - 10, max(1, int(ts.get_height() * k))))
+            k = (pw - 10) / ts.get_width()
+            ts = pygame.transform.smoothscale(ts, (pw - 10, max(1, int(ts.get_height() * k))))
             cv.blit(ts, (x + 5, y + PH - 20 + (self.f_s.get_height() - ts.get_height()) // 2))
         # globo
         bt = t - ENTER * 0.7
@@ -259,10 +273,11 @@ class CommsMixin:
             return
         pop = clamp(bt / 0.18, 0, 1)
         shown = int(clamp((t - ENTER) * TYPE_CPS, 0, c['total']))
-        lh = self.f_m.get_height() + 2
-        bw = max(self.f_m.size(l)[0] for l in c['lines']) + 36
+        fm = self.cm_font()
+        lh = fm.get_height() + 2
+        bw = max(fm.size(l)[0] for l in c['lines']) + 36
         bh = len(c['lines']) * lh + 24
-        bx = x + PW + 16 if left else x - 16 - bw
+        bx = x + pw + 16 if left else x - 16 - bw
         by = y + 14
         bub = pygame.Surface((bw + 24, bh + 12), pygame.SRCALPHA)
         ox = 12
@@ -281,7 +296,7 @@ class CommsMixin:
             seg = line[:max(0, n)]
             n -= len(line)
             if seg:
-                img_t = self.f_m.render(seg, True, (22, 26, 40))
+                img_t = fm.render(seg, True, (22, 26, 40))
                 bub.blit(img_t, (ox + 18, 6 + 12 + i * lh))
         if pop < 1:
             s2 = pygame.transform.smoothscale(bub, (max(1, int(bub.get_width() * pop)), max(1, int(bub.get_height() * pop))))

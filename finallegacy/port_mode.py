@@ -12,6 +12,7 @@ from .comms import PORT_LINES
 
 PT_AIM_MAX = 52         # el jugador no puede disparar casi vertical: tope de inclinación del arma (grados) hacia arriba y hacia abajo
 PT_AIM_DOWN = 32        # hacia abajo se limita más: al inclinar el torso hacia adelante se nota el corte de la cintura
+PT_AIMS = (36, 0, -28, -40, -62)        # ángulos (grados, positivo hacia abajo) de los cuadros dibujados de apuntar
 HIP_UP = 44            # altura de la cadera sobre los pies en el soldado dibujado a mano
 
 
@@ -365,7 +366,13 @@ class PortMixin:
                         T = clamp(ad / 380.0, 0.8, 1.5)
                         vx = dx / T
                         vy = (py - (e['y'] - 56) - 0.5 * 900 * T * T) / T
-                        pt['nades'].append(dict(x=e['x'], y=e['y'] - 56, vx=vx, vy=vy, t=0.0, own='e'))
+                        gx_, gy_ = e['x'], e['y'] - 56
+                        mzl_ = (self.pt_art.get('baked', {}).get('gren') or {}).get('mz', {}).get('apuntar_2')
+                        if mzl_:                                   # la granada sale de la boca del lanzagranadas
+                            gx_, gy_ = e['x'] + e['face'] * mzl_[0][0], e['y'] + mzl_[0][1]
+                            vy = (py - gy_ - 0.5 * 900 * T * T) / T
+                        pt['nades'].append(dict(x=gx_, y=gy_, vx=vx, vy=vy, t=0.0, own='e'))
+                        self.audio.play('launch', .35)
                 elif e['burst'] > 0:
                     e['bcd'] -= dt
                     if e['bcd'] <= 0:
@@ -850,6 +857,8 @@ class PortMixin:
             right = face > 0
             th = math.atan2(dy, dx if right else -dx)
             th = clamp(th, -math.radians(PT_AIM_MAX), math.radians(PT_AIM_DOWN))
+            if 'apuntar_0' in self.pt_art['body'].get('player' if not self.pt.get('pfem') else 'player_f', {}):     # las balas siguen el ángulo del fusil dibujado, no la mira
+                th = 0.0 if self.pt['p'].get('crouch') else math.radians(min(PT_AIMS, key=lambda a_: abs(a_ - math.degrees(th))))
             return mx, my, (math.cos(th) if right else -math.cos(th)), math.sin(th)
         dx, dy = tx - px, ty - py
         right = face > 0
@@ -958,14 +967,20 @@ class PortMixin:
         if baked:                                            # soldado dibujado a mano: cuadros con el arma incluida
             gun_ang = 0.0
             if arm in ('wind', 'rel'):
-                pose = arm
+                pose = 'apuntar_2' if (base == 'gren' and 'apuntar_2' in art['body'][kind]) else arm        # el granadero dispara el lanzagranadas, no lanza con la mano
             elif base == 'knife':                            # cuchillero: al atacar (brazo en alto) usa el cuadro de la cuchillada
                 if aim is not None and abs(aim[1] - 0.1) > 0.02 and aim[1] < 0.1 and 'attack' in art['body'][kind]:
                     pose = 'attack'
+            elif base == 'gren' and flash and pose in ('run', 'idle') and 'apuntar_1' in art['body'][kind]:
+                pose = 'apuntar_1'                           # el granadero dispara con el lanzagranadas en horizontal
             elif aim is not None and base == 'player' and pose in ('run', 'idle', 'crouch', 'jump', 'fall'):
                 th_ = math.degrees(math.atan2(aim[1], aim[0] if face > 0 else -aim[0]))
                 th_ = clamp(th_, -PT_AIM_MAX, PT_AIM_DOWN)
-                gun_ang = round(th_ * (0.66 if th_ > 0 else 0.86) / 2) * 2.0        # hacia abajo el torso se inclina menos (se encorva)         # el torso (con los brazos y el arma) gira hacia donde apunta el mouse
+                if 'apuntar_0' not in art['body'][kind]:
+                    gun_ang = round(th_ * (0.66 if th_ > 0 else 0.86) / 2) * 2.0        # hacia abajo el torso se inclina menos (se encorva)         # el torso (con los brazos y el arma) gira hacia donde apunta el mouse
+                elif (pose == 'idle' and th_ < 12) or (pose == 'run' and (flash or th_ < 12)):
+                    k_ = min(range(5), key=lambda i_: abs(PT_AIMS[i_] - th_))
+                    pose = ('correr_a_%d' if pose == 'run' else 'apuntar_%d') % k_        # cuadro dibujado apuntando a ese ángulo (al correr: piernas de correr + torso apuntando)
         frames = art['body'][kind][pose]
         fi %= len(frames)
         spr, shx, shy = frames[fi]
@@ -1016,9 +1031,16 @@ class PortMixin:
             cv.blit(img, (sx - ax_, fy - ay_))
         if baked:
             mzl = baked['mz'].get(pose)
-            if not mzl or pose in ('die', 'wind', 'rel') or base != 'player':
+            if not mzl or pose in ('die', 'wind', 'rel') or base not in ('player', 'sniper', 'gren'):
                 return None
             mxr, myr = mzl[fi % len(mzl)]
+            if base != 'player':                             # enemigos dibujados a mano: arma horizontal, fogonazo en la boca del arma y punto de mira derivado de ahí
+                ln = self.PT_MUZ.get(base, 74)
+                mx = sx + (mxr if right else -mxr) * sxs
+                my = fy + myr * sys_
+                if flash:
+                    self.pt_flash(cv, mx, my, 0.0, right)
+                return mx - (ln if right else -ln), my
             if gun_ang:
                 hx_, hy_ = 0.0, -HIP_UP
                 c_, s_ = math.cos(math.radians(gun_ang)), math.sin(math.radians(gun_ang))
@@ -1372,7 +1394,7 @@ class PortMixin:
                 arm = 'gun'
                 aim = tgt_aim
             fi = int(e['ph']) if pose == 'run' else int(t * 3 + e['ph0'])
-            r_ = self.pt_char(cv, k, int(sx), fy, e['face'], pose, fi, aim, arm, e['hit'], 255, True, e['flash'] > 0 and k != 'flame', 0.0, e.get('fem', False))
+            r_ = self.pt_char(cv, k, int(sx), fy, e['face'], pose, fi, aim, arm, e['hit'], 255, True, (e['flash'] > 0 and k != 'flame') or (k == 'gren' and 0 < e['thr'] <= 0.14), 0.0, e.get('fem', False))
             if r_:
                 e['pv'] = (r_[0] + cam, r_[1])
             if k == 'sniper' and e['tele'] > 0:
