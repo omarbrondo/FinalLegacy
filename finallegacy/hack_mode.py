@@ -4,6 +4,8 @@ import pygame
 import random
 from .common import H, W, clamp, dist, glow
 
+HACK_BOOT = 1.5
+
 
 class HackMixin:
     # ---------------------------------------------------------- CIBERATAQUE (minijuego de nodos)
@@ -109,10 +111,11 @@ class HackMixin:
         csz = 86
         h = self.h
         h.update(boss=boss, radar=radar, n=n, nterm=nterm, t=total, total=total, base_total=total, fails=0, lvl=lvl, phase='play', pt=0.0, csz=csz,
-                 gx=96, gy=(H - rows * csz) // 2 + 24, cur=root, kb=False, log=[], logt=0.0, done=set(), vt=self.hack_virus_gap(), glitch=None)
+                 gx=96, gy=(H - rows * csz) // 2 + 24, cur=root, kb=False, log=[], logt=0.0, done=set(), vt=self.hack_virus_gap(), glitch=None, boot=0.0)
         h['rain'] = [[random.randrange(0, W, 18), random.uniform(-400, H), random.uniform(60, 160)] for _ in range(40)]
         if not hasattr(self, 'rain_gl'):
             self.rain_gl = [[self.f_s.render(ch, True, (0, g, int(g * .45))) for g in (35, 70, 130, 230)] for ch in '01']
+        self.fx_pulse('cyan', .5)
         self.toasts, self.banners = [], []
         self.hack_say('> ENLACE CON %d ANTENA(S)' % n)
         self.hack_say('> OBJETIVO: RADAR ENEMIGO' if radar is not None else '> OBJETIVO: ESCUDO DEL JEFE')
@@ -142,7 +145,7 @@ class HackMixin:
 
     def hack_rotate(self, cell, k=1):
         h = self.h
-        if h['phase'] != 'play' or cell not in h['tiles']:
+        if h['phase'] != 'play' or cell not in h['tiles'] or h['boot'] < HACK_BOOT:
             return
         t = h['tiles'][cell]
         t['m'] = self.rot_mask(t['m'], k)
@@ -159,6 +162,7 @@ class HackMixin:
             self.hack_say('> ACCESO CONCEDIDO')
             self.say('hacker', '¡Acceso concedido! Estamos dentro.', 'ok', 'right', 540)
             self.audio.play('win', .8)
+            self.fx_pulse('green', 1.2)
 
     def hack_cell_at(self, pos):
         h = self.h
@@ -168,11 +172,9 @@ class HackMixin:
     def upd_hack(self, dt):
         h = self.h
         h['logt'] += dt
-        for col in h['rain']:
-            col[1] += col[2] * dt
-            if col[1] - 15 * 16 > H:
-                col[1] = random.uniform(-200, 0)
-                col[2] = random.uniform(60, 160)
+        if h['boot'] < HACK_BOOT:
+            h['boot'] += dt
+            return
         if h['phase'] == 'play':
             h['t'] -= dt
             h['vt'] -= dt
@@ -190,6 +192,7 @@ class HackMixin:
                 pw_ = list(self.hack_power()[0])
                 cells = [c for c in pw_ if not h['tiles'][c]['term']] or list(h['tiles'])
                 h['glitch'] = [random.choice(cells), 1.0]
+                self.fx_pulse('red', .5)
                 self.hack_say('> ALERTA: VIRUS DETECTADO')
             step = 0.5 if h['t'] < 5 else 1.0
             if h['t'] < 10 and int(h['t'] / step) != int((h['t'] + dt) / step):
@@ -203,6 +206,7 @@ class HackMixin:
                 self.hack_say('> INTRUSION DETECTADA')
                 self.say('hacker', '¡Intrusión detectada! Nos cortaron el enlace, reintentemos.' if h['fails'] < 3 else '¡Nos descubrieron! Abortá el ataque.', 'bad', 'right', 540)
                 self.audio.play('lose', .6)
+                self.fx_pulse('red', 1.4)
         else:
             h['pt'] += dt
             if h['phase'] == 'win' and h['pt'] > 1.8:
@@ -272,18 +276,9 @@ class HackMixin:
     def draw_hack(self, cv):
         h = self.h
         t = self.t
-        cv.fill((4, 8, 14))
-        for gx_, gy_, sp in h['rain']:
-            for j in range(15):
-                yy = gy_ - j * 16
-                if 0 <= yy < H:
-                    lv = 3 if j == 0 else (2 if j < 4 else (1 if j < 9 else 0))
-                    cv.blit(self.rain_gl[(int(gx_) // 18 + j + int(t * 3)) % 2][lv], (gx_, yy))
-        dark = pygame.Surface((W, H), pygame.SRCALPHA)
-        dark.fill((4, 8, 14, 175))
-        cv.blit(dark, (0, 0))
+        self.fx_rain(cv, 'green', 1.0 + (1.2 if h['t'] < 10 and h['phase'] == 'play' else 0), 125, (4, 8, 14))
         cs, gx, gy = h['csz'], h['gx'], h['gy']
-        self.text(cv, 'CIBERATAQUE  //  ' + ('RADAR ENEMIGO' if h.get('radar') is not None else 'ESCUDO DIGITAL'), self.f_l, (110, 240, 255), 96, 30)
+        self.fx_title(cv, 'CIBERATAQUE  //  ' + ('RADAR ENEMIGO' if h.get('radar') is not None else 'ESCUDO DIGITAL'), self.f_l, (110, 240, 255), 96, 30)
         self.text(cv, 'Girá los nodos para llevar energía desde la fuente a todas las terminales', self.f_s, (150, 190, 220), 96, 72)
         pw = self.hack_power()[0]
         hover = h['cur'] if h['kb'] else self.hack_cell_at(pygame.mouse.get_pos())
@@ -336,7 +331,7 @@ class HackMixin:
         if h['phase'] != 'play':
             ok = h['phase'] == 'win'
             self.dim(cv, 90)
-            self.text(cv, 'ACCESO CONCEDIDO' if ok else 'INTRUSION DETECTADA', self.f_xl, (110, 255, 170) if ok else (255, 90, 90), W // 2, H // 2 - 80, 'c')
+            self.fx_stamp(cv, 'ACCESO CONCEDIDO' if ok else 'ACCESO DENEGADO', (110, 255, 170) if ok else (255, 90, 90), H // 2 - 60, clamp(h['pt'] / 0.8, 0, 1), -3 if ok else 3)
             if ok and h.get('radar') is not None:
                 self.text(cv, 'Enlazando con la red de comunicaciones...', self.f_m, (170, 230, 255), W // 2, H // 2 + 20, 'c')
             if not ok:
@@ -346,3 +341,8 @@ class HackMixin:
                     if int(t * 2) % 2 == 0:
                         self.text(cv, 'ESPACIO / CLIC: REINTENTAR con puzzle nuevo (%.0f s)' % nt, self.f_m, (255, 255, 255), W // 2, H // 2 + 60, 'c')
                     self.text(cv, 'TAB: abandonar (reinicio de sistemas 25 s)', self.f_s, (190, 200, 220), W // 2, H // 2 + 96, 'c')
+        self.fx_frame(cv, (255, 90, 90) if (low or h['phase'] == 'fail') else ((110, 255, 170) if h['phase'] == 'win' else (80, 200, 230)))
+        if h['boot'] < HACK_BOOT:
+            self.fx_boot(cv, ['> CONECTANDO CON %d ANTENA(S)...' % h['n'], '> EVADIENDO CORTAFUEGOS...', '> INYECTANDO PAYLOAD... OK'], h['boot'])
+        if h['phase'] == 'fail':
+            self.fx_shake(cv, 9 * clamp(1 - h['pt'] / 0.45, 0, 1))

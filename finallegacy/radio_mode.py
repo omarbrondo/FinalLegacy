@@ -192,10 +192,11 @@ class RadioMixin:
                 kinds.append(k)
         words = random.choice(PHRASES).split()
         self.rd = dict(radar=radar, kinds=kinds, stage=0, fails=0, phase='play', pt=0.0, words=words, t=0.0, time_left=0.0,
-                       calls=[], bonus=0, loot='', hold={}, blip=0.0, beep=0.0)
+                       calls=[], bonus=0, loot='', hold={}, blip=0.0, beep=0.0, boot=0.0)
         self.rd_stage_init(first=True)
         self.rd_say(SAY_INTRO, kinds[0], 'info')
         self.aim = [W / 2, H / 2]
+        self.fx_pulse('cyan', .5)
         self.go('radio')
 
     def rd_say(self, table, kind, mood, cooldown=0.0):
@@ -321,6 +322,7 @@ class RadioMixin:
         rd['phase'], rd['pt'] = 'ok', 0.0
         rd['st']['flash'] = 1.0
         self.audio.play('win', .6)
+        self.fx_pulse('green', .9)
         if self.rd['stage'] + 1 < len(self.rd['kinds']):
             self.rd_say(SAY_OK, self.rd['st']['kind'], 'ok')
         else:
@@ -331,6 +333,9 @@ class RadioMixin:
         rd = self.rd
         st = rd['st']
         rd['t'] += dt
+        if rd['boot'] < 1.4:
+            rd['boot'] += dt
+            return
         for c in rd['calls']:
             c[1] -= dt
         rd['calls'] = [c for c in rd['calls'] if c[1] > 0]
@@ -420,6 +425,7 @@ class RadioMixin:
             self.hull = max(1.0, self.hull - 4)
             self.shake = 8
             self.audio.play('lose', .6)
+            self.fx_pulse('red', 1.2)
             if rd['fails'] >= 3:
                 rd['phase'], rd['pt'] = 'lost', 0.0
                 self.say('hacker', random.choice(SAY_LOST), 'bad', 'right', 470)
@@ -527,10 +533,12 @@ class RadioMixin:
         st = rd['st']
         t = self.t
         kind = st['kind']
-        cv.fill((3, 9, 14))
+        bad = rd['phase'] in ('retry', 'lost') or st.get('miss', 0) > 0 or st.get('jam_fl', 0) > 0
+        good = rd['phase'] in ('ok', 'win') or st.get('flash', 0) > 0
+        self.fx_rain(cv, 'red' if bad else ('green' if good else 'cyan'), 1.0 + (1.0 if st['time'] < 10 and rd['phase'] == 'play' else 0), 150, (3, 9, 14))
         for i in range(0, H, 6):
             pygame.draw.line(cv, (6, 16, 22), (0, i), (W, i))
-        self.text(cv, 'INTERCEPCIÓN DE RADIO', self.f_l, (110, 240, 255), 56, 24)
+        self.fx_title(cv, 'INTERCEPCIÓN DE RADIO', self.f_l, (110, 240, 255), 56, 24)
         self.text(cv, 'RADAR ENEMIGO', self.f_s, (255, 150, 130), 56, 100)
         self.text(cv, 'ESTACIÓN %d/%d  |  %s' % (rd['stage'] + 1, len(rd['kinds']), KIND_NAMES[kind]), self.f_m, (255, 220, 120), 56, 68)
         # pantalla del osciloscopio
@@ -629,19 +637,26 @@ class RadioMixin:
             self.text(cv, '¡SEÑAL BLOQUEADA!', self.f_xl, (110, 255, 170), W // 2, 300, 'c', alpha=int(255 * k))
         elif rd['phase'] == 'retry':
             self.dim(cv, 60)
-            self.text(cv, 'SEÑAL PERDIDA', self.f_xl, (255, 120, 90), W // 2, 300, 'c')
+            self.fx_stamp(cv, 'SEÑAL PERDIDA', (255, 120, 90), 300, clamp(rd['pt'] / 0.5, 0, 1), 3)
             self.text(cv, 'Nueva frecuencia  |  contraataque -4 casco', self.f_m, (255, 190, 160), W // 2, 370, 'c')
         elif rd['phase'] == 'lost':
             self.dim(cv, 80)
-            self.text(cv, 'INTRUSIÓN DETECTADA', self.f_xl, (255, 90, 90), W // 2, 300, 'c')
+            self.fx_stamp(cv, 'ACCESO DENEGADO', (255, 90, 90), 300, clamp(rd['pt'] / 0.5, 0, 1), 3)
             self.text(cv, 'El radar activó el contrahackeo', self.f_m, (255, 190, 160), W // 2, 370, 'c')
         elif rd['phase'] == 'win':
             self.dim(cv, 90)
-            self.text(cv, 'COMUNICACIONES', self.f_xl, (110, 255, 170), W // 2, 215, 'c')
-            self.text(cv, 'INTERCEPTADAS', self.f_xl, (110, 255, 170), W // 2, 295, 'c')
+            kd = clamp(rd['pt'] / 1.0, 0, 1)
+            self.text(cv, self.fx_scramble('COMUNICACIONES', kd), self.f_xl, (110, 255, 170), W // 2, 215, 'c')
+            self.text(cv, self.fx_scramble('INTERCEPTADAS', kd * 1.3 - .3), self.f_xl, (110, 255, 170), W // 2, 295, 'c')
             full = '"%s"' % ' '.join(rd['words'])
+            full = self.fx_scramble(full, rd['pt'] / 2.0)
             self.text(cv, full, self.fit_font(full, W - 100, self.f_l, self.f_m, self.f_s), (255, 240, 170), W // 2, 395, 'c')
             self.text(cv, 'Descifrando recompensa...', self.f_m, (170, 210, 240), W // 2, 450, 'c')
+        self.fx_frame(cv, (255, 90, 90) if bad else ((110, 255, 170) if good else (80, 200, 230)))
+        if rd['boot'] < 1.4:
+            self.fx_boot(cv, ['> SINTONIZANDO RECEPTOR...', '> BARRIENDO FRECUENCIAS ENEMIGAS...', '> SEÑAL DETECTADA'], rd['boot'])
+        if rd['phase'] in ('retry', 'lost'):
+            self.fx_shake(cv, 8 * clamp(1 - rd['pt'] / 0.45, 0, 1))
 
 
     # ------------------------------------------------------------------ minijuegos de lógica: secuencia, clave y cables
