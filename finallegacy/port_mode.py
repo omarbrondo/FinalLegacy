@@ -968,8 +968,9 @@ class PortMixin:
                 th_ = clamp(th_, -PT_AIM_MAX, PT_AIM_DOWN)
                 if pose == 'crouch' or 'apuntar_0' not in art['body'][kind]:
                     gun_ang = round(th_ * (0.66 if th_ > 0 else 0.86) / 2) * 2.0        # hacia abajo el torso se inclina menos (se encorva)         # el torso (con los brazos y el arma) gira hacia donde apunta el mouse
-                elif (pose == 'idle' and th_ < 12) or (pose == 'run' and (flash or th_ < -12)):
-                    pose = 'apuntar_%d' % min(range(5), key=lambda i_: abs(PT_AIMS[i_] - th_))        # cuadro dibujado apuntando a ese ángulo
+                elif (pose == 'idle' and th_ < 12) or (pose == 'run' and (flash or th_ < 12)):
+                    k_ = min(range(5), key=lambda i_: abs(PT_AIMS[i_] - th_))
+                    pose = ('correr_a_%d' if pose == 'run' else 'apuntar_%d') % k_        # cuadro dibujado apuntando a ese ángulo (al correr: piernas de correr + torso apuntando)
         frames = art['body'][kind][pose]
         fi %= len(frames)
         spr, shx, shy = frames[fi]
