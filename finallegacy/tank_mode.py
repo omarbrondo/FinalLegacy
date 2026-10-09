@@ -37,6 +37,7 @@ class TankMixin:
         return blds, sky
 
     def start_tank(self, city):
+        self.tk_prewarm()
         w = self.wave
         blds, sky = self.tk_make_world(city)
         n = min(5 + 2 * w, 16)
@@ -184,19 +185,42 @@ class TankMixin:
         k['cracks'] += pts
         self.tk_say('¡IMPACTO!  ARMADURA %d' % max(0, p['hp']))
 
+    TK_GR = (12, 20, 32, 44, 60, 76, 96, 120)
+    TK_GK = (1.0, 0.8, 0.6, 0.45, 0.3, 0.18, 0.08)
+
+    def tk_glow(self, cv, x, y, r, col, k):
+        """Resplandor con radios e intensidades en pocos escalones: así las explosiones reutilizan imágenes ya generadas y no generan una nueva en cada cuadro."""
+        rq = min(self.TK_GR, key=lambda v: abs(v - r))
+        kq = min(self.TK_GK, key=lambda v: abs(v - k))
+        glow(cv, x, y, rq, col, kq)
+
+    def tk_prewarm(self):
+        """Genera de antemano los resplandores y el humo de las explosiones para que el primer tanque destruido no trabe el juego."""
+        if getattr(self, '_tk_warm', False):
+            return
+        self._tk_warm = True
+        scr = pygame.Surface((8, 8))
+        for col in ((255, 130, 40), (255, 190, 80), (255, 245, 205)):
+            for r in self.TK_GR:
+                for kq in self.TK_GK:
+                    glow(scr, 0, 0, r, col, kq)
+        for r in range(2, 82, 2):
+            draw_circ(scr, 0, 0, r, (24, 22, 24), 100)
+            draw_circ(scr, 0, 0, r, (40, 36, 40), 100)
+
     def tk_boom(self, x, z, size, life=1.1, y=1.4):
         self.k['booms'].append(dict(x=x, y=y, z=z, size=size, life=life, age=0.0))
 
     def tk_blast(self, x, z, size=6.5):
         """Explosión grande de un tanque: bola de fuego en varias capas, onda de choque en el suelo, humo negro que sube y restos que arden."""
         k = self.k
-        for i in range(6):
+        for i in range(4):
             a = random.uniform(0, 6.283)
             r = random.uniform(0, size * 0.28)
             k['booms'].append(dict(x=x + math.cos(a) * r, y=random.uniform(0.8, 3.4), z=z + math.sin(a) * r, size=size * random.uniform(0.55, 1.0),
                                    life=random.uniform(0.9, 1.35), age=-i * 0.07))
         k.setdefault('rings', []).append(dict(x=x, z=z, size=size, age=0.0, life=0.75))
-        for _ in range(8):
+        for _ in range(5):
             a = random.uniform(0, 6.283)
             r = random.uniform(0, size * 0.35)
             k.setdefault('smokes', []).append(dict(x=x + math.cos(a) * r, y=random.uniform(1.0, 2.2), z=z + math.sin(a) * r, vy=random.uniform(2.2, 4.4),
@@ -1004,7 +1028,7 @@ class TankMixin:
                 continue
             sx, sy = self.tk_prj(c)
             a_ = sm['age'] / sm['life']
-            rr = min(150, int(self.TK_F * sm['size'] * 0.45 / c[2]))
+            rr = min(80, int(self.TK_F * sm['size'] * 0.45 / c[2]))
             if rr > 2:
                 draw_circ(cv, sx, sy, rr, (24, 22, 24), 150 * (1 - a_))
         for bm in k['booms']:
@@ -1015,16 +1039,16 @@ class TankMixin:
                 continue
             sx, sy = self.tk_prj(c)
             age = bm['age'] / bm['life']
-            r = min(170, int(self.TK_F * bm['size'] * (0.35 + age * 0.9) / c[2]))
+            r = min(100, int(self.TK_F * bm['size'] * (0.35 + age * 0.9) / c[2]))
             if r < 2:
                 continue
             if bm['size'] < 4:
                 draw_circ(cv, sx, sy - r * 0.3, r, (40, 36, 40), 150 * (1 - age))
-            glow(cv, sx, sy, int(r * (2.0 if bm['size'] >= 4 else 1.5)), (255, 130, 40), 1 - age)
+            self.tk_glow(cv, sx, sy, r * (1.6 if bm['size'] >= 4 else 1.4), (255, 130, 40), 1 - age)
             if bm['size'] >= 4:
-                glow(cv, sx, sy - r * 0.15, int(r * 1.25), (255, 190, 80), 1 - age * 0.9)
+                self.tk_glow(cv, sx, sy - r * 0.15, r * 1.1, (255, 190, 80), 1 - age * 0.9)
             if age < 0.55:
-                glow(cv, sx, sy, int(r), (255, 245, 205), min(1.0, 1.3 - age * 2))
+                self.tk_glow(cv, sx, sy, r, (255, 245, 205), min(1.0, 1.3 - age * 2))
         wx = k['wx']
         if wx != 'clear':
             cache = self.__dict__.setdefault('_tk_wx', {})
