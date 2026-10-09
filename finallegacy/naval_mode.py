@@ -78,10 +78,12 @@ class NavalMixin:
         self.ammo -= 1
         p['cool'] = 0.9 * self.up_reload()
         tx, ty = self.combat_aim()
-        self.launch_missile(p, bearing(tx - p['x'], ty - p['y']), 400, 'p')
+        fx_, fy_ = vec(p['h'], 124 * 0.23)                                  # torreta de proa
+        mx_, my_ = p['x'] + fx_, p['y'] + fy_
+        self.launch_missile(p, bearing(tx - mx_, ty - my_), 400, 'p', off=124 * 0.23)
         self.audio.play('launch', .8)
-        self.fx.add('glow', p['x'], p['y'], life=.2, r0=20, r1=44, col=(255, 220, 150))
-        c['flashes'].append([p['x'], p['y'], 120, (255, 210, 150), 1.0])
+        self.fx.add('glow', mx_, my_, life=.2, r0=20, r1=44, col=(255, 220, 150))
+        c['flashes'].append([mx_, my_, 120, (255, 210, 150), 1.0])
         self.shake = max(self.shake, 3)
 
     def combat_aim(self):
