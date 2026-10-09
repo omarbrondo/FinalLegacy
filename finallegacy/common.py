@@ -6,7 +6,7 @@ import pygame
 
 from . import render_fx as fx
 
-pygame.mixer.pre_init(22050, -16, 2, 512)
+pygame.mixer.pre_init(22050, -16, 2, 1024)
 pygame.init()
 
 W, H = 1100, 800
