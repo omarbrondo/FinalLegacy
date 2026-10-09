@@ -12,6 +12,7 @@ from .comms import PORT_LINES
 
 PT_AIM_MAX = 52         # el jugador no puede disparar casi vertical: tope de inclinación del arma (grados) hacia arriba y hacia abajo
 PT_AIM_DOWN = 32        # hacia abajo se limita más: al inclinar el torso hacia adelante se nota el corte de la cintura
+PT_AIMS = (30, 0, -20, -35, -55)        # ángulos (grados, positivo hacia abajo) de los cuadros dibujados de apuntar
 HIP_UP = 44            # altura de la cadera sobre los pies en el soldado dibujado a mano
 
 
@@ -965,7 +966,10 @@ class PortMixin:
             elif aim is not None and base == 'player' and pose in ('run', 'idle', 'crouch', 'jump', 'fall'):
                 th_ = math.degrees(math.atan2(aim[1], aim[0] if face > 0 else -aim[0]))
                 th_ = clamp(th_, -PT_AIM_MAX, PT_AIM_DOWN)
-                gun_ang = round(th_ * (0.66 if th_ > 0 else 0.86) / 2) * 2.0        # hacia abajo el torso se inclina menos (se encorva)         # el torso (con los brazos y el arma) gira hacia donde apunta el mouse
+                if pose == 'crouch' or 'apuntar_0' not in art['body'][kind]:
+                    gun_ang = round(th_ * (0.66 if th_ > 0 else 0.86) / 2) * 2.0        # hacia abajo el torso se inclina menos (se encorva)         # el torso (con los brazos y el arma) gira hacia donde apunta el mouse
+                elif (pose == 'idle' and th_ < 12) or (pose == 'run' and (flash or th_ < -12)):
+                    pose = 'apuntar_%d' % min(range(5), key=lambda i_: abs(PT_AIMS[i_] - th_))        # cuadro dibujado apuntando a ese ángulo
         frames = art['body'][kind][pose]
         fi %= len(frames)
         spr, shx, shy = frames[fi]
