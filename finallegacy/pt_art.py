@@ -507,7 +507,7 @@ def load_baked_soldier(art, kind):
         frames[pose] = [(atlas.subsurface(pygame.Rect(i * cw, m['row'] * ch, cw, ch)).copy(), 0, 0) for i in range(m['n'])]
         mz[pose] = m['muzzle']
     for key, m in meta.items():                              # cuadros extra (apuntar_0..4: arma a 30° abajo, horizontal y 20°, 35° y 55° arriba)
-        if key.startswith('apuntar_'):
+        if key.startswith(('apuntar_', 'correr_a_')):
             frames[key] = [(atlas.subsurface(pygame.Rect(i * cw, m['row'] * ch, cw, ch)).copy(), 0, 0) for i in range(m['n'])]
             mz[key] = m['muzzle']
     if not all(p in frames for p in ('run', 'idle', 'crouch', 'jump', 'fall', 'die')):
