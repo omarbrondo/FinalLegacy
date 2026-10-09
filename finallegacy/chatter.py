@@ -26,6 +26,10 @@ MAR_COMBAT = (
     '¡El enemigo se está quedando sin paciencia... y sin casco!',
     'Si la cosa se pone fea, siempre queda la opción de huir (E). Nadie dirá nada.',
     'Los aviones enemigos no avisan: la cortina antiaérea es la tecla Z.',
+    'Recuerde los torpedos, capitán: tecla R. Salen por debajo del casco y alcanzan hasta a un submarino sumergido.',
+    '¿Un submarino? Torpedo (R). Los misiles no lo alcanzan sumergido.',
+    'Los cañones de popa disparan solos contra aviones y lanchas. Los de proa son suyos: clic o ESPACIO para misiles.',
+    'Los torpedos (R) cuestan 2 de munición, pero pegan fuerte. No los guarde para después.',
 )
 ART_COMBAT = (
     'Artillería lista. Dígame a quién saludamos.',

@@ -8,6 +8,7 @@ MG_RANGE = 380
 MG_RATE = 0.085
 MG_HEAT = 0.035
 MG_JAM = 2.6
+AFT = -36.0                    # torreta de popa (la ametralladora): distancia al centro del casco, hacia atrás
 
 
 class NavalGunMixin:
@@ -55,16 +56,20 @@ class NavalGunMixin:
                 mg['heat'] = 0.5
         tgt = self.ng_target() if mg['jam'] <= 0 else None
         mg['on'] = tgt is not None
+        ax_, ay_ = vec(p['h'], AFT)
+        tx0, ty0 = p['x'] + ax_, p['y'] + ay_
+        if tgt is None:                                   # sin blanco la torreta de popa vuelve a mirar al frente
+            mg['ang'] = (mg['ang'] + clamp(angle_diff(mg['ang'], p['h']), -240 * dt, 240 * dt)) % 360
         if tgt is not None:
-            want = bearing(tgt[2] - p['x'], tgt[3] - p['y'])
+            want = bearing(tgt[2] - tx0, tgt[3] - ty0)
             mg['ang'] = (mg['ang'] + clamp(angle_diff(mg['ang'], want), -520 * dt, 520 * dt)) % 360
             if abs(angle_diff(mg['ang'], want)) < 12 and mg['cd'] <= 0:
                 mg['cd'] = MG_RATE
                 mg['shots'] += 1
                 a = mg['ang'] + random.uniform(-3.0, 3.0)
-                ox, oy = vec(mg['ang'], 24)
+                ox, oy = vec(mg['ang'], 20)
                 vx, vy = vec(a, 700)
-                mg['bullets'].append(dict(x=p['x'] + ox, y=p['y'] + oy, vx=vx, vy=vy, life=0.56))
+                mg['bullets'].append(dict(x=tx0 + ox, y=ty0 + oy, vx=vx, vy=vy, life=0.56))
                 mg['flash'] = 0.05
                 mg['heat'] += MG_HEAT
                 if mg['shots'] % 3 == 0:
@@ -157,14 +162,12 @@ class NavalGunMixin:
         p = c['p']
         if p['sink'] is not None and p['sink'] > 0.3:
             return
-        ex, ey = vec(mg['ang'], 22)
-        bx, by = vec(mg['ang'], 6)
-        pygame.draw.circle(cv, (40, 46, 54), (int(p['x']), int(p['y'])), 6)
-        pygame.draw.line(cv, (24, 28, 32), (p['x'] + bx, p['y'] + by), (p['x'] + ex, p['y'] + ey), 4)
-        pygame.draw.circle(cv, (150, 160, 172), (int(p['x']), int(p['y'])), 4)
+        ax_, ay_ = vec(p['h'], AFT)
+        tx0, ty0 = p['x'] + ax_, p['y'] + ay_
+        self.blit_turret(cv, self.tur_p, tx0, ty0, mg['ang'], 255 if p['sink'] is None else 140)    # torreta de popa (la misma del casco)
         if mg['flash'] > 0:
-            fx_, fy_ = vec(mg['ang'], 26)
-            glow(cv, p['x'] + fx_, p['y'] + fy_, 18, (255, 220, 140), 0.9)
+            fx_, fy_ = vec(mg['ang'], 24)
+            glow(cv, tx0 + fx_, ty0 + fy_, 18, (255, 220, 140), 0.9)
         for b in mg['bullets']:
             pygame.draw.line(cv, (255, 240, 150), (b['x'], b['y']), (b['x'] - b['vx'] * 0.03, b['y'] - b['vy'] * 0.03), 2)
 

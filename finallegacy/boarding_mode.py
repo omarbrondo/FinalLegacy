@@ -193,6 +193,7 @@ class BoardMixin:
             draw_circ(cv, C[0], C[1], 120, (255, 80, 60), 110 * bo['hit'] / 0.35, 4)
         ang = bo['ang']
         self.blit_turret(cv, self.tur_p, TUR[0], TUR[1], bearing(self.aim[0] - TUR[0], self.aim[1] - TUR[1]))
+        self.blit_turret(cv, self.tur_p, C[0], C[1] + 36, bearing(self.aim[0] - C[0], self.aim[1] - C[1] - 36))        # torreta de popa
         if bo['flash'] > 0:
             glow(cv, TUR[0] + math.cos(ang) * 40, TUR[1] + math.sin(ang) * 40, 36, (255, 220, 140), 0.9)
         for s in bo['deck']:
