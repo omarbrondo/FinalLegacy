@@ -19,7 +19,7 @@ class AerialMixin:
     def start_aerial(self, city=None):
         self.fx = Particles()
         w = self.wave
-        pool = ['vee', 'line', 'dive', 'pair', 'vee', 'line']
+        pool = ['vee', 'flank', 'line', 'dive', 'pair', 'kami', 'flank', 'vee', 'pair']
         if w >= 2:
             pool += ['kami', 'bomber']
         if w >= 3:
@@ -27,14 +27,14 @@ class AerialMixin:
         if w >= 4:
             pool += ['gunship']
         events, t = [], 2.0
-        gap = max(3.2, 4.8 - 0.15 * w)
-        for i in range(min(16, 8 + w)):
+        gap = max(2.1, 2.8 - 0.1 * w)
+        for i in range(min(20, 13 + w)):
             k = pool[i % len(pool)] if i < len(pool) else random.choice(pool)
             events.append((t, k, random.uniform(200, W - 200)))
             t += gap + random.uniform(-0.4, 0.8)
         self.a = dict(city=city, t=0.0, scroll=0.0, phase='play', pt=0.0, fail=False, kills=0,
-                      p=dict(x=W / 2, y=H - 140.0, hp=100.0, inv=0.0, cd=0.0, bcd=0.0, wl=1, shield=0.0, vx=0.0, dead=False, rapid=0.0, homing=0.0, mcd=0.0),
-                      foes=[], ebul=[], pbul=[], bombs=[], ground=[], isl=[], clouds=[],
+                      p=dict(x=W / 2, y=H - 140.0, hp=100.0, inv=0.0, cd=0.0, bcd=0.0, wl=1, shield=0.0, vx=0.0, dead=False, rapid=0.0, homing=0.0, mcd=0.0, wup=0.0),
+                      foes=[], ebul=[], pbul=[], bombs=[], ground=[], isl=[], clouds=[], caps=[],
                       forms={}, fid=0, events=events, boss_t=t + 2.5, boss=None, boss_dead=False,
                       isl_t=0.0, boat_t=6.0, cloud_t=0.0)
         for yy in (-200, 100, 330, 560):
@@ -71,7 +71,7 @@ class AerialMixin:
 
     def air_foe(self, kind, x, y, fid=None, **kw):
         w = self.wave
-        hp = {'viper': 2 + w // 3, 'stealth': 5 + w // 2, 'bomber': 16 + 3 * w, 'kami': 2, 'gunship': 10 + w, 'mine': 3}[kind]
+        hp = {'viper': 3 + w // 3, 'stealth': 5 + w // 2, 'bomber': 16 + 3 * w, 'kami': 2, 'gunship': 10 + w, 'mine': 3}[kind]
         f = dict(kind=kind, x=x, y=y, bx=x, hp=float(hp), max=float(hp), t=0.0, ph=random.uniform(0, 6.28),
                  cd=random.uniform(1.2, 2.8), fid=fid, vx=0.0, vy=0.0, mode=0, hit=0.0)
         f.update(kw)
@@ -86,11 +86,14 @@ class AerialMixin:
         fid = a['fid']
         if kind == 'vee':
             offs = [(0, 0), (-50, -38), (50, -38), (-100, -76), (100, -76)]
-            for ox, oy in offs:
-                self.air_foe('viper', clamp(x + ox, 50, W - 50), -50 + oy, fid)
+            for i, (ox, oy) in enumerate(offs):
+                self.air_foe('viper', clamp(x + ox, 50, W - 50), -50 + oy, fid, brk=1.6 + i * 0.55)        # la V se rompe: cada caza se separa para atacar
         elif kind == 'line':
             for i in range(6):
-                self.air_foe('viper', x, -50 - i * 52, fid)
+                self.air_foe('viper', x, -50 - i * 52, fid, brk=1.4 + i * 0.5)
+        elif kind == 'flank':                           # dos cazas entran por los costados y se alinean con vos
+            for sd in (-1, 1):
+                self.air_foe('viper', -50.0 if sd < 0 else W + 50.0, random.uniform(90, 210), fid, brk=0.0, hy=random.uniform(110, 230))
         elif kind == 'dive':
             side = random.choice((-1, 1))
             for i in range(3):
@@ -114,6 +117,48 @@ class AerialMixin:
         elif kind == 'gunship':
             self.air_foe('gunship', clamp(x, 200, W - 200), -80, fid)
         a['forms'][fid] = dict(n=sum(1 for f in a['foes'] if f['fid'] == fid), escaped=False)
+
+    def air_viper_attack(self, f, dt, p):
+        """Caza que ataca: baja a una altura de combate, se alinea con el jugador disparando ráfagas hacia donde va a estar y después se lanza en picada o se va por un costado."""
+        w = self.wave
+        if 'st' not in f:
+            f.update(st=0, hy=f.get('hy', random.uniform(110, 300)), sdur=random.uniform(3.4, 4.8), sx=random.choice((-1, 1)), bt=random.uniform(0.5, 1.1),
+                     nb=0, bcd=0.0, ts=0.0, off=random.uniform(-80, 80), ex=None)
+            f['cd'] = 99.0                              # el disparo genérico queda anulado: dispara este código
+        f['ts'] += dt
+        tx = (p['x'] if not p['dead'] else W / 2) + f['off']
+        spd = 150 + 8 * w
+        if f['st'] == 0:                                 # entrada
+            f['y'] += clamp(f['hy'] - f['y'], -190 * dt, 190 * dt)
+            f['x'] += clamp(tx - f['x'], -spd * dt, spd * dt)
+            if abs(f['y'] - f['hy']) < 6:
+                f['st'], f['ts'] = 1, 0.0
+        elif f['st'] == 1:                               # alineado y disparando
+            f['y'] = f['hy'] + math.sin(f['ts'] * 2.2 + f['ph']) * 14
+            f['x'] += clamp(tx - f['x'], -spd * dt, spd * dt)
+            if not p['dead'] and 20 < f['y'] < H * 0.7:
+                f['bt'] -= dt
+                if f['bt'] <= 0 and f['nb'] <= 0:
+                    f['nb'], f['bcd'] = 4, 0.0
+                    f['bt'] = max(0.9, random.uniform(1.0, 1.7) - 0.05 * w)
+                if f['nb'] > 0:
+                    f['bcd'] -= dt
+                    if f['bcd'] <= 0:
+                        f['bcd'] = 0.13
+                        f['nb'] -= 1
+                        t_hit = dist(f['x'], f['y'], p['x'], p['y']) / (255.0 * (1 + 0.03 * w))
+                        ax_ = p['x'] + p['vx'] * t_hit * 0.8
+                        self.air_ebul(f['x'], f['y'] + 20, bearing(ax_ - f['x'], p['y'] - f['y']) + random.uniform(-2, 2), 255)
+            if f['ts'] > f['sdur']:
+                f['st'], f['ts'] = 2, 0.0
+                f['ex'] = 'dive' if random.random() < 0.6 else 'exit'
+        else:                                            # salida: picada o escape lateral
+            if f['ex'] == 'dive':
+                f['y'] += 340 * dt
+                f['x'] += clamp((p['x'] if not p['dead'] else f['x']) - f['x'], -130 * dt, 130 * dt)
+            else:
+                f['x'] += f['sx'] * 300 * dt
+                f['y'] += 40 * dt
 
     def air_ebul(self, x, y, ang, speed, r=5):
         spd = speed * (1 + 0.03 * self.wave)
@@ -139,7 +184,32 @@ class AerialMixin:
                 self.air_ebul(f['x'], f['y'], i * 45, 120, 5)
         form = a['forms'].get(f['fid'])
         if form:
-            form['n'] -= 1                              # sin potenciadores: ya no se sueltan cápsulas
+            form['n'] -= 1
+        self.air_maybe_drop(f)
+
+    CAP_INFO = {'arma': ('A', (255, 190, 70), 'ARMA'), 'rafaga': ('R', (255, 235, 110), 'RÁFAGA'), 'guiado': ('G', (200, 150, 255), 'GUIADOS')}
+    CAP_SECS = {'arma': 12.0, 'rafaga': 10.0, 'guiado': 10.0}
+
+    def air_maybe_drop(self, f):
+        """Desde la oleada 2 los enemigos pueden soltar un potenciador temporal."""
+        if self.wave < 2 or f['kind'] == 'mine':
+            return
+        chance = {'viper': 0.14, 'stealth': 0.24, 'kami': 0.10, 'gunship': 0.5, 'bomber': 1.0}.get(f['kind'], 0.1)
+        if random.random() < chance:
+            kind = random.choices(('arma', 'rafaga', 'guiado'), (0.45, 0.30, 0.25))[0]
+            self.a['caps'].append(dict(x=f['x'], y=f['y'], kind=kind, t=0.0))
+
+    def air_pick_cap(self, kind):
+        p = self.a['p']
+        if kind == 'arma':
+            p['wl'] = min(4, max(1, p['wl']) + 2)
+            p['wup'] = self.CAP_SECS[kind]
+        elif kind == 'rafaga':
+            p['rapid'] = max(p['rapid'], self.CAP_SECS[kind])
+        else:
+            p['homing'] = max(p['homing'], self.CAP_SECS[kind])
+        self.audio.play('pickup', .6)
+        self.pop(self.CAP_INFO[kind][2] + ' %ds' % self.CAP_SECS[kind], p['x'], p['y'] - 50, self.CAP_INFO[kind][1])
 
     def air_fire_player(self):
         a = self.a
@@ -209,6 +279,10 @@ class AerialMixin:
             p['x'] = clamp(p['x'] + p['vx'] * dt, 44, W - 44)
             p['y'] = clamp(p['y'] + my / n * 300 * dt, 150, H - 70)
             p['rapid'] = max(0.0, p['rapid'] - dt)
+            if p['wup'] > 0:                                     # el arma mejorada dura poco: al terminar el tiempo vuelve al disparo simple
+                p['wup'] -= dt
+                if p['wup'] <= 0:
+                    p['wup'], p['wl'] = 0.0, 1
             p['homing'] = max(0.0, p['homing'] - dt)
             if self.up_n('homing'):
                 p['homing'] = max(p['homing'], 5.0)
@@ -289,6 +363,8 @@ class AerialMixin:
             if k == 'viper' and f.get('spiral') is not None:
                 f['y'] += (96 + 3 * self.wave) * dt
                 f['x'] = f['bx'] + math.cos(f['t'] * 2.6 + f['spiral'] * 1.05) * 120
+            elif k == 'viper' and f.get('brk') is not None and f['t'] >= f['brk']:
+                self.air_viper_attack(f, dt, p)
             elif k == 'viper':
                 f['y'] += (110 + 3 * self.wave) * dt
                 f['x'] = f['bx'] + math.sin(f['t'] * 2.2 + f['ph']) * 55
@@ -360,6 +436,16 @@ class AerialMixin:
         if b and not a['boss_dead']:
             self.air_boss_update(dt)
         self.air_ambient_update(dt)
+        # potenciadores (cápsulas): caen despacio, se recogen al tocarlas y duran poco
+        for cp in a['caps'][:]:
+            cp['t'] += dt
+            cp['y'] += 95 * dt
+            cp['x'] += math.sin(cp['t'] * 2.4) * 28 * dt
+            if cp['y'] > H + 40:
+                a['caps'].remove(cp)
+            elif not p['dead'] and dist(cp['x'], cp['y'], p['x'], p['y']) < 38:
+                a['caps'].remove(cp)
+                self.air_pick_cap(cp['kind'])
         # balas del jugador
         for bl in a['pbul'][:]:
             if bl.get('hom'):
@@ -511,6 +597,14 @@ class AerialMixin:
                 sh = A['shadows'][id(spr)] = make_shadow(spr)
             sh.set_alpha(75)
             cv.blit(sh, (x - sh.get_width() // 2 + sh_off[0], y - sh.get_height() // 2 + sh_off[1]))
+        for cp in a['caps']:                                              # potenciadores que caen
+            ch, ccol, cname = self.CAP_INFO[cp['kind']]
+            cx_, cy_ = int(cp['x']), int(cp['y'] + math.sin(cp['t'] * 5) * 3)
+            glow(cv, cx_, cy_, 34, ccol, 0.55 + 0.25 * math.sin(cp['t'] * 7))
+            pygame.draw.circle(cv, (14, 18, 30), (cx_, cy_), 17)
+            pygame.draw.circle(cv, ccol, (cx_, cy_), 15, 3)
+            self.text(cv, ch, self.f_m, ccol, cx_, cy_ - 12, 'c', shadow=False)
+            self.text(cv, cname, self.f_s, ccol, cx_, cy_ + 20, 'c')
         for f in a['foes']:
             if f['kind'] == 'mine':
                 mx_, my_ = int(f['x']), int(f['y'])
@@ -608,6 +702,9 @@ class AerialMixin:
         yy_ = 90
         if p['shield'] > 0:
             self.text(cv, 'ESCUDO %.0f' % p['shield'], self.f_s, (150, 225, 255), W - 20, yy_, 'r')
+            yy_ += 20
+        if p['wup'] > 0:
+            self.text(cv, 'ARMA NIVEL %d  %.0f' % (p['wl'], p['wup']), self.f_s, (255, 190, 70), W - 20, yy_, 'r')
             yy_ += 20
         if p['rapid'] > 0:
             self.text(cv, 'RÁFAGA %.0f' % p['rapid'], self.f_s, (255, 235, 110), W - 20, yy_, 'r')
