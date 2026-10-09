@@ -610,6 +610,28 @@ class TankMixin:
         dx, dz = x - p['x'], z - p['z']
         return dx * self._kc - dz * self._ks, y - self.TK_EYE, dx * self._ks + dz * self._kc
 
+    def tk_vis(self, x, y, z):
+        """True si el punto (x, y, z) se ve desde la cámara: ningún edificio se interpone en la línea de visión (las explosiones detrás de las paredes no se dibujan)."""
+        p = self.k['p']
+        ox, oy, oz = p['x'], self.TK_EYE, p['z']
+        dx, dy, dz = x - ox, y - oy, z - oz
+        for b in self.k['blds']:
+            t0, t1 = 0.0, 0.999
+            for o, d, lo, hi in ((ox, dx, b['x'] - b['hw'], b['x'] + b['hw']), (oy, dy, 0.0, b['h']), (oz, dz, b['z'] - b['hd'], b['z'] + b['hd'])):
+                if abs(d) < 1e-9:
+                    if o < lo or o > hi:
+                        break
+                else:
+                    ta, tb = (lo - o) / d, (hi - o) / d
+                    if ta > tb:
+                        ta, tb = tb, ta
+                    t0, t1 = max(t0, ta), min(t1, tb)
+                    if t0 > t1:
+                        break
+            else:
+                return False
+        return True
+
     def tk_prj(self, c):
         vp = self.TK_VP
         return vp.centerx + self.TK_F * c[0] / c[2], vp.y + int(vp.h * 0.55) - self.TK_F * c[1] / c[2]
@@ -1009,10 +1031,14 @@ class TankMixin:
         for s in k['pshells']:
             self.tk_shell(cv, s, (255, 236, 160))
         for d_ in k['debris']:
+            if not self.tk_vis(d_['x'], d_['y'], d_['z']):
+                continue
             a = self.tk_cam(d_['x'], d_['y'], d_['z'])
             b = self.tk_cam(d_['x'] - d_['vx'] * .07, d_['y'] - d_['vy'] * .07, d_['z'] - d_['vz'] * .07)
             self.tk_line(cv, a, b, (255, int(150 + 100 * clamp(d_['life'], 0, 1)), 60), 2)
         for w_ in k.get('wrecks', []):                              # restos de tanques que siguen ardiendo
+            if not self.tk_vis(w_['x'], 1.0, w_['z']):
+                continue
             c = self.tk_cam(w_['x'], 0.6, w_['z'])
             if c[2] < 2:
                 continue
@@ -1023,6 +1049,8 @@ class TankMixin:
                 pygame.draw.ellipse(cv, (14, 12, 12), (sx - u_ * 2.4, sy - u_ * 0.5, u_ * 4.8, u_ * 1.1))
             glow(cv, sx + math.sin(self.t * 11 + w_['x']) * u_ * 0.4, sy - u_ * 1.1, max(4, int(u_ * 1.5)), (255, 120, 40), 0.55 * fade * (0.6 + 0.4 * math.sin(self.t * 17 + w_['z'])))
         for rg in k.get('rings', []):                               # onda de choque sobre el suelo
+            if not self.tk_vis(rg['x'], 0.3, rg['z']):
+                continue
             c = self.tk_cam(rg['x'], 0.1, rg['z'])
             if c[2] < 2:
                 continue
@@ -1032,7 +1060,7 @@ class TankMixin:
             if rr > 2:
                 pygame.draw.ellipse(cv, (255, 220, 160), (sx - rr, sy - rr * 0.28, rr * 2, rr * 0.56), 2)
         for sm in k.get('smokes', []):                              # humo negro que sube
-            if sm['age'] < 0:
+            if sm['age'] < 0 or not self.tk_vis(sm['x'], sm['y'], sm['z']):
                 continue
             c = self.tk_cam(sm['x'], sm['y'], sm['z'])
             if c[2] < 1.5:
@@ -1043,7 +1071,7 @@ class TankMixin:
             if rr > 2:
                 draw_circ(cv, sx, sy, rr, (24, 22, 24), 150 * (1 - a_))
         for bm in k['booms']:
-            if bm['age'] < 0:
+            if bm['age'] < 0 or not self.tk_vis(bm['x'], bm['y'], bm['z']):
                 continue
             c = self.tk_cam(bm['x'], bm['y'], bm['z'])
             if c[2] < 1.5:
