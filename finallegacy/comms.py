@@ -179,14 +179,28 @@ class CommsMixin:
             who = 'soldada' if fem else 'soldado'
         if (cm['cur'] and cm['cur']['text'] == text) or any(q['text'] == text for q in cm['queue']):
             return
-        item = dict(who=who, v=v if v is not None else self.comms_pick(who), name=name, pose=mood if pose is None else pose, text=text, mood=mood, side=side or ROLES[who]['side'], y=LANE_Y if y is None else y)
-        if urgent:                                                                  # sale ya: pasa al frente y corta el globo que se estaba mostrando
+        prio = 2 if urgent else (1 if mood in ('bad', 'warn') else 0)              # urgente > aviso (peligro) > información
+        item = dict(who=who, v=v if v is not None else self.comms_pick(who), name=name, pose=mood if pose is None else pose, text=text, mood=mood, side=side or ROLES[who]['side'], y=LANE_Y if y is None else y,
+                    prio=prio, born=self.t)
+        cur = cm['cur']
+        if prio > 0 and cur is not None and prio > cur.get('prio', 0):               # algo más importante: corta de golpe el globo actual y pasa primero
+            cm['cur'] = None
+            cm['queue'] = [q for q in cm['queue'] if q.get('prio', 0) >= prio]
             cm['queue'].insert(0, item)
-            if cm['cur'] is not None:
-                cm['cur']['t'] = max(cm['cur']['t'], ENTER + cm['cur']['hold'])
             return
-        cm['queue'].append(item)
-        del cm['queue'][:-4]
+        i = next((j for j, q in enumerate(cm['queue']) if q.get('prio', 0) < prio), len(cm['queue']))
+        cm['queue'].insert(i, item)
+        while len(cm['queue']) > 4:                                                  # demasiados pendientes: se descarta el más viejo de menor importancia
+            lo = min(q.get('prio', 0) for q in cm['queue'])
+            cm['queue'].pop(next(j for j, q in enumerate(cm['queue']) if q.get('prio', 0) == lo))
+
+    def comms_cut_old(self):
+        """Cambio de modo: se corta el globo que se estaba mostrando y se descartan los pendientes (salvo los dichos en este mismo instante)."""
+        cm = self.cm
+        now = self.t
+        if cm['cur'] is not None and now - cm['cur'].get('born', -9.0) > 0.05:
+            cm['cur'] = None
+        cm['queue'] = [q for q in cm['queue'] if now - q.get('born', -9.0) <= 0.05]
 
     def comms_purge(self):
         """Descarta los globos pendientes y el que se está mostrando (al cambiar de pantalla, para que no aparezcan mensajes viejos)."""
