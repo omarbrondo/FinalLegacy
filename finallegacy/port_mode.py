@@ -12,7 +12,7 @@ from .comms import PORT_LINES
 
 PT_AIM_MAX = 52         # el jugador no puede disparar casi vertical: tope de inclinación del arma (grados) hacia arriba y hacia abajo
 PT_AIM_DOWN = 32        # hacia abajo se limita más: al inclinar el torso hacia adelante se nota el corte de la cintura
-PT_AIMS = (30, 0, -20, -35, -55)        # ángulos (grados, positivo hacia abajo) de los cuadros dibujados de apuntar
+PT_AIMS = (36, 0, -28, -40, -62)        # ángulos (grados, positivo hacia abajo) de los cuadros dibujados de apuntar
 HIP_UP = 44            # altura de la cadera sobre los pies en el soldado dibujado a mano
 
 
@@ -851,12 +851,17 @@ class PortMixin:
             right = face > 0
             th = math.atan2(dy, dx if right else -dx)
             th = clamp(th, -math.radians(PT_AIM_MAX), math.radians(PT_AIM_DOWN))
+            if 'apuntar_0' in self.pt_art['body'].get('player' if not self.pt.get('pfem') else 'player_f', {}):     # las balas siguen el ángulo del fusil dibujado, no la mira
+                th = 0.0 if self.pt['p'].get('crouch') else math.radians(min(PT_AIMS, key=lambda a_: abs(a_ - math.degrees(th))))
             return mx, my, (math.cos(th) if right else -math.cos(th)), math.sin(th)
         dx, dy = tx - px, ty - py
         right = face > 0
         th = math.atan2(dy, dx if right else -dx)
         lim = PT_AIM_MAX if kind == 'player' else 80
         th = clamp(th, -math.radians(lim), math.radians(PT_AIM_DOWN if kind == 'player' else 80))
+        if kind == 'sniper' and 'apuntar_0' in self.pt_art['body'].get('sniper', {}):                  # francotirador dibujado: dispara por donde apunta su fusil
+            d_ = math.degrees(clamp(th, -math.radians(62), math.radians(36)))
+            th = 0.0 if abs(d_) < 12 else math.radians(min(PT_AIMS, key=lambda a_: abs(a_ - d_)))
         dirx, diry = (math.cos(th) if right else -math.cos(th)), math.sin(th)
         ln = self.PT_MUZ.get(kind, 74)
         return px + dirx * ln, py + diry * ln, dirx, diry
@@ -963,6 +968,10 @@ class PortMixin:
             elif base == 'knife':                            # cuchillero: al atacar (brazo en alto) usa el cuadro de la cuchillada
                 if aim is not None and abs(aim[1] - 0.1) > 0.02 and aim[1] < 0.1 and 'attack' in art['body'][kind]:
                     pose = 'attack'
+            elif base == 'sniper' and aim is not None and pose == 'crouch' and 'apuntar_0' in art['body'][kind]:
+                th_ = clamp(math.degrees(math.atan2(aim[1], aim[0] if face > 0 else -aim[0])), -62, 36)
+                if abs(th_) >= 12:                           # el francotirador se levanta y apunta con el fusil inclinado hacia el objetivo
+                    pose = 'apuntar_%d' % min(range(5), key=lambda i_: abs(PT_AIMS[i_] - th_))
             elif base == 'gren' and flash and pose in ('run', 'idle') and 'apuntar_1' in art['body'][kind]:
                 pose = 'apuntar_1'                           # el granadero dispara con el lanzagranadas en horizontal
             elif aim is not None and base == 'player' and pose in ('run', 'idle', 'crouch', 'jump', 'fall'):
