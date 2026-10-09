@@ -118,6 +118,24 @@ CMD_MAP = (
     'Esta guerra se gana con paciencia, pero se pierde con descuido.',
 )
 
+MAR_BOARD = (
+    'Dispare a los botes más cercanos al casco, capitán: esos son los peligrosos.',
+    'Ráfagas cortas: si se recalienta, quedamos indefensos.',
+    'Cada bote que llega suma un invasor a bordo. Con tres, se arma.',
+    '¡Ese bote ya está tocando el casco! ¡Al agua con él!',
+    'No pierda tiempo con los lejanos: espere a que se acerquen.',
+    'Mire los costados: vienen por todos lados.',
+)
+MAR_DECK = (
+    'Cuidado con los flancos, capitán: llegan por ambos lados de la cubierta.',
+    'Hay botiquines por la cubierta. Úselos cuando haga falta, no antes.',
+    'Los granaderos primero: no les dé tiempo a lanzar.',
+    'Los escudos resisten. Rodéelos o apunte arriba.',
+    'Si se acerca un cuchillero, retroceda y dispare.',
+    'Los barriles explotan: úselos contra los invasores.',
+    'Siga avanzando por cubierta. Despeje cada grupo antes de pasar al siguiente.',
+)
+
 # ---------------------------------------------------------------- provocaciones de los enemigos
 ENEMY_NAVAL = (
     '¿Eso es todo lo que tiene, capitán? Mi abuela maneja mejor un bote.',
@@ -150,6 +168,12 @@ ENEMY_TANK = (
     'Apunten al frontal. Les enseñaremos qué es un blindado de verdad.',
     '¡Avancen! No dejen un solo edificio en pie.',
     'Su cañón me hace cosquillas. Ahora le toca a usted.',
+)
+ENEMY_BOARD = (
+    '¡Al abordaje! ¡Este barco será nuestro!',
+    '¡Suban rápido, que no nos frenen!',
+    'Tomen el puente y el barco es nuestro.',
+    'Se creen muy valientes en esa cubierta.',
 )
 ENEMY_BAT = (
     'Esta isla ya es nuestra. Retírense mientras puedan.',
@@ -282,7 +306,7 @@ class ChatterMixin:
             self._chat_st = st
             self._chat_t = random.uniform(14.0, 24.0)             # al entrar a un modo se espera un rato antes de hablar
         cm = self.cm
-        if st not in ('map', 'combat', 'aerial', 'jets', 'heli', 'tank', 'ground', 'port', 'defense', 'batdef'):
+        if st not in ('map', 'combat', 'aerial', 'jets', 'heli', 'tank', 'ground', 'port', 'defense', 'batdef', 'board'):
             return
         # avisos de estado (casco, combustible, munición) en el mapa, con enfriamiento
         if st == 'map':
@@ -303,7 +327,7 @@ class ChatterMixin:
         if self._chat_t > 0 or cm['cur'] is not None or cm['queue'] or self.t - cm.get('end', -99) < 6.0:
             return
         self._chat_t = random.uniform(26.0, 44.0)
-        enemy_states = ('combat', 'aerial', 'jets', 'tank', 'ground', 'port', 'batdef')
+        enemy_states = ('combat', 'aerial', 'jets', 'tank', 'ground', 'port', 'batdef', 'board')
         if st in enemy_states and random.random() < 0.35:
             return self.chat_enemy()
         if st == 'map':
@@ -312,7 +336,9 @@ class ChatterMixin:
                 return self.say('secretaria', self.chat_report(), 'info', 'right', 640)
             pool = {'comandante': CMD_MAP, 'marinero': MAR_MAP, 'hacker': HK_MAP}[who]
             return self.say(who, self.chat_pick('map_' + who, pool), 'info')
-        spec = {'combat': (('marinero', MAR_COMBAT), ('artillero', ART_COMBAT)), 'aerial': (('piloto', PIL_AIR),), 'jets': (('piloto', PIL_JETS),),
+        if st == 'port' and getattr(self, 'pt', {}).get('deck'):
+            return self.say('marinero', self.chat_pick('port_deck', MAR_DECK), 'info')
+        spec = {'board': (('marinero', MAR_BOARD),), 'combat': (('marinero', MAR_COMBAT), ('artillero', ART_COMBAT)), 'aerial': (('piloto', PIL_AIR),), 'jets': (('piloto', PIL_JETS),),
                 'heli': (('piloto', PIL_HELI),), 'tank': (('tanquista', TK_LINES),), 'ground': (('soldado', SOL_GROUND),), 'port': (('soldado', SOL_PORT),),
                 'defense': (('artillero', ART_DEF),), 'batdef': (('artillero', ART_BAT),)}.get(st)
         if spec:
@@ -333,6 +359,8 @@ class ChatterMixin:
             return self.say('jefe_avion', self.chat_pick('en_air', ENEMY_AIR), 'bad', pose='', v=self.wave % 6 + 1, name='PILOTO ENEMIGO')
         if st == 'tank':
             return self.say('jefe_puerto_tanque', self.chat_pick('en_tank', ENEMY_TANK), 'bad', pose='', v=self.wave // 2 % 2 + 1, name='TANQUISTA ENEMIGO')
+        if st == 'board' or (st == 'port' and getattr(self, 'pt', {}).get('deck')):
+            return self.say('jefe_puerto_tanque', self.chat_pick('en_board', ENEMY_BOARD), 'bad', pose='', v=self.wave // 2 % 2 + 1, name='INVASOR ENEMIGO')
         if st == 'batdef':
             return self.say('jefe_barco', self.chat_pick('en_bat', ENEMY_BAT), 'bad', pose='', v=self.wave % 6 + 1, name='CAPITÁN INVASOR')
         return self.say('jefe_puerto_tanque', self.chat_pick('en_ground', ENEMY_GROUND), 'bad', pose='', v=self.wave // 2 % 2 + 1, name='OFICIAL ENEMIGO')

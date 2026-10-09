@@ -49,7 +49,10 @@ class BoardMixin:
         self.aim = [float(C[0]), float(C[1] - 240)]
         self.go('board')
         self.banner('¡REPELÉ EL ABORDAJE!', 'Clic: ráfagas cortas (la ametralladora se recalienta)', (255, 200, 110), 3.5)
-        self.say('artillero', '¡Ametralladora a su mando, capitán! Que no lleguen tres botes a la cubierta.', 'warn')
+        self.say('marinero', self.chat_pick('board_intro', (
+            '¡Ametralladora a su mando, capitán! Que no lleguen tres botes a la cubierta. Clic para disparar, y ráfagas cortas.',
+            '¡A las armas, capitán! Dispare a los botes antes de que lleguen al casco. No deje que se sobrecaliente.',
+        )), 'warn')
 
     def bo_spawn(self):
         bo = self.bo
@@ -91,7 +94,10 @@ class BoardMixin:
             self.audio.play('alarm', 1.0)
             self.shake = 14
             self.banner('¡NOS ABORDAN!', 'Los invasores están en la cubierta: ¡a defenderla!', (255, 80, 70), 3.0)
-            self.say('soldado', '¡Han subido a cubierta! ¡Todos a las armas!', 'bad')
+            self.say('marinero', self.chat_pick('board_lost', (
+                '¡Han subido a cubierta, capitán! ¡Todos a las armas!',
+                '¡Abordaje consumado! Los repelemos en cubierta o se llevan el barco.',
+            )), 'bad')
         elif bo['spawned'] >= bo['n'] and not bo['boats']:
             bo['phase'], bo['pt'] = 'win', 0.0
             self.audio.play('win', .7)
@@ -260,7 +266,7 @@ class BoardMixin:
         self.aim = [W / 2, 300.0]
         self.go('port')
         self.banner('¡DEFENDÉ LA CUBIERTA!', 'Repelé a los invasores: no dan puntos, pero te mantienen con vida', (255, 120, 90), 3.2)
-        self.say('soldado', '¡Los invasores están en cubierta! A/D mover, W saltar, S agacharse, clic disparar, G granada. ¡Que no tomen el puente!', 'warn')
+        self.say('marinero', '¡Los invasores están en cubierta, capitán! A/D mover, W saltar, S agacharse, clic disparar y G granada. ¡Que no tomen el puente!', 'warn')
 
     def end_deck(self):
         pt = self.pt
@@ -273,9 +279,10 @@ class BoardMixin:
         self.go('map')
         self.board_t = random.uniform(150.0, 210.0)
         self.banner('¡CUBIERTA LIBRE!', 'Repelida la invasión: seguimos con vida', (130, 255, 190), 3.4)
-        self.say('secretaria', self.chat_pick('deck_win', (
+        self.say('marinero', self.chat_pick('deck_win', (
             'Cubierta asegurada, capitán. Seguimos en operación.',
-            'Informe: invasores neutralizados. El barco no sufrió bajas graves.',
+            'Invasores neutralizados. El barco sigue siendo nuestro.',
+            'Ni uno quedó en pie, capitán. Buen trabajo en cubierta.',
         )), 'ok')
 
     # ------------------------------------------------------------------ fondo de la cubierta (lo usa draw_port)
