@@ -40,9 +40,10 @@ from .batdef_mode import BatDefMixin
 from .dogfight_mode import DogfightMixin
 from .chatter import ChatterMixin
 from .boarding_mode import BoardMixin
+from .hackfx import HackFxMixin
 
 
-class Game(CoreMixin, MapMixin, DefenseMixin, HackMixin, NavalMixin, AerialMixin, AirBossMixin, GroundMixin, GroundCityMixin, PortMixin, TankMixin, UpgradeMixin, GamepadMixin, HeliMixin, HazardMixin, TankPropsMixin, WarMixin, NavalFxMixin, NavalArmsMixin, NavalFleetMixin, LandingMixin, LandingOpsMixin, PortEpicMixin, RadioMixin, SaveMixin, ConvoyMixin, NavalGunMixin, NavalComboMixin, LifeboatMixin, BatDefMixin, DogfightMixin, ChatterMixin, BoardMixin, MenuMixin, AirRaidMixin, WaveWorldMixin, DefenseArtMixin, CommsMixin):
+class Game(CoreMixin, MapMixin, DefenseMixin, HackMixin, NavalMixin, AerialMixin, AirBossMixin, GroundMixin, GroundCityMixin, PortMixin, TankMixin, UpgradeMixin, GamepadMixin, HeliMixin, HazardMixin, TankPropsMixin, WarMixin, NavalFxMixin, NavalArmsMixin, NavalFleetMixin, LandingMixin, LandingOpsMixin, PortEpicMixin, RadioMixin, SaveMixin, ConvoyMixin, NavalGunMixin, NavalComboMixin, LifeboatMixin, BatDefMixin, DogfightMixin, ChatterMixin, BoardMixin, HackFxMixin, MenuMixin, AirRaidMixin, WaveWorldMixin, DefenseArtMixin, CommsMixin):
     """Juego completo. El estado vive en 'self'; cada mixin aporta los métodos de un modo."""
 
 
