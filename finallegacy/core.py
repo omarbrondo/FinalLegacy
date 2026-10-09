@@ -1036,6 +1036,7 @@ class CoreMixin:
         self.postfx.apply(cv, self.state, self.shake)
         self.draw_overlays(cv)
         self.draw_confirm(cv)
+        self.draw_cursor(cv)
         ox = oy = 0
         if self.shake > 0.5:
             ox, oy = int(random.uniform(-self.shake, self.shake)), int(random.uniform(-self.shake, self.shake))
@@ -1044,6 +1045,24 @@ class CoreMixin:
         if self.crt_on:
             self.screen.blit(self.crt, (0, 0))
         pygame.display.flip()
+
+    OWN_AIM = ('defense', 'combat', 'aerial', 'ground', 'tank', 'port', 'heli', 'radio', 'lifeboat', 'batdef', 'jets', 'board')
+
+    def draw_cursor(self, cv):
+        """Oculta la flecha de Windows; donde el juego no dibuja su propia mira, pone un cursor propio."""
+        if getattr(self, '_sys_cursor', True):
+            pygame.mouse.set_visible(False)
+            self._sys_cursor = False
+        if (self.state in self.OWN_AIM and not self.paused) or not pygame.mouse.get_focused():
+            return
+        x, y = pygame.mouse.get_pos()
+        t = self.t
+        r = 9 + int(1.5 * math.sin(t * 6))
+        for col, w, d in (((0, 20, 30), 4, 1), ((110, 240, 255), 2, 0)):
+            pygame.draw.circle(cv, col, (x, y), r + d, w - 1 if w > 2 else 1)
+            for dx, dy in ((1, 0), (-1, 0), (0, 1), (0, -1)):
+                pygame.draw.line(cv, col, (x + dx * (r - 3), y + dy * (r - 3)), (x + dx * (r + 7 + d), y + dy * (r + 7 + d)), w)
+        pygame.draw.circle(cv, (255, 255, 255), (x, y), 2)
 
     def draw_overlays(self, cv):
         self.comms_draw(cv)
