@@ -588,7 +588,12 @@ class CoreMixin:
         self.reset()
         self.go('map')
         self.banner('OLEADA 1', 'Hundí la flota enemiga y defendé las ciudades', (120, 220, 255), 3.2)
-        self.say('secretaria', 'Buenos días, capitán. Su misión: neutralizar la flota enemiga y proteger las ciudades del archipiélago.', 'info')
+        self.say('secretaria', self.chat_pick('sec_hello', (
+            'Buenos días, capitán. Su misión: neutralizar la flota enemiga y proteger las ciudades del archipiélago.',
+            'Bienvenido a bordo, capitán. El archipiélago cuenta con usted: hunda la flota enemiga y defienda las ciudades.',
+            'Capitán, la flota enemiga se acerca. Proteja las ciudades y sobreviva a %d oleadas.' % WIN_WAVE,
+            'Buen día, capitán. Hay mucho trabajo por hacer: buques, ciudades y un archipiélago que salvar.',
+        )), 'info')
 
     def game_over(self, msg, victory=False):
         self.end_msg = msg
@@ -864,6 +869,7 @@ class CoreMixin:
     def update(self, dt):
         self.t += dt
         self.comms_update(dt)
+        self.chat_tick(dt)
         self.god_apply()
         self.fade = max(0.0, self.fade - dt * 2.2)
         self.shake *= 0.9 ** (dt * 60)

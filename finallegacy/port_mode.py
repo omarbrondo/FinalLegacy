@@ -9,6 +9,7 @@ from .pt_art import (
 
 
 from .comms import PORT_LINES
+from .chatter import PORT_APPEAR_X, PORT_DEFEAT_X
 
 PT_AIM_MAX = 52         # el jugador no puede disparar casi vertical: tope de inclinación del arma (grados) hacia arriba y hacia abajo
 PT_AIM_DOWN = 32        # hacia abajo se limita más: al inclinar el torso hacia adelante se nota el corte de la cintura
@@ -113,11 +114,11 @@ class PortMixin:
                 if e['variant'] == 'heli':
                     self.banner('¡HELICÓPTERO DE ASALTO!', 'Disparale hacia arriba', (255, 90, 70), 2.6)
                     self.say('soldado', '¡Helicóptero de asalto! Disparale hacia arriba y cubrite de los misiles.', 'bad')
-                    self.say('jefe_puerto_heli', PORT_LINES['heli'][0], 'bad', pose='', v=self.wave // 2 % 2 + 1, name='PILOTO ENEMIGO')
+                    self.say('jefe_puerto_heli', self.var('boss_ph_a', PORT_LINES['heli'][0], PORT_APPEAR_X), 'bad', pose='', v=self.wave // 2 % 2 + 1, name='PILOTO ENEMIGO')
                 else:
                     self.banner('¡TANQUE DE PUERTO!', 'Tanque enemigo', (255, 90, 70), 2.6)
                     self.say('soldado', '¡Tanque en el puerto! Saltá sus proyectiles y no pares de disparar.', 'bad')
-                    self.say('jefe_puerto_tanque', PORT_LINES['tank'][0], 'bad', pose='', v=self.wave // 2 % 2 + 1, name='COMANDANTE DEL TANQUE')
+                    self.say('jefe_puerto_tanque', self.var('boss_pt_a', PORT_LINES['tank'][0], PORT_APPEAR_X), 'bad', pose='', v=self.wave // 2 % 2 + 1, name='COMANDANTE DEL TANQUE')
                 continue
             if kind == 'sniper':
                 ahead = [pl for pl in pt['plats'] if cam + 200 < pl['x'] < cam + W - 100] or pt['plats'][:1]
@@ -217,9 +218,9 @@ class PortMixin:
         if e['kind'] == 'tank':
             pt['boss'] = None
             if e.get('variant') == 'heli':
-                self.say('jefe_puerto_heli', PORT_LINES['heli'][1], 'warn', pose='bad', urgent=True, v=self.wave // 2 % 2 + 1, name='PILOTO ENEMIGO')
+                self.say('jefe_puerto_heli', self.var('boss_ph_d', PORT_LINES['heli'][1], PORT_DEFEAT_X), 'warn', pose='bad', urgent=True, v=self.wave // 2 % 2 + 1, name='PILOTO ENEMIGO')
             else:
-                self.say('jefe_puerto_tanque', PORT_LINES['tank'][1], 'warn', pose='bad', urgent=True, v=self.wave // 2 % 2 + 1, name='COMANDANTE DEL TANQUE')
+                self.say('jefe_puerto_tanque', self.var('boss_pt_d', PORT_LINES['tank'][1], PORT_DEFEAT_X), 'warn', pose='bad', urgent=True, v=self.wave // 2 % 2 + 1, name='COMANDANTE DEL TANQUE')
             self.shake = 22
             for _ in range(6):
                 self.fx.explode(e['x'] + random.uniform(-110, 110), e['y'] - random.uniform(10, 90), 1.4, True)

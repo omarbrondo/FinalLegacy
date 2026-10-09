@@ -11,6 +11,7 @@ from .boss_art import BOSS_TYPES
 
 
 from .comms import BOSS_LINES
+from .chatter import BOSS_APPEAR_X, BOSS_DEFEAT_X
 
 
 class NavalMixin:
@@ -52,7 +53,7 @@ class NavalMixin:
             self.audio.play('alarm')
             self.banner('¡%s %s!' % (self.c['label'] if 'label' in self.c else BOSS_TYPES[self.c['btype']]['label'], en['name']),
                         'Escudo digital caído', (255, 60, 60), 3.4)
-            self.say('jefe_barco', BOSS_LINES[self.c['btype'] % 6][0], 'bad', pose='', v=self.c['btype'] % 6 + 1, name=en['name'])
+            self.say('jefe_barco', self.var('boss_n_a', BOSS_LINES[self.c['btype'] % 6][0], BOSS_APPEAR_X), 'bad', pose='', v=self.c['btype'] % 6 + 1, name=en['name'])
             self.say('marinero', '¡Escudo caído! ' + BOSS_TYPES[self.c['btype']]['hint'], 'bad')
         else:
             self.banner('¡COMBATE NAVAL!', 'Hundí al buque enemigo', (255, 150, 90), 2.8)
@@ -293,7 +294,7 @@ class NavalMixin:
             c['slow'], c['white'] = (2.4 if c['is_boss'] else 1.3), 0.7
             c['flashes'].append([e['x'], e['y'], 220, (255, 200, 120), 1.0])
             if c['is_boss']:                                          # el jefe habla apenas se hunde (no cuando termina la animación)
-                self.say('jefe_barco', BOSS_LINES[c['btype'] % 6][1], 'warn', pose='bad', v=c['btype'] % 6 + 1, name=e.get('name') or (self.enemy_ref or {}).get('name'), urgent=True)
+                self.say('jefe_barco', self.var('boss_n_d', BOSS_LINES[c['btype'] % 6][1], BOSS_DEFEAT_X), 'warn', pose='bad', v=c['btype'] % 6 + 1, name=e.get('name') or (self.enemy_ref or {}).get('name'), urgent=True)
             self.fx.add('ring', e['x'], e['y'], life=0.9, r0=10, r1=330 if c['is_boss'] else 190, col=(255, 230, 190))
             self.call_out('¡BUQUE JEFE HUNDIDO!' if c['is_boss'] else ('¡BATERÍA SILENCIADA!' if c['nest'] else '¡BLANCO ELIMINADO!'),
                           (255, 230, 120), 'kill', 5)

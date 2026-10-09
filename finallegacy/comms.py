@@ -98,9 +98,10 @@ def _placeholder(role, v=1):
 
 class CommsMixin:
     def comms_reset(self):
-        self.cm = dict(queue=[], cur=None, last=('', -9.0), mission={}, lastv={}, st=None)
+        self.cm = dict(queue=[], cur=None, last=('', -9.0), mission={}, lastv={}, st=None, end=-99.0)
         self._cm_img = getattr(self, '_cm_img', {})
         self._cm_files = None
+        self.chat_init()
 
     def comms_files(self):
         """Imágenes disponibles en portraits/: {personaje: {variante: {ánimo o '': ruta}}}."""
@@ -213,6 +214,7 @@ class CommsMixin:
         c['t'] += dt
         if c['t'] > ENTER + c['hold'] + EXIT + GAP:
             cm['cur'] = None
+            cm['end'] = self.t
 
     def cm_font(self):
         """Fuente monoespañada de los globos (estilo terminal); si falta el archivo se usa la del juego."""
