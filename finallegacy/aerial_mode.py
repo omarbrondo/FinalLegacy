@@ -33,8 +33,8 @@ class AerialMixin:
             events.append((t, k, random.uniform(200, W - 200)))
             t += gap + random.uniform(-0.4, 0.8)
         self.a = dict(city=city, t=0.0, scroll=0.0, phase='play', pt=0.0, fail=False, kills=0,
-                      p=dict(x=W / 2, y=H - 140.0, hp=100.0, inv=0.0, cd=0.0, bcd=0.0, wl=1, shield=0.0, vx=0.0, dead=False, rapid=0.0, homing=0.0, mcd=0.0),
-                      foes=[], ebul=[], pbul=[], bombs=[], ground=[], isl=[], clouds=[],
+                      p=dict(x=W / 2, y=H - 140.0, hp=100.0, inv=0.0, cd=0.0, bcd=0.0, wl=1, shield=0.0, vx=0.0, dead=False, rapid=0.0, homing=0.0, mcd=0.0, wup=0.0),
+                      foes=[], ebul=[], pbul=[], bombs=[], ground=[], isl=[], clouds=[], caps=[],
                       forms={}, fid=0, events=events, boss_t=t + 2.5, boss=None, boss_dead=False,
                       isl_t=0.0, boat_t=6.0, cloud_t=0.0)
         for yy in (-200, 100, 330, 560):
@@ -184,7 +184,32 @@ class AerialMixin:
                 self.air_ebul(f['x'], f['y'], i * 45, 120, 5)
         form = a['forms'].get(f['fid'])
         if form:
-            form['n'] -= 1                              # sin potenciadores: ya no se sueltan cápsulas
+            form['n'] -= 1
+        self.air_maybe_drop(f)
+
+    CAP_INFO = {'arma': ('A', (255, 190, 70), 'ARMA'), 'rafaga': ('R', (255, 235, 110), 'RÁFAGA'), 'guiado': ('G', (200, 150, 255), 'GUIADOS')}
+    CAP_SECS = {'arma': 12.0, 'rafaga': 10.0, 'guiado': 10.0}
+
+    def air_maybe_drop(self, f):
+        """Desde la oleada 2 los enemigos pueden soltar un potenciador temporal."""
+        if self.wave < 2 or f['kind'] == 'mine':
+            return
+        chance = {'viper': 0.14, 'stealth': 0.24, 'kami': 0.10, 'gunship': 0.5, 'bomber': 1.0}.get(f['kind'], 0.1)
+        if random.random() < chance:
+            kind = random.choices(('arma', 'rafaga', 'guiado'), (0.45, 0.30, 0.25))[0]
+            self.a['caps'].append(dict(x=f['x'], y=f['y'], kind=kind, t=0.0))
+
+    def air_pick_cap(self, kind):
+        p = self.a['p']
+        if kind == 'arma':
+            p['wl'] = min(4, max(1, p['wl']) + 2)
+            p['wup'] = self.CAP_SECS[kind]
+        elif kind == 'rafaga':
+            p['rapid'] = max(p['rapid'], self.CAP_SECS[kind])
+        else:
+            p['homing'] = max(p['homing'], self.CAP_SECS[kind])
+        self.audio.play('pickup', .6)
+        self.pop(self.CAP_INFO[kind][2] + ' %ds' % self.CAP_SECS[kind], p['x'], p['y'] - 50, self.CAP_INFO[kind][1])
 
     def air_fire_player(self):
         a = self.a
@@ -254,6 +279,10 @@ class AerialMixin:
             p['x'] = clamp(p['x'] + p['vx'] * dt, 44, W - 44)
             p['y'] = clamp(p['y'] + my / n * 300 * dt, 150, H - 70)
             p['rapid'] = max(0.0, p['rapid'] - dt)
+            if p['wup'] > 0:                                     # el arma mejorada dura poco: al terminar el tiempo vuelve al disparo simple
+                p['wup'] -= dt
+                if p['wup'] <= 0:
+                    p['wup'], p['wl'] = 0.0, 1
             p['homing'] = max(0.0, p['homing'] - dt)
             if self.up_n('homing'):
                 p['homing'] = max(p['homing'], 5.0)
@@ -407,6 +436,16 @@ class AerialMixin:
         if b and not a['boss_dead']:
             self.air_boss_update(dt)
         self.air_ambient_update(dt)
+        # potenciadores (cápsulas): caen despacio, se recogen al tocarlas y duran poco
+        for cp in a['caps'][:]:
+            cp['t'] += dt
+            cp['y'] += 95 * dt
+            cp['x'] += math.sin(cp['t'] * 2.4) * 28 * dt
+            if cp['y'] > H + 40:
+                a['caps'].remove(cp)
+            elif not p['dead'] and dist(cp['x'], cp['y'], p['x'], p['y']) < 38:
+                a['caps'].remove(cp)
+                self.air_pick_cap(cp['kind'])
         # balas del jugador
         for bl in a['pbul'][:]:
             if bl.get('hom'):
@@ -558,6 +597,14 @@ class AerialMixin:
                 sh = A['shadows'][id(spr)] = make_shadow(spr)
             sh.set_alpha(75)
             cv.blit(sh, (x - sh.get_width() // 2 + sh_off[0], y - sh.get_height() // 2 + sh_off[1]))
+        for cp in a['caps']:                                              # potenciadores que caen
+            ch, ccol, cname = self.CAP_INFO[cp['kind']]
+            cx_, cy_ = int(cp['x']), int(cp['y'] + math.sin(cp['t'] * 5) * 3)
+            glow(cv, cx_, cy_, 34, ccol, 0.55 + 0.25 * math.sin(cp['t'] * 7))
+            pygame.draw.circle(cv, (14, 18, 30), (cx_, cy_), 17)
+            pygame.draw.circle(cv, ccol, (cx_, cy_), 15, 3)
+            self.text(cv, ch, self.f_m, ccol, cx_, cy_ - 12, 'c', shadow=False)
+            self.text(cv, cname, self.f_s, ccol, cx_, cy_ + 20, 'c')
         for f in a['foes']:
             if f['kind'] == 'mine':
                 mx_, my_ = int(f['x']), int(f['y'])
@@ -655,6 +702,9 @@ class AerialMixin:
         yy_ = 90
         if p['shield'] > 0:
             self.text(cv, 'ESCUDO %.0f' % p['shield'], self.f_s, (150, 225, 255), W - 20, yy_, 'r')
+            yy_ += 20
+        if p['wup'] > 0:
+            self.text(cv, 'ARMA NIVEL %d  %.0f' % (p['wl'], p['wup']), self.f_s, (255, 190, 70), W - 20, yy_, 'r')
             yy_ += 20
         if p['rapid'] > 0:
             self.text(cv, 'RÁFAGA %.0f' % p['rapid'], self.f_s, (255, 235, 110), W - 20, yy_, 'r')

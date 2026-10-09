@@ -211,7 +211,7 @@ class TankMixin:
     def tk_boom(self, x, z, size, life=1.1, y=1.4):
         self.k['booms'].append(dict(x=x, y=y, z=z, size=size, life=life, age=0.0))
 
-    def tk_blast(self, x, z, size=6.5):
+    def tk_blast(self, x, z, size=6.5, src=None):
         """Explosión grande de un tanque: bola de fuego en varias capas, onda de choque en el suelo, humo negro que sube y restos que arden."""
         k = self.k
         for i in range(4):
@@ -225,7 +225,10 @@ class TankMixin:
             r = random.uniform(0, size * 0.35)
             k.setdefault('smokes', []).append(dict(x=x + math.cos(a) * r, y=random.uniform(1.0, 2.2), z=z + math.sin(a) * r, vy=random.uniform(2.2, 4.4),
                                                   size=size * random.uniform(0.35, 0.6), age=-random.uniform(0.2, 0.6), life=random.uniform(2.2, 3.4)))
-        k.setdefault('wrecks', []).append(dict(x=x, z=z, size=size, age=0.0, life=7.0))
+        w_ = dict(x=x, z=z, size=size, age=0.0, life=7.0)
+        if src is not None and src.get('kind') in ('tank', 'super'):            # el tanque queda como casco calcinado, con la torreta ladeada
+            w_.update(kind=src['kind'], h=src['h'], tur=src['h'] + random.choice((-1, 1)) * random.uniform(25, 70), wreck=True, big=src.get('big', 1.0))
+        k.setdefault('wrecks', []).append(w_)
 
     def tk_debris(self, x, z, n):
         for _ in range(n):
@@ -253,7 +256,7 @@ class TankMixin:
         self.audio.play('boom_s', .8)
         self.shake = max(self.shake, 6)
         self.tk_debris(e['x'], e['z'], 30)
-        self.tk_blast(e['x'], e['z'], 9.0 if e.get('boss') else 6.5)
+        self.tk_blast(e['x'], e['z'], 9.0 if e.get('boss') else 6.5, e)
         self.shake = max(self.shake, 11 if e.get('boss') else 8)
         if e.get('boss'):
             k['p']['hp'] = min(TK_HP, k['p']['hp'] + 60)
@@ -304,7 +307,7 @@ class TankMixin:
             e['tur'] = e['h']
             if alive and d < 5.2:
                 self.tk_hurt(36)
-                self.tk_blast(e['x'], e['z'], 7.5)
+                self.tk_blast(e['x'], e['z'], 7.5, e)
                 self.tk_debris(e['x'], e['z'], 26)
                 self.audio.play('boom_l', .8)
                 if e in k['tanks']:
@@ -927,6 +930,11 @@ class TankMixin:
         r.w = min(sw - r.x, int((vx1 - dx) / scale) - r.x + 2)
         r.h = min(sh - r.y, int((vy1 - dy) / scale) - r.y + 2)
         img = pygame.transform.scale(cvs.subsurface(r), (max(1, int(r.w * scale)), max(1, int(r.h * scale))))
+        if e.get('wreck'):                                  # casco carbonizado: tizne oscuro, brasas en los bordes y se apaga hacia el final
+            img.fill((46, 42, 40, 255), special_flags=pygame.BLEND_RGBA_MULT)
+            ember = 0.5 + 0.5 * math.sin(self.t * 9 + e['x'])
+            img.fill((int(30 * ember), int(9 * ember), 0, 0), special_flags=pygame.BLEND_RGB_ADD)
+            img.set_alpha(int(255 * (1 - max(0.0, (e['age'] - 4.5) / 2.5))))
         f = min(0.8, z / 170.0)
         img.fill((int(255 * (1 - f)),) * 3 + (255,), special_flags=pygame.BLEND_RGBA_MULT)
         img.fill(tuple(int(q * f) for q in TK_FOG) + (0,), special_flags=pygame.BLEND_RGB_ADD)
@@ -954,6 +962,9 @@ class TankMixin:
         self.tk_props_draw(strips)
         for e in k['tanks']:
             self.tk_add_tank(strips, e)
+        for w_ in k.get('wrecks', []):
+            if w_.get('wreck'):
+                self.tk_add_tank(strips, w_)
         for m in k['missiles']:
             self.tk_add_box(strips, m['x'], m['z'], .35, 1.5, .6, 1.5, m['h'], T['missile'], 3.0)
         self.tk_flush(cv, strips)
@@ -1008,8 +1019,8 @@ class TankMixin:
             sx, sy = self.tk_prj(c)
             u_ = self.TK_F / c[2]
             fade = 1 - max(0.0, (w_['age'] - 4.5) / 2.5)
-            pygame.draw.ellipse(cv, (14, 12, 12), (sx - u_ * 2.4, sy - u_ * 0.5, u_ * 4.8, u_ * 1.1))
-            pygame.draw.rect(cv, (30, 26, 26), (sx - u_ * 1.5, sy - u_ * 1.0, u_ * 3.0, u_ * 0.9), border_radius=2)
+            if not w_.get('wreck'):
+                pygame.draw.ellipse(cv, (14, 12, 12), (sx - u_ * 2.4, sy - u_ * 0.5, u_ * 4.8, u_ * 1.1))
             glow(cv, sx + math.sin(self.t * 11 + w_['x']) * u_ * 0.4, sy - u_ * 1.1, max(4, int(u_ * 1.5)), (255, 120, 40), 0.55 * fade * (0.6 + 0.4 * math.sin(self.t * 17 + w_['z'])))
         for rg in k.get('rings', []):                               # onda de choque sobre el suelo
             c = self.tk_cam(rg['x'], 0.1, rg['z'])
