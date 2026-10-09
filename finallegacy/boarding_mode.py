@@ -6,6 +6,7 @@ import pygame
 from .common import H, PLAYER_HP, W, Particles, bearing, clamp, dist, draw_circ, glow, lerp, vec
 
 C = (W // 2, H // 2 + 30)                 # el barco, en el centro
+TUR = (C[0], C[1] - 28)                   # montaje de la torreta (el mismo que en el combate naval)
 BOARD_MAX = 3                             # botes que pueden llegar antes de que haya invasión
 DECK_LEN = 3400
 
@@ -64,7 +65,7 @@ class BoardMixin:
         bo['hit'] = max(0.0, bo['hit'] - dt)
         bo['flash'] = max(0.0, bo['flash'] - dt)
         self.fx.update(dt)
-        bo['ang'] = math.atan2(self.aim[1] - C[1], self.aim[0] - C[0])
+        bo['ang'] = math.atan2(self.aim[1] - TUR[1], self.aim[0] - TUR[0])
         ph = bo['phase']
         if ph == 'intro':
             bo['pt'] += dt
@@ -109,7 +110,7 @@ class BoardMixin:
                 bo['locked'] = True
                 self.audio.play('empty', .5)
             a = bo['ang'] + random.uniform(-0.05, 0.05)
-            bo['bullets'].append(dict(x=C[0] + math.cos(a) * 40, y=C[1] + math.sin(a) * 40, vx=math.cos(a) * 980, vy=math.sin(a) * 980, life=0.9))
+            bo['bullets'].append(dict(x=TUR[0] + math.cos(a) * 30, y=TUR[1] + math.sin(a) * 30, vx=math.cos(a) * 980, vy=math.sin(a) * 980, life=0.9))
             bo['flash'] = 0.05
             if int(bo['t'] * 13) % 3 == 0:
                 self.audio.play('mg', .22)
@@ -181,26 +182,13 @@ class BoardMixin:
         bo = self.bo
         t = self.t
         self.draw_ocean(cv, t * 8, t * 3, t)
-        k = 3.2
-        key = ('p_map', k)
-        cache = self.__dict__.setdefault('_bo_ship', {})
-        if key not in cache:
-            surf, sh = self.ships['p_map']
-            cache[key] = (pygame.transform.rotozoom(surf, 0, k), pygame.transform.rotozoom(sh, 0, k))
-        spr, sh = cache[key]
-        sh.set_alpha(80)
-        cv.blit(sh, (C[0] - sh.get_width() // 2 + 8, C[1] - sh.get_height() // 2 + 10))
-        cv.blit(spr, (C[0] - spr.get_width() // 2, C[1] - spr.get_height() // 2))
+        self.blit_ship(cv, 'p_hull', C[0], C[1], 0.0)                              # el mismo buque y la misma torreta del combate naval
         if bo['hit'] > 0:
             draw_circ(cv, C[0], C[1], 120, (255, 80, 60), 110 * bo['hit'] / 0.35, 4)
-        # torreta
-        pygame.draw.circle(cv, (60, 66, 70), C, 22)
-        pygame.draw.circle(cv, (112, 120, 124), C, 16)
         ang = bo['ang']
-        pygame.draw.line(cv, (36, 40, 42), C, (C[0] + math.cos(ang) * 52, C[1] + math.sin(ang) * 52), 7)
-        pygame.draw.line(cv, (150, 156, 158), C, (C[0] + math.cos(ang) * 52, C[1] + math.sin(ang) * 52), 3)
+        self.blit_turret(cv, self.tur_p, TUR[0], TUR[1], bearing(self.aim[0] - TUR[0], self.aim[1] - TUR[1]))
         if bo['flash'] > 0:
-            glow(cv, C[0] + math.cos(ang) * 58, C[1] + math.sin(ang) * 58, 36, (255, 220, 140), 0.9)
+            glow(cv, TUR[0] + math.cos(ang) * 40, TUR[1] + math.sin(ang) * 40, 36, (255, 220, 140), 0.9)
         for s in bo['deck']:
             self.blit_soldier(cv, 'e_rifle', s['x'], s['y'], bearing(C[0] - s['x'], C[1] - s['y']), int(s['t'] * 8 + s['ph']) % 4)
         for e in bo['boats']:

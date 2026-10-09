@@ -579,12 +579,14 @@ class CoreMixin:
             self.menu_reset()
         pygame.mouse.set_visible(state in ('upgrade',) or state not in ('defense', 'combat', 'aerial', 'ground', 'tank', 'port', 'heli', 'radio', 'lifeboat', 'batdef', 'jets', 'board'))
         calm = state in ('title', 'map', 'upgrade', 'helisel', 'jetsel')
-        ctx = {'helisel': 'upgrade', 'jetsel': 'upgrade', 'gameover': None, 'lifeboat': 'defense'}.get(state, state)
+        ctx = {'helisel': 'upgrade', 'jetsel': 'upgrade', 'gameover': None, 'lifeboat': 'defense', 'board': 'defense', 'batdef': 'defense', 'jets': 'aerial'}.get(state, state)
         if state == 'combat' and (getattr(self, 'c', None) or {}).get('is_boss'):
             ctx = 'boss'
         self.audio.music(ctx, getattr(self, 'wave', 1), 'calm' if calm else 'battle')
-        if state not in ('map', 'combat'):
+        if state not in ('map', 'combat', 'board'):
             self.audio.engine_vol(0)
+        elif state == 'board':
+            self.audio.engine_vol(0.35)
 
     def start_game(self):
         self.reset()
