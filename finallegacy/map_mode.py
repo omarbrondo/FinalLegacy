@@ -837,9 +837,10 @@ class MapMixin:
         thr = 1.0 if self.attack is not None else 1 - clamp(self.strike_t / 60.0, 0, 1)
         self.text(cv, 'AMENAZA ENEMIGA', self.f_s, (255, 190, 170), W - 296 + 8, 76)
         self.bar(cv, W - 296, 96, 282, 14, thr, (255, 90 + int(100 * (1 - thr)), 60), '')
-        self.text(cv, 'BLACKHAWK: %d | F-16: %d | próxima a los %d pts | bidón (C): %s' % (
-            self.heli_sorties, self.jet_sorties, self.heli_next, 'en camino' if self.heli_fl else ('%ds' % math.ceil(self.heli_cd) if self.heli_cd > 0 else 'listo')),
-            self.f_s, (130, 255, 190), 14, 96)
+        bid = 'en camino' if self.heli_fl else ('%ds' % math.ceil(self.heli_cd) if self.heli_cd > 0 else 'listo')
+        self.panel(cv, (8, 94, 292, 48), 150)
+        self.text(cv, 'BLACKHAWK: %d  |  F-16: %d' % (self.heli_sorties, self.jet_sorties), self.f_s, (130, 255, 190), 16, 98, shadow=False)
+        self.text(cv, 'Próx. a %d pts  |  Bidón (C): %s' % (self.heli_next, bid), self.f_s, (130, 255, 190), 16, 118, shadow=False)
         n_ant = sum(self.antennas.values())
         need = self.antennas_needed()
         self.text(cv, 'ANTENAS %d/%d  (jefe: %d)' % (n_ant, len(self.antennas), need), self.f_s,
