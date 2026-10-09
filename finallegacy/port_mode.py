@@ -1322,14 +1322,22 @@ class PortMixin:
             sx = pw['x'] - cam
             if not (-60 < sx < W + 60):
                 continue
+            baked_pow = 'pow' in self.pt_art.get('baked', {})
             if pw['state'] == 'tied':
-                self.pt_char(cv, 'pow', int(sx), self.PT_GR, -1, 'crouch', 0, None, None)
-                pygame.draw.line(cv, (140, 100, 56), (sx - 8, self.PT_GR - 36), (sx + 8, self.PT_GR - 30), 3)
-                pygame.draw.line(cv, (140, 100, 56), (sx - 8, self.PT_GR - 30), (sx + 8, self.PT_GR - 36), 3)
+                if baked_pow:                                   # prisionero dibujado a mano: atado, tiembla mirando al jugador
+                    self.pt_char(cv, 'pow', int(sx), self.PT_GR, -1, 'idle', int(t * 3 + pw['x']), None, None)
+                else:
+                    self.pt_char(cv, 'pow', int(sx), self.PT_GR, -1, 'crouch', 0, None, None)
+                    pygame.draw.line(cv, (140, 100, 56), (sx - 8, self.PT_GR - 36), (sx + 8, self.PT_GR - 30), 3)
+                    pygame.draw.line(cv, (140, 100, 56), (sx - 8, self.PT_GR - 30), (sx + 8, self.PT_GR - 36), 3)
                 if int(t * 2.5) % 2 == 0:
                     self.text(cv, '¡AYUDA!', self.f_s, (255, 240, 150), sx, self.PT_GR - 82, 'c')
             elif pw['state'] == 'free' and pw['t'] < 2.4:
-                self.pt_char(cv, 'pow', int(sx), self.PT_GR, 1, 'run', int(pw['t'] * 14), None, None, 0.0, int(255 * clamp(1 - (pw['t'] - 1.6) / 0.8, 0, 1)))
+                al_ = int(255 * clamp(1 - (pw['t'] - 1.6) / 0.8, 0, 1))
+                if baked_pow and pw['t'] < 0.6:                 # se suelta las cuerdas y sale corriendo
+                    self.pt_char(cv, 'pow', int(sx), self.PT_GR, 1, 'liberar', int(pw['t'] / 0.1), None, None, 0.0, al_)
+                else:
+                    self.pt_char(cv, 'pow', int(sx), self.PT_GR, 1, 'run', int(pw['t'] * (9 if baked_pow else 14)), None, None, 0.0, al_)
         # morteros
         for m in pt['mort']:
             sx = m['x'] - cam
