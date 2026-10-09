@@ -102,6 +102,7 @@ class CommsMixin:
         self._cm_img = getattr(self, '_cm_img', {})
         self._cm_files = None
         self.chat_init()
+        self.board_init()
 
     def comms_files(self):
         """Imágenes disponibles en portraits/: {personaje: {variante: {ánimo o '': ruta}}}."""
