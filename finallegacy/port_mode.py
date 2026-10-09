@@ -1040,7 +1040,7 @@ class PortMixin:
             cv.blit(img, (sx - ax_, fy - ay_))
         if baked:
             mzl = baked['mz'].get(pose)
-            if not mzl or pose in ('die', 'wind', 'rel') or base not in ('player', 'sniper', 'gren'):
+            if not mzl or pose in ('die', 'wind', 'rel') or base not in ('player', 'sniper', 'gren', 'rifle'):
                 return None
             mxr, myr = mzl[fi % len(mzl)]
             if base != 'player':                             # enemigos dibujados a mano: arma horizontal, fogonazo en la boca del arma y punto de mira derivado de ahí
