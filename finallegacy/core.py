@@ -571,6 +571,8 @@ class CoreMixin:
         self.spawn_wave()
 
     def go(self, state):
+        if state != self.state and hasattr(self, 'cm'):
+            self.comms_cut_old()                           # al cambiar de modo se corta lo que se estaba diciendo
         self.state = state
         self.fade = 1.0
         if state == 'title':
