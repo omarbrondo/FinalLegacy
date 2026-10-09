@@ -1046,13 +1046,12 @@ class CoreMixin:
             self.screen.blit(self.crt, (0, 0))
         pygame.display.flip()
 
-    MENU_CURSOR = ('title', 'map', 'upgrade', 'helisel', 'jetsel', 'gameover', 'saves', 'hack')      # pantallas sin mira propia
+    MENU_CURSOR = ('title', 'upgrade', 'helisel', 'jetsel', 'gameover', 'saves', 'hack')      # pantallas sin mira propia
 
     def draw_cursor(self, cv):
         """Oculta la flecha de Windows; donde el juego no dibuja su propia mira, pone un cursor propio."""
-        if getattr(self, '_sys_cursor', True):
+        if pygame.mouse.get_visible():                    # otras partes del juego (go, pausa, guardado) vuelven a mostrarla: se oculta cada cuadro
             pygame.mouse.set_visible(False)
-            self._sys_cursor = False
         if not (self.state in self.MENU_CURSOR or self.paused) or not pygame.mouse.get_focused():
             return
         x, y = pygame.mouse.get_pos()
