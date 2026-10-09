@@ -19,7 +19,7 @@ class AerialMixin:
     def start_aerial(self, city=None):
         self.fx = Particles()
         w = self.wave
-        pool = ['vee', 'line', 'dive', 'pair', 'vee', 'line']
+        pool = ['vee', 'flank', 'line', 'dive', 'pair', 'kami', 'flank', 'vee', 'pair']
         if w >= 2:
             pool += ['kami', 'bomber']
         if w >= 3:
@@ -27,8 +27,8 @@ class AerialMixin:
         if w >= 4:
             pool += ['gunship']
         events, t = [], 2.0
-        gap = max(3.2, 4.8 - 0.15 * w)
-        for i in range(min(16, 8 + w)):
+        gap = max(2.1, 2.8 - 0.1 * w)
+        for i in range(min(20, 13 + w)):
             k = pool[i % len(pool)] if i < len(pool) else random.choice(pool)
             events.append((t, k, random.uniform(200, W - 200)))
             t += gap + random.uniform(-0.4, 0.8)
@@ -71,7 +71,7 @@ class AerialMixin:
 
     def air_foe(self, kind, x, y, fid=None, **kw):
         w = self.wave
-        hp = {'viper': 2 + w // 3, 'stealth': 5 + w // 2, 'bomber': 16 + 3 * w, 'kami': 2, 'gunship': 10 + w, 'mine': 3}[kind]
+        hp = {'viper': 3 + w // 3, 'stealth': 5 + w // 2, 'bomber': 16 + 3 * w, 'kami': 2, 'gunship': 10 + w, 'mine': 3}[kind]
         f = dict(kind=kind, x=x, y=y, bx=x, hp=float(hp), max=float(hp), t=0.0, ph=random.uniform(0, 6.28),
                  cd=random.uniform(1.2, 2.8), fid=fid, vx=0.0, vy=0.0, mode=0, hit=0.0)
         f.update(kw)
@@ -86,11 +86,14 @@ class AerialMixin:
         fid = a['fid']
         if kind == 'vee':
             offs = [(0, 0), (-50, -38), (50, -38), (-100, -76), (100, -76)]
-            for ox, oy in offs:
-                self.air_foe('viper', clamp(x + ox, 50, W - 50), -50 + oy, fid)
+            for i, (ox, oy) in enumerate(offs):
+                self.air_foe('viper', clamp(x + ox, 50, W - 50), -50 + oy, fid, brk=1.6 + i * 0.55)        # la V se rompe: cada caza se separa para atacar
         elif kind == 'line':
             for i in range(6):
-                self.air_foe('viper', x, -50 - i * 52, fid)
+                self.air_foe('viper', x, -50 - i * 52, fid, brk=1.4 + i * 0.5)
+        elif kind == 'flank':                           # dos cazas entran por los costados y se alinean con vos
+            for sd in (-1, 1):
+                self.air_foe('viper', -50.0 if sd < 0 else W + 50.0, random.uniform(90, 210), fid, brk=0.0, hy=random.uniform(110, 230))
         elif kind == 'dive':
             side = random.choice((-1, 1))
             for i in range(3):
@@ -114,6 +117,48 @@ class AerialMixin:
         elif kind == 'gunship':
             self.air_foe('gunship', clamp(x, 200, W - 200), -80, fid)
         a['forms'][fid] = dict(n=sum(1 for f in a['foes'] if f['fid'] == fid), escaped=False)
+
+    def air_viper_attack(self, f, dt, p):
+        """Caza que ataca: baja a una altura de combate, se alinea con el jugador disparando ráfagas hacia donde va a estar y después se lanza en picada o se va por un costado."""
+        w = self.wave
+        if 'st' not in f:
+            f.update(st=0, hy=f.get('hy', random.uniform(110, 300)), sdur=random.uniform(3.4, 4.8), sx=random.choice((-1, 1)), bt=random.uniform(0.5, 1.1),
+                     nb=0, bcd=0.0, ts=0.0, off=random.uniform(-80, 80), ex=None)
+            f['cd'] = 99.0                              # el disparo genérico queda anulado: dispara este código
+        f['ts'] += dt
+        tx = (p['x'] if not p['dead'] else W / 2) + f['off']
+        spd = 150 + 8 * w
+        if f['st'] == 0:                                 # entrada
+            f['y'] += clamp(f['hy'] - f['y'], -190 * dt, 190 * dt)
+            f['x'] += clamp(tx - f['x'], -spd * dt, spd * dt)
+            if abs(f['y'] - f['hy']) < 6:
+                f['st'], f['ts'] = 1, 0.0
+        elif f['st'] == 1:                               # alineado y disparando
+            f['y'] = f['hy'] + math.sin(f['ts'] * 2.2 + f['ph']) * 14
+            f['x'] += clamp(tx - f['x'], -spd * dt, spd * dt)
+            if not p['dead'] and 20 < f['y'] < H * 0.7:
+                f['bt'] -= dt
+                if f['bt'] <= 0 and f['nb'] <= 0:
+                    f['nb'], f['bcd'] = 4, 0.0
+                    f['bt'] = max(0.9, random.uniform(1.0, 1.7) - 0.05 * w)
+                if f['nb'] > 0:
+                    f['bcd'] -= dt
+                    if f['bcd'] <= 0:
+                        f['bcd'] = 0.13
+                        f['nb'] -= 1
+                        t_hit = dist(f['x'], f['y'], p['x'], p['y']) / (255.0 * (1 + 0.03 * w))
+                        ax_ = p['x'] + p['vx'] * t_hit * 0.8
+                        self.air_ebul(f['x'], f['y'] + 20, bearing(ax_ - f['x'], p['y'] - f['y']) + random.uniform(-2, 2), 255)
+            if f['ts'] > f['sdur']:
+                f['st'], f['ts'] = 2, 0.0
+                f['ex'] = 'dive' if random.random() < 0.6 else 'exit'
+        else:                                            # salida: picada o escape lateral
+            if f['ex'] == 'dive':
+                f['y'] += 340 * dt
+                f['x'] += clamp((p['x'] if not p['dead'] else f['x']) - f['x'], -130 * dt, 130 * dt)
+            else:
+                f['x'] += f['sx'] * 300 * dt
+                f['y'] += 40 * dt
 
     def air_ebul(self, x, y, ang, speed, r=5):
         spd = speed * (1 + 0.03 * self.wave)
@@ -289,6 +334,8 @@ class AerialMixin:
             if k == 'viper' and f.get('spiral') is not None:
                 f['y'] += (96 + 3 * self.wave) * dt
                 f['x'] = f['bx'] + math.cos(f['t'] * 2.6 + f['spiral'] * 1.05) * 120
+            elif k == 'viper' and f.get('brk') is not None and f['t'] >= f['brk']:
+                self.air_viper_attack(f, dt, p)
             elif k == 'viper':
                 f['y'] += (110 + 3 * self.wave) * dt
                 f['x'] = f['bx'] + math.sin(f['t'] * 2.2 + f['ph']) * 55
