@@ -343,10 +343,16 @@ class PortMixin:
                         gy = e['y'] - 44
                         ang = math.atan2((p['y'] - 40) - gy, dx)
                         ang = clamp(ang, -0.6, 0.6) if dx > 0 else (ang if abs(ang) > 2.54 else math.copysign(2.54, ang))
+                        ox_, oy_ = e['x'] + math.cos(ang) * 44, gy + math.sin(ang) * 44
+                        if e.get('mz'):                                       # lanzallamas dibujado: el fuego sale de la boquilla y sigue el ángulo del arma
+                            ox_, oy_ = e['mz'][0], e['mz'][1]
+                            fa_ = math.radians(e['mz'][2])
+                            ang = fa_ if e['face'] > 0 else math.pi - fa_
+                            gy = oy_
                         for _ in range(3):
                             sp_ = random.uniform(200, 330)
                             a_ = ang + random.uniform(-0.12, 0.12)
-                            self.fx.add('glow', e['x'] + math.cos(ang) * 44, gy + math.sin(ang) * 44, math.cos(a_) * sp_, math.sin(a_) * sp_ - 20, 0.42, 9, 26,
+                            self.fx.add('glow', ox_, oy_, math.cos(a_) * sp_, math.sin(a_) * sp_ - 20, 0.42, 9, 26,
                                         random.choice(((255, 170, 60), (255, 120, 40), (255, 220, 120))), drag=1.4)
                         if random.random() < 0.3:
                             self.fx.add('smoke', e['x'] + e['face'] * 150, gy - 20, e['face'] * 40, -50, 0.9, 8, 22, (40, 36, 36))
@@ -988,6 +994,11 @@ class PortMixin:
                     pose = 'attack'
             elif base == 'gren' and flash and pose in ('run', 'idle') and 'apuntar_1' in art['body'][kind]:
                 pose = 'apuntar_1'                           # el granadero dispara con el lanzagranadas en horizontal
+            elif base == 'flame' and aim is not None and getattr(self, 'pt_aim_hint', False) and 'apuntar_1' in art['body'][kind] and pose in ('run', 'idle'):
+                th_ = math.degrees(math.atan2(aim[1], aim[0] if face > 0 else -aim[0]))
+                k_ = 0 if th_ > 16 else (2 if th_ < -14 else 1)
+                pose = 'apuntar_%d' % k_
+                fr_ang = (40.0, 0.0, -28.0)[k_]
             elif aim is not None and base in ('player', 'rifle') and pose in ('run', 'idle', 'crouch', 'jump', 'fall'):
                 th_ = math.degrees(math.atan2(aim[1], aim[0] if face > 0 else -aim[0]))
                 th_ = clamp(th_, -PT_AIM_MAX, PT_AIM_DOWN)
@@ -1047,10 +1058,10 @@ class PortMixin:
             cv.blit(img, (sx - ax_, fy - ay_))
         if baked:
             mzl = baked['mz'].get(pose)
-            if not mzl or pose in ('die', 'wind', 'rel') or base not in ('player', 'sniper', 'gren', 'rifle'):
+            if not mzl or pose in ('die', 'wind', 'rel') or base not in ('player', 'sniper', 'gren', 'rifle', 'flame'):
                 return None
             mxr, myr = mzl[fi % len(mzl)]
-            if base == 'rifle':                              # fusilero: apunta con el cuadro dibujado; las balas salen de la punta del cañón
+            if base in ('rifle', 'flame'):                   # fusilero / lanzallamas: apunta con el cuadro dibujado; las balas salen de la punta del cañón
                 mx = sx + (mxr if right else -mxr) * sxs
                 my = fy + myr * sys_
                 self.pt_mz_last = (mx + self.pt['cam'], my, fr_ang)
@@ -1421,11 +1432,11 @@ class PortMixin:
                 arm = 'gun'
                 aim = tgt_aim
             fi = int(e['ph']) if pose == 'run' else int(t * 3 + e['ph0'])
-            self.pt_aim_hint = k == 'rifle' and e['burst'] > 0
+            self.pt_aim_hint = (k == 'rifle' and e['burst'] > 0) or (k == 'flame' and e['fire'] > 0)
             r_ = self.pt_char(cv, k, int(sx), fy, e['face'], pose, fi, aim, arm, e['hit'], 255, True, (e['flash'] > 0 and k != 'flame') or (k == 'gren' and 0 < e['thr'] <= 0.14), 0.0, e.get('fem', False))
             if r_:
                 e['pv'] = (r_[0] + cam, r_[1])
-            e['mz'] = self.pt_mz_last if k == 'rifle' else None
+            e['mz'] = self.pt_mz_last if k in ('rifle', 'flame') else None
             if k == 'sniper' and e['tele'] > 0:
                 ay = e['y'] - 34
                 pygame.draw.line(cv, (255, 40, 40), (sx, ay), (p['x'] - cam, p['y'] - 36), 1)

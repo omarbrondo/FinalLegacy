@@ -486,7 +486,7 @@ def _arm_layer(kind, mode):
 POSE_MAP = {'run': 'correr', 'idle': 'reposo', 'crouch': 'agachado', 'jump': 'salto', 'fall': 'caida', 'die': 'muerte',
             'wind': 'granada_preparar', 'rel': 'granada_lanzar', 'up': 'arriba', 'down': 'abajo', 'attack': 'ataque'}
 BAKED_FILES = {'player': 'soldado', 'player_f': 'soldada', 'knife': 'cuchillero', 'knife_f': 'cuchillera', 'sniper': 'francotirador', 'sniper_f': 'francotiradora',
-               'gren': 'granadero', 'rifle': 'fusilero', 'rifle_f': 'fusilera', 'shield': 'escudero'}
+               'gren': 'granadero', 'rifle': 'fusilero', 'rifle_f': 'fusilera', 'shield': 'escudero', 'flame': 'lanzallamas'}
 
 
 def load_baked_soldier(art, kind):
