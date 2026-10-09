@@ -217,9 +217,9 @@ class BoardMixin:
         self.text(cv, 'BOTES RESTANTES %d' % left, self.f_s, (200, 225, 250), W // 2, 66, 'c')
         self.bar(cv, 30, H - 54, 260, 18, min(1.0, bo['heat']), (255, 120, 70) if bo['locked'] else (255, 200, 90), 'SOBRECALENTADA' if bo['locked'] else 'AMETRALLADORA')
         if bo['phase'] == 'intro':
-            self.text(cv, 'PREPARADOS...', self.f_xl, (255, 225, 130), W // 2, 170, 'c')
+            self.text(cv, 'PREPARADOS...', self.f_xl, (255, 225, 130), W // 2, 330, 'c')
         elif bo['phase'] == 'invaded':
-            self.text(cv, '¡INVASIÓN!', self.f_xl, (255, 90, 80), W // 2, 170, 'c')
+            self.text(cv, '¡INVASIÓN!', self.f_xl, (255, 90, 80), W // 2, 330, 'c')
 
     # ------------------------------------------------------------------ nivel en cubierta (reutiliza el del puerto)
     def start_deck(self):

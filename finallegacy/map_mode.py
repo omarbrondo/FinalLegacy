@@ -851,38 +851,38 @@ class MapMixin:
         if bs:
             if n_ant < self.antennas_needed():
                 self.text(cv, 'ESCUDO DEL JEFE: necesitás %d antenas (tenés %d) - desembarcá en las islas (L)' % (self.antennas_needed(), n_ant),
-                          self.f_m, (255, 150, 235), W // 2, H - 176, 'c')
+                          self.f_m, (255, 150, 235), W // 2, H - 182, 'c')
             elif bs['hack_cd'] > 0:
-                self.text(cv, 'Sistemas enemigos reiniciando: %d s' % math.ceil(bs['hack_cd']), self.f_m, (255, 200, 120), W // 2, H - 176, 'c')
+                self.text(cv, 'Sistemas enemigos reiniciando: %d s' % math.ceil(bs['hack_cd']), self.f_m, (255, 200, 120), W // 2, H - 182, 'c')
             else:
                 self.text(cv, 'H: CIBERATAQUE al escudo del jefe (%d antena%s)' % (n_ant, '' if n_ant == 1 else 's'), self.f_m,
-                          (130, 240, 255), W // 2, H - 176, 'c')
+                          (130, 240, 255), W // 2, H - 182, 'c')
         dk = self.nearest_dock()
         if dk:
             st = dk['stock']
             if st['fuel'] < 1 and st['repair'] < 1 and st['ammo'] < 1:
-                self.text(cv, '%s: suministros agotados hasta que se reponga' % dk['name'], self.f_m, (255, 170, 120), W // 2, H - 148, 'c')
+                self.text(cv, '%s: suministros agotados hasta que se reponga' % dk['name'], self.f_m, (255, 170, 120), W // 2, H - 154, 'c')
             else:
                 role = self.city_role(dk)
                 if role == 'all':
                     self.text(cv, 'PUERTO: mantené R para reabastecer  |  Combustible %d  Reparación %d  Munición %d' %
-                              (st['fuel'], st['repair'], st['ammo']), self.f_m, (140, 255, 210), W // 2, H - 148, 'c')
+                              (st['fuel'], st['repair'], st['ammo']), self.f_m, (140, 255, 210), W // 2, H - 154, 'c')
                 else:
                     key = role
                     self.text(cv, 'PUERTO: mantené R para reabastecer %s: %d  |  solo abastece este recurso' % (ROLE_TXT[role].lower(), st[key]),
-                              self.f_m, (140, 255, 210), W // 2, H - 148, 'c')
+                              self.f_m, (140, 255, 210), W // 2, H - 154, 'c')
         elif self.near_helipad(260) and (self.heli_sorties > 0 or self.jet_sorties > 0):
             self.text(cv, 'BASE AÉREA: B Blackhawk (%d)  |  J caza F-16 (%d)' % (self.heli_sorties, self.jet_sorties),
-                      self.f_m, (130, 255, 190), W // 2, H - 148, 'c')
+                      self.f_m, (130, 255, 190), W // 2, H - 154, 'c')
         elif self.nearest_radar() is not None:
-            self.text(cv, 'RADAR ENEMIGO: presioná H para hackearlo  |  1) nodos  2) señal de radio', self.f_m, (255, 190, 150), W // 2, H - 148, 'c')
+            self.text(cv, 'RADAR ENEMIGO: presioná H para hackearlo  |  1) nodos  2) señal de radio', self.f_m, (255, 190, 150), W // 2, H - 154, 'c')
         elif self.nearest_port():
             if self.invasion_locked(PORT_RADARS, 'Asalto', True):
                 self.text(cv, 'PUERTO ENEMIGO BLOQUEADO: interceptá %d radares (tenés %d)' % (PORT_RADARS, self.radars_done()),
-                          self.f_m, (255, 170, 120), W // 2, H - 148, 'c')
+                          self.f_m, (255, 170, 120), W // 2, H - 154, 'c')
             else:
                 self.text(cv, 'PUERTO ENEMIGO: presioná T para asaltarlo  |  Intentos: %d/2' % self.port_tries,
-                          self.f_m, (255, 150, 120), W // 2, H - 148, 'c')
+                          self.f_m, (255, 150, 120), W // 2, H - 154, 'c')
         else:
             island = self.nearest_landing_island()
             if island:
@@ -890,19 +890,19 @@ class MapMixin:
                 attempts = self.landing_attempts[island_idx]
                 if island_idx in self.cleared_isl:
                     self.text(cv, '%s DESPEJADA por el Blackhawk: presioná L para instalar la antena sin resistencia' % self.isl_name(island_idx),
-                              self.f_m, (120, 255, 190), W // 2, H - 148, 'c')
+                              self.f_m, (120, 255, 190), W // 2, H - 154, 'c')
                 elif attempts >= MAX_LANDING_ATTEMPTS:
                     self.text(cv, '%s: sin intentos de desembarco' % self.isl_name(island_idx),
-                              self.f_m, (255, 140, 110), W // 2, H - 148, 'c')
+                              self.f_m, (255, 140, 110), W // 2, H - 154, 'c')
                 elif self.invasion_locked(LAND_RADARS, 'Desembarco', True):
                     self.text(cv, '%s BLOQUEADA: interceptá %d radar enemigo para desembarcar (tenés %d)' % (self.isl_name(island_idx), LAND_RADARS, self.radars_done()),
-                              self.f_m, (255, 170, 120), W // 2, H - 148, 'c')
+                              self.f_m, (255, 170, 120), W // 2, H - 154, 'c')
                 else:
                     self.text(cv, '%s CERCANA: presioná L para desembarcar (10 soldados enemigos)  |  Intentos: %d/%d' %
                               (self.isl_name(island_idx), attempts, MAX_LANDING_ATTEMPTS),
-                              self.f_m, (100, 180, 255), W // 2, H - 148, 'c')
+                              self.f_m, (100, 180, 255), W // 2, H - 154, 'c')
             elif self.fuel <= 0:
-                self.text(cv, 'SIN COMBUSTIBLE - MOTOR AUXILIAR (lento)', self.f_m, (255, 90, 80), W // 2, H - 148, 'c')
+                self.text(cv, 'SIN COMBUSTIBLE - MOTOR AUXILIAR (lento)', self.f_m, (255, 90, 80), W // 2, H - 154, 'c')
         if self.warned and int(self.t * 4) % 2 == 0:
             pygame.draw.rect(cv, (255, 40, 40), (0, 0, W, H), 8)
 
