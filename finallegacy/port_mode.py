@@ -830,7 +830,13 @@ class PortMixin:
                 pt['phase'], pt['fail'], pt['pt'] = 'result', True, -0.6
                 self.banner('¡SOLDADO CAÍDO!', 'El asalto fracasó', (255, 80, 70), 3.0)
         boss_dead = pt['boss'] is None and pt['groups'][-1]['done'] and not any(e['kind'] == 'tank' for e in pt['enemies'])
-        if pt['phase'] == 'play' and boss_dead:
+        if pt.get('deck'):                                                         # cubierta: se gana al derrotar a todos los invasores
+            boss_dead = all(g['done'] for g in pt['groups']) and not any(e['kind'] != 'turret' for e in pt['enemies'])
+        if pt['phase'] == 'play' and boss_dead and pt.get('deck'):
+            pt['phase'], pt['pt'] = 'result', 0.0
+            pt['rank'] = None
+            self.audio.play('win', .8)
+        elif pt['phase'] == 'play' and boss_dead:
             pt['phase'], pt['pt'] = 'result', 0.0
             hpf = p['hp'] / PLAYER_HP
             pts_ = (hpf >= 0.6) + (pt['t'] < 240) + (pt['pow_n'] >= 4) + (pt['taken'] < 100)
@@ -843,7 +849,7 @@ class PortMixin:
             self.banner('¡PUERTO TOMADO!', 'Rango %s  |  Bonus +%d' % (rank, bonus), (120, 255, 160), 3.4)
         if pt['phase'] == 'result':
             pt['pt'] += dt
-            if pt['pt'] > (3.4 if pt['fail'] else 6.0):
+            if pt['pt'] > (3.4 if pt['fail'] else (2.4 if pt.get('deck') else 6.0)):
                 self.end_port()
 
     PT_MUZ = {'sniper': 106, 'flame': 62, 'player': 70}
@@ -891,6 +897,8 @@ class PortMixin:
 
     def end_port(self):
         pt = self.pt
+        if pt.get('deck'):
+            return self.end_deck()
         if pt['fail']:
             self.hull = max(0.0, self.hull - 20)
             self.ammo = max(0, self.ammo - 4)
@@ -1166,30 +1174,33 @@ class PortMixin:
         GR = self.PT_GR
         t = self.t
         cv.blit(bg['sky'], (0, 0))
-        cv.blit(bg['sea'], (0, 410))
-        for i in range(10):
-            yy = 430 + i * 20
-            xx = (i * 191 + t * (9 + i * 2)) % (W + 160) - 80
-            pygame.draw.line(cv, (255, 206, 160), (xx, yy), (xx + 40 + i * 5, yy), 2)
-        cv.blit(bg['far'], (0, 330), area=pygame.Rect(int(cam * 0.18), 0, W, 230))
-        cv.blit(bg['mid'], (0, GR - 330), area=pygame.Rect(int(cam * 0.5), 0, W, 330))
-        # muelle
-        for y in range(GR, H, 4):
-            f = (y - GR) / (H - GR)
-            pygame.draw.rect(cv, (int(lerp(112, 66, f)), int(lerp(108, 62, f)), int(lerp(122, 78, f))), (0, y, W, 4))
-        pygame.draw.rect(cv, (150, 146, 156), (0, GR, W, 6))
-        pygame.draw.rect(cv, (60, 58, 70), (0, GR + 6, W, 3))
-        for x in range(-int(cam) % 130, W, 130):
-            pygame.draw.line(cv, (62, 60, 72), (x, GR + 10), (x - 22, H), 2)
-        for y in (GR + 56, GR + 112):
-            pygame.draw.line(cv, (62, 60, 72), (0, y), (W, y), 1)
-        for x in range(-int(cam) % 260, W, 260):
-            pygame.draw.rect(cv, (240, 200, 50), (x, GR + 3, 70, 3))
-        for px_, pw_ in pt['puddles']:
-            xx = px_ - cam
-            if -80 < xx < W:
-                pygame.draw.ellipse(cv, (190, 130, 120), (xx, GR + 26, pw_, 12))
-                pygame.draw.ellipse(cv, (240, 170, 130), (xx + pw_ * 0.2, GR + 29, pw_ * 0.4, 4))
+        if pt.get('deck'):
+            self.deck_draw_back(cv, cam)
+        else:
+            cv.blit(bg['sea'], (0, 410))
+            for i in range(10):
+                yy = 430 + i * 20
+                xx = (i * 191 + t * (9 + i * 2)) % (W + 160) - 80
+                pygame.draw.line(cv, (255, 206, 160), (xx, yy), (xx + 40 + i * 5, yy), 2)
+            cv.blit(bg['far'], (0, 330), area=pygame.Rect(int(cam * 0.18), 0, W, 230))
+            cv.blit(bg['mid'], (0, GR - 330), area=pygame.Rect(int(cam * 0.5), 0, W, 330))
+            # muelle
+            for y in range(GR, H, 4):
+                f = (y - GR) / (H - GR)
+                pygame.draw.rect(cv, (int(lerp(112, 66, f)), int(lerp(108, 62, f)), int(lerp(122, 78, f))), (0, y, W, 4))
+            pygame.draw.rect(cv, (150, 146, 156), (0, GR, W, 6))
+            pygame.draw.rect(cv, (60, 58, 70), (0, GR + 6, W, 3))
+            for x in range(-int(cam) % 130, W, 130):
+                pygame.draw.line(cv, (62, 60, 72), (x, GR + 10), (x - 22, H), 2)
+            for y in (GR + 56, GR + 112):
+                pygame.draw.line(cv, (62, 60, 72), (0, y), (W, y), 1)
+            for x in range(-int(cam) % 260, W, 260):
+                pygame.draw.rect(cv, (240, 200, 50), (x, GR + 3, 70, 3))
+            for px_, pw_ in pt['puddles']:
+                xx = px_ - cam
+                if -80 < xx < W:
+                    pygame.draw.ellipse(cv, (190, 130, 120), (xx, GR + 26, pw_, 12))
+                    pygame.draw.ellipse(cv, (240, 170, 130), (xx + pw_ * 0.2, GR + 29, pw_ * 0.4, 4))
         # decorado de fondo
         D = self.pt_dc
         for d in pt['decor']:
@@ -1485,7 +1496,7 @@ class PortMixin:
         self.text(cv, 'PUNTOS %07d' % self.score, self.f_m, (255, 255, 255), 26, 18)
         self.text(cv, 'OLEADA %d/%d   BAJAS %d' % (self.wave, WIN_WAVE, pt['kills']), self.f_s, (160, 200, 240), 26, 42)
         self.panel(cv, (W // 2 - 230, 12, 460, 70), 170)
-        self.text(cv, 'PUERTO ENEMIGO', self.f_m, (255, 140, 110), W // 2, 16, 'c')
+        self.text(cv, 'CUBIERTA INVADIDA' if pt.get('deck') else 'PUERTO ENEMIGO', self.f_m, (255, 140, 110), W // 2, 16, 'c')
         boss = pt['boss']
         if boss is not None:
             self.bar(cv, W // 2 - 210, 44, 420, 26, boss['hp'] / boss['max'], (240, 80, 70), 'HELICÓPTERO DE ASALTO' if boss.get('variant') == 'heli' else 'TANQUE DE PUERTO')

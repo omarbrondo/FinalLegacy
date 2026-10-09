@@ -294,6 +294,7 @@ class MapMixin:
                     return self.start_combat(ship, nst)
                 return self.start_combat(nst)
         self.bat_tick(dt)
+        self.board_map_tick(dt)
         # cajas
         self.crate_t -= dt
         if self.crate_t <= 0 and len(self.crates) < 5:
