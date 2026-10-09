@@ -963,6 +963,8 @@ class PortMixin:
             elif base == 'knife':                            # cuchillero: al atacar (brazo en alto) usa el cuadro de la cuchillada
                 if aim is not None and abs(aim[1] - 0.1) > 0.02 and aim[1] < 0.1 and 'attack' in art['body'][kind]:
                     pose = 'attack'
+            elif base == 'gren' and flash and pose in ('run', 'idle') and 'apuntar_1' in art['body'][kind]:
+                pose = 'apuntar_1'                           # el granadero dispara con el lanzagranadas en horizontal
             elif aim is not None and base == 'player' and pose in ('run', 'idle', 'crouch', 'jump', 'fall'):
                 th_ = math.degrees(math.atan2(aim[1], aim[0] if face > 0 else -aim[0]))
                 th_ = clamp(th_, -PT_AIM_MAX, PT_AIM_DOWN)
@@ -1021,9 +1023,16 @@ class PortMixin:
             cv.blit(img, (sx - ax_, fy - ay_))
         if baked:
             mzl = baked['mz'].get(pose)
-            if not mzl or pose in ('die', 'wind', 'rel') or base != 'player':
+            if not mzl or pose in ('die', 'wind', 'rel') or base not in ('player', 'sniper', 'gren'):
                 return None
             mxr, myr = mzl[fi % len(mzl)]
+            if base != 'player':                             # enemigos dibujados a mano: arma horizontal, fogonazo en la boca del arma y punto de mira derivado de ahí
+                ln = self.PT_MUZ.get(base, 74)
+                mx = sx + (mxr if right else -mxr) * sxs
+                my = fy + myr * sys_
+                if flash:
+                    self.pt_flash(cv, mx, my, 0.0, right)
+                return mx - (ln if right else -ln), my
             if gun_ang:
                 hx_, hy_ = 0.0, -HIP_UP
                 c_, s_ = math.cos(math.radians(gun_ang)), math.sin(math.radians(gun_ang))
