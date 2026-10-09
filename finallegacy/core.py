@@ -24,6 +24,21 @@ from .boss_art import BOSS_TYPES, make_boss_sprite
 from .air_art import BOSS_W, load_png_sprite, load_turret_png, polish
 
 
+def _wrap_text(font, text, maxw):
+    """Parte un texto en líneas que entran en maxw píxeles (por palabras)."""
+    lines, cur = [], ''
+    for w_ in text.split(' '):
+        t_ = (cur + ' ' + w_).strip()
+        if font.size(t_)[0] <= maxw or not cur:
+            cur = t_
+        else:
+            lines.append(cur)
+            cur = w_
+    if cur:
+        lines.append(cur)
+    return lines or ['']
+
+
 class CoreMixin:
     def __init__(self):
         pygame.display.set_caption('RETRO LEGACY')
@@ -608,11 +623,11 @@ class CoreMixin:
         record = self.score > self.hiscore
         self.save_hi()
         if victory:
-            self.say('secretaria', 'Misión cumplida, capitán. El archipiélago está a salvo. Puntaje final: %d.' % self.score, 'ok')
+            self.say('secretaria', 'Misión cumplida, capitán. El archipiélago está a salvo. Puntaje final: %d.' % self.score, 'ok', y=650)
         else:
-            self.say('secretaria', 'Operación finalizada. Puntaje final: %d. Recomiendo reintentar cuando esté listo.' % self.score, 'warn')
+            self.say('secretaria', 'Operación finalizada. Puntaje final: %d. Recomiendo reintentar cuando esté listo.' % self.score, 'warn', y=650)
         if record:
-            self.say('secretaria', 'Nuevo récord registrado: %d puntos. Felicitaciones.' % self.score, 'ok')
+            self.say('secretaria', 'Nuevo récord registrado: %d puntos. Felicitaciones.' % self.score, 'ok', y=650)
         self.audio.play('fanfare' if victory else 'lose')
         self.go('gameover')
 
@@ -1032,15 +1047,21 @@ class CoreMixin:
 
     def draw_overlays(self, cv):
         self.comms_draw(cv)
-        for i, q in enumerate(self.toasts):
-            self.text(cv, q[0], self.f_m, q[1], W // 2, 70 + i * 26, 'c', alpha=int(255 * clamp(q[2], 0, 1)))
-        if self.banners:
+        ty_ = 120 if self.state == 'map' else 70                   # en el mapa los avisos van bajo los textos del HUD de la izquierda
+        if self.banners and not self.paused:
+            ty_ = max(ty_, 276)                                    # con un banner en pantalla, los avisos van debajo
+        for q in ([] if self.paused else self.toasts):                                     # avisos: se parten en líneas para no pisar los recuadros de los costados
+            for ln in _wrap_text(self.f_m, q[0], 520):
+                self.text(cv, ln, self.f_m, q[1], W // 2, ty_, 'c', alpha=int(255 * clamp(q[2], 0, 1)))
+                ty_ += 26
+        if self.banners and not self.paused:
             b = self.banners[0]
             k = b[3] / b[4]
             a = int(255 * clamp(min(k * 6, (1 - k) * 8 + 0.2, 1), 0, 1))
-            self.text(cv, b[0], self.f_l, b[2], W // 2, 190, 'c', alpha=a)
+            self.text(cv, b[0], self.fit_font(b[0], W - 70, self.f_l, self.f_m, self.f_s), b[2], W // 2, 190, 'c', alpha=a)
             if b[1]:
-                self.text(cv, b[1], self.f_m, (235, 240, 255), W // 2, 232, 'c', alpha=a)
+                for j_, ln in enumerate(_wrap_text(self.f_m, b[1], W - 140)[:2]):
+                    self.text(cv, ln, self.f_m, (235, 240, 255), W // 2, 232 + j_ * 26, 'c', alpha=a)
         for s, x, y, life, col in self.pops:
             self.text(cv, s, self.f_m, col, int(x), int(y), 'c', alpha=int(255 * clamp(life * 1.5, 0, 1)))
         if self.state == 'map' and getattr(self, 'shield_int', 0.0) > 0:          # interferencia del escudo de un jefe

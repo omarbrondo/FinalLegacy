@@ -756,9 +756,9 @@ class DogfightMixin:
             self.text(cv, '¡MISIL ENTRANTE! (F: BENGALAS)', self.f_m, (255, 90, 80), W // 2, 140, 'c')
         ph = jt['phase']
         if ph == 'intro':
-            self.text(cv, 'DESPEGANDO...', self.f_xl, (150, 220, 255), W // 2, 190, 'c')
+            self.text(cv, 'DESPEGANDO...', self.f_xl, (150, 220, 255), W // 2, 330, 'c')
         elif ph == 'break':
-            self.text(cv, 'CAMBIO DE OLEADA', self.f_l, (150, 230, 255), W // 2, 170, 'c')
+            self.text(cv, 'CAMBIO DE OLEADA', self.f_l, (150, 230, 255), W // 2, 330, 'c')
         if p['hit'] > 0:
             self.hurt_surf.set_alpha(int(255 * clamp(p['hit'] * 3, 0, 1) * 0.45))
             cv.blit(self.hurt_surf, (0, 0))

@@ -596,15 +596,15 @@ class BatDefMixin:
         self.text(cv, 'TANDA %d/%d' % (bd['stage'] + 1, STAGES), self.f_m, (255, 225, 140), W // 2, 56, 'c')
         left = len([e for e in bd['enemies'] if not e.get('dead')]) + len(bd['spawns'])
         self.text(cv, 'ENEMIGOS %d' % left, self.f_s, (255, 160, 140), W // 2, 84, 'c')
-        self.bar(cv, 30, H - 110, 260, 18, min(1.0, bd['heat']), (255, 120, 70) if bd['locked'] else (255, 200, 90), 'SOBRECALENTADA' if bd['locked'] else 'AMETRALLADORA')
-        self.bar(cv, 30, H - 82, 260, 18, 1.0 - bd['sh_cd'] / 1.5, (130, 220, 255), 'PROYECTIL PESADO (CLIC DER.)')
-        self.bar(cv, 30, H - 54, 260, 18, 1.0 - bd['fl_cd'] / 4.5, (255, 235, 170), 'CORTINA ANTIAÉREA (ESPACIO)')
+        self.bar(cv, 30, H - 110, 320, 18, min(1.0, bd['heat']), (255, 120, 70) if bd['locked'] else (255, 200, 90), 'SOBRECALENTADA' if bd['locked'] else 'AMETRALLADORA')
+        self.bar(cv, 30, H - 82, 320, 18, 1.0 - bd['sh_cd'] / 1.5, (130, 220, 255), 'PROYECTIL PESADO (CLIC DER.)')
+        self.bar(cv, 30, H - 54, 320, 18, 1.0 - bd['fl_cd'] / 4.5, (255, 235, 170), 'CORTINA ANTIAÉREA (ESPACIO)')
         self.text(cv, 'Puntos de la defensa: %d' % bd['pts'], self.f_s, (200, 225, 250), W - 30, H - 40, 'r')
         ph = bd['phase']
         if ph == 'intro':
-            self.text(cv, 'PREPARADOS...', self.f_xl, (255, 225, 130), W // 2, 180, 'c', alpha=int(255 * clamp(1.2 - bd['pt'] / 3.0, 0.3, 1)))
+            self.text(cv, 'PREPARADOS...', self.f_xl, (255, 225, 130), W // 2, 330, 'c', alpha=int(255 * clamp(1.2 - bd['pt'] / 3.0, 0.3, 1)))
         elif ph == 'break':
-            self.text(cv, 'RECARGANDO...', self.f_l, (150, 230, 255), W // 2, 160, 'c')
+            self.text(cv, 'RECARGANDO...', self.f_l, (150, 230, 255), W // 2, 330, 'c')
         if bd['hit'] > 0:
             self.hurt_surf.set_alpha(int(255 * clamp(bd['hit'] * 3, 0, 1) * 0.5))
             cv.blit(self.hurt_surf, (0, 0))
