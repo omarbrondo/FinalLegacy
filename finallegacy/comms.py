@@ -9,7 +9,8 @@ from .common import H, W, clamp
 
 PW, PH = 112, 137                     # tamaño máximo de la viñeta del personaje (el ancho se ajusta a la imagen)
 _PW0, _PH0 = 150, 176                 # tamaño con el que se dibujan las siluetas provisorias (después se reducen)
-CROP_TOP = {'secretaria': 0.08}      # fracción del alto de la imagen que se omite arriba al mostrar el busto (por personaje)
+CROP_ZOOM = {'piloto': 0.86}          # retratos con el casco muy grande: se muestra solo parte del ancho (centrado), así la cara queda más grande y más arriba
+CROP_TOP = {'secretaria': 0.08, 'piloto': 0.085}      # fracción del alto de la imagen que se omite arriba al mostrar el busto (por personaje)
 BW = 340                              # ancho máximo del globo
 ENTER, HOLD_MIN, EXIT, GAP = 0.5, 1.8, 0.45, 0.12
 TYPE_CPS = 42.0                       # caracteres por segundo del texto
@@ -156,8 +157,9 @@ class CommsMixin:
                             raw = raw.subsurface(box).copy()
                         if raw.get_height() > 1.22 * raw.get_width():                                # imágenes muy altas: se muestra el busto (parte de arriba) para que llenen el recuadro sin bandas
                             y0 = int(CROP_TOP.get(who, 0.0) * raw.get_height())                    # algunos retratos tienen la cabeza más abajo: se salta parte del borde de arriba
-                            hh = int(1.22 * raw.get_width())
-                            raw = raw.subsurface((0, min(y0, raw.get_height() - hh), raw.get_width(), hh)).copy()
+                            zw = int(CROP_ZOOM.get(who, 1.0) * raw.get_width())
+                            hh = int(1.22 * zw)
+                            raw = raw.subsurface(((raw.get_width() - zw) // 2, min(y0, raw.get_height() - hh), zw, hh)).copy()
                         k = min(PW / raw.get_width(), PH / raw.get_height())
                         img = pygame.transform.smoothscale(raw, (max(1, int(raw.get_width() * k)), max(1, int(raw.get_height() * k))))
                         break
